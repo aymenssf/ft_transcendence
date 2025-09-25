@@ -16,9 +16,16 @@ RUN apt-get update && apt-get install -y \
 COPY services/auth-service/package*.json ./
 RUN npm ci --no-audit --no-fund
 
+# Allow modules inside /app/Shared_dataBase to resolve dependencies installed here
+ENV NODE_PATH=/app/services/auth-service/node_modules
+ENV PATH="$PATH:/app/services/auth-service/node_modules/.bin"
+
 # Copy service source and shared DB module
 COPY services/auth-service/ ./
 COPY Shared_dataBase/ /app/Shared_dataBase/
+
+# Provide a node_modules entry point for Shared_dataBase (module resolution walks upward, not sideways)
+RUN ln -s /app/services/auth-service/node_modules /app/Shared_dataBase/node_modules || true
 
 # Ensure database mount path exists
 RUN mkdir -p /app/database && chmod 755 /app/database
@@ -31,106 +38,28 @@ RUN npm rebuild bcrypt --build-from-source
 
 EXPOSE 3010
 
-CMD ["node", "dist/server.js"]FROM node:20-slim
-
-# Use service directory as workdir so relative imports remain correct after build
-WORKDIR /app/services/auth-service
-
-RUN apt-get update && apt-get install -y \
-    curl \
-    python3 \
-    make \
-    g++ \
-    sqlite3 \
-    libsqlite3-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install service dependencies (dev deps included for TypeScript build)
-COPY services/auth-service/package*.json ./
-RUN npm install
-
-# Copy service source and the shared DB module (kept in JS)
-COPY services/auth-service/ ./
-COPY Shared_dataBase/ /app/Shared_dataBase/
-
-# Ensure database volume mount path exists at /app/database
-RUN mkdir -p /app/database && chmod 755 /app/database
-
-# Build TypeScript -> dist
-RUN npm run build
-
-# Rebuild bcrypt native binding inside the container to avoid ELF mismatch
-RUN npm rebuild bcrypt --build-from-source
-
-EXPOSE 3010
-
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#   CMD curl -f http://localhost:3010/test || exit 1
-
 CMD ["node", "dist/server.js"]
-FROM node:20-slim
 
-# Keep the same folder structure as the repo so relative imports work
-WORKDIR /app/services/auth-service
+# --- If you want multiple build stages, split each stage into its own Dockerfile or separate with comments.
+# --- Only one CMD per stage is allowed. Below is a single-stage Dockerfile example.
 
-RUN apt-get update && apt-get install -y \
-    curl \
-    python3 \
-    make \
-    g++ \
-    sqlite3 \
-    libsqlite3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# FROM node:20-slim
+# WORKDIR /app/services/auth-service
+# RUN apt-get update && apt-get install -y \
+#     python3 \
+#     make \
+#     g++ \
+#     sqlite3 \
+#     libsqlite3-dev \
+#     && rm -rf /var/lib/apt/lists/*
+# COPY services/auth-service/package*.json ./
+# RUN npm ci --no-audit --no-fund
+# COPY services/auth-service/ ./
+# COPY Shared_dataBase/ /app/Shared_dataBase/
+# RUN mkdir -p /app/database && chmod 755 /app/database
+# RUN npm run build
+# RUN npm rebuild bcrypt --build-from-source
+# EXPOSE 3010
+# CMD ["node", "dist/server.js"]
 
-# Install service dependencies
-COPY services/auth-service/package*.json ./
-RUN npm install
-
-# Copy service source and the shared DB module
-COPY services/auth-service/ ./
-COPY Shared_dataBase/ /app/Shared_dataBase/
-
-# Ensure database volume mount path exists at /app/database
-RUN mkdir -p /app/database && chmod 755 /app/database
-
-# Build TypeScript -> dist
-RUN npm run build
-
-EXPOSE 3010
-
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#   CMD curl -f http://localhost:3010/test || exit 1
-
-CMD ["node", "dist/server.js"]FROM node:20-slim
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y \
-    curl \
-    python3 \
-    make \
-    g++ \
-    sqlite3 \
-    libsqlite3-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install dependencies
-COPY services/auth-service/package*.json ./
-RUN npm install
-
-# Copy source code
-COPY services/auth-service/ ./
-COPY Shared_dataBase/ ./Shared_dataBase/
-
-# Ensure database folder exists and is writable; it will be mounted in compose
-RUN mkdir -p database && chmod 755 database
-
-# Build TypeScript -> dist
-RUN npm run build
-
-EXPOSE 3010
-
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#   CMD curl -f http://localhost:3010/test || exit 1
-
-CMD ["node", "dist/server.js"]
+# --- Remove all duplicate FROM/CMD blocks from this file, or split into separate Dockerfiles as needed.

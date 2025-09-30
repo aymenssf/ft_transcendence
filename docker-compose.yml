@@ -18,6 +18,28 @@ services:
       - transcendence-network
     restart: unless-stopped
     command: ["node", "dist/server.js"]
+  chat-service:
+    build:
+      context: .
+      dockerfile: services/chat-service/Dockerfile
+    container_name: ft_transcendence_chat
+    working_dir: /app/services/chat-service
+    ports:
+      - "3011:3011"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=transcendence-secret-key-change-in-production
+      - AUTH_SERVICE_URL=http://auth-service:3010
+    volumes:
+      - ./database:/app/database:rw
+    networks:
+      - transcendence-network
+    depends_on:
+      - auth-service
+    restart: unless-stopped
+    command: ["node", "dist/server.js"]
+
+
 networks:
   transcendence-network:
     driver: bridge

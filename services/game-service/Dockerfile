@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY services/game-service/package*.json ./
-RUN npm ci --no-audit --no-fund
+# RUN npm ci --no-audit --no-fund
 
 ENV NODE_PATH=/app/services/game-service/node_modules
 ENV PATH="$PATH:/app/services/game-service/node_modules/.bin"
@@ -25,7 +25,6 @@ RUN mkdir -p /app/database && chmod 755 /app/database
 
 RUN npm run build
 
-RUN npm rebuild bcrypt --build-from-source
 
 EXPOSE 3012
 

@@ -1,4 +1,3 @@
-// Helper to dynamically load the shared SQLite DB regardless of runtime location (TS vs compiled dist)
 import { URL } from "url";
 
 export interface UserRow {
@@ -23,11 +22,8 @@ export interface DB {
 }
 
 export default async function loadSharedDb(): Promise<DB> {
-  // Try path that works in local TS (from services/auth-service/server.ts)
   const candidates = [
-    // Works when running TS directly (tsx) from services/auth-service/server.ts
     "../../Shared_dataBase/database/db-connection.js",
-    // Works when running compiled JS from services/auth-service/dist/server.js
     "../../../Shared_dataBase/database/db-connection.js",
   ];
 

@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-WORKDIR /app/services/auth-service
+WORKDIR /app/services/game-service
 
 RUN apt-get update && apt-get install -y \
     python3 \
@@ -10,16 +10,16 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY services/auth-service/package*.json ./
+COPY services/game-service/package*.json ./
 RUN npm ci --no-audit --no-fund
 
-ENV NODE_PATH=/app/services/auth-service/node_modules
-ENV PATH="$PATH:/app/services/auth-service/node_modules/.bin"
+ENV NODE_PATH=/app/services/game-service/node_modules
+ENV PATH="$PATH:/app/services/game-service/node_modules/.bin"
 
-COPY services/auth-service/ ./
+COPY services/game-service/ ./
 COPY Shared_dataBase/ /app/Shared_dataBase/
 
-RUN ln -s /app/services/auth-service/node_modules /app/Shared_dataBase/node_modules || true
+RUN ln -s /app/services/game-service/node_modules /app/Shared_dataBase/node_modules || true
 
 RUN mkdir -p /app/database && chmod 755 /app/database
 
@@ -27,7 +27,6 @@ RUN npm run build
 
 RUN npm rebuild bcrypt --build-from-source
 
-EXPOSE 3010
+EXPOSE 3012
 
 CMD ["node", "dist/server.js"]
-

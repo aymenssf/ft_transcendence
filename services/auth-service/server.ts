@@ -32,8 +32,9 @@ app.get("/test", async (_request: FastifyRequest, reply: FastifyReply) => {
 const db = await loadSharedDb();
 
 app.post("/register", async (
-  request: FastifyRequest<{ Body: RegisterBody }>
-  , reply) => {
+  request: FastifyRequest<{ Body: RegisterBody }>,
+  reply: FastifyReply
+) => {
   const { username, email, password } = request.body;
   try {
     const user = await db.subscribe({ username, email, password }); // avatar optional
@@ -56,38 +57,6 @@ app.post("/register", async (
     return reply.code(500).send({ error: "Registration failed" });
   }
 });
-
-
-// app.post("/register", async (
-//   request: FastifyRequest<{ Body: RegisterBody }>,
-//   reply: FastifyReply
-// ) => {
-//   const { username, email, password } = request.body;
-//   try {
-//   const existingUser = await db.findUserByUsername(username);
-//     if (existingUser) {
-//       return reply.status(400).send({ error: "Username already exists" });
-//     }
-//   const existingEmail = await db.findEmailByEmail(email);
-//     if (existingEmail) {
-//       return reply.status(400).send({ error: "Email already exists" });
-//     }
-
-//     const hashPassword = await bcrypt.hash(password, 12);
-
-//   const newUser = await db.createUser(username, email, hashPassword);
-
-//     request.log.info({ userId: newUser.id }, "New user created");
-
-//     return reply.send({
-//       message: "User registered successfully",
-//       newUser: { id: newUser.id, username: newUser.username },
-//     });
-//   } catch (err) {
-//     request.log.error({ err }, "Register error");
-//     return reply.code(500).send({ error: "Registration failed" });
-//   }
-// });
 
 app.post(
   "/login",

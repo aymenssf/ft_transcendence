@@ -38,8 +38,45 @@ services:
       - auth-service
     restart: unless-stopped
     command: ["node", "dist/server.js"]
-
-
+  game-service:
+    build:
+      context: .
+      dockerfile: services/game-service/Dockerfile
+    container_name: ft_transcendence_game
+    working_dir: /app/services/game-service
+    ports:
+      - "3012:3012"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=transcendence-secret-key-change-in-production
+      - AUTH_SERVICE_URL=http://auth-service:3010
+      - AI_SERVICE_URL=http://game-service:3012
+    volumes:
+      - ./database:/app/database:rw
+    networks:
+      - transcendence-network
+    depends_on:
+      - auth-service
+    restart: unless-stopped
+    command: ["node", "dist/server.js"]
+  
+  ai-service:
+    build:
+      context: .
+      dockerfile: services/ai-service/Dockerfile
+    container_name: ft_transcendence_ai
+    working_dir: /app/services/ai-service
+    ports:
+      - "3013:3013"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./database:/app/database:rw
+    networks:
+      - transcendence-network
+    restart: unless-stopped
+    command: ["node", "dist/server.js"]
+     
 networks:
   transcendence-network:
     driver: bridge

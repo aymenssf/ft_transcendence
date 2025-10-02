@@ -22,6 +22,7 @@ class Database {
   }
 
   initTables() {
+    // database auth-user
     this.db.run(`
           CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,6 +34,29 @@ class Database {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `);
+        
+    // database dyal chat template !!!
+    this.db.run(`
+          CREATE TABLE IF NOT EXISTS chat_rooms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            type TEXT CHECK(type IN ('private', 'group')) NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+    // database dyal game 
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS games (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player1_id INTEGER NOT NULL,
+        player2_id INTEGER,
+        player1_score INTEGER DEFAULT 0,
+        player2_score INTEGER DEFAULT 0 ,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        finished_at DATETIME
+    )
+    `);
   }
 
   createUser(username, email, password) {

@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import bcrypt from "bcrypt";
 import loadSharedDb from "./loadSharedDb.js";
+import { registeredUsersPlugin } from "./registered_users.js";
 
 interface RegisterBody {
   username: string;
@@ -27,6 +28,8 @@ await app.register(jwt, {
 app.get("/test", async (_request: FastifyRequest, reply: FastifyReply) => {
   reply.code(200).send({ ok: true, service: "auth-service", status: "running" });
 });
+
+await app.register(registeredUsersPlugin);
 
 // Load shared DB once at startup
 const db = await loadSharedDb();
@@ -57,45 +60,6 @@ app.post("/register", async (
     return reply.code(500).send({ error: "Registration failed" });
   }
 });
-
-app.post(
-  "/login",
-  async (
-    request: FastifyRequest<{ Body: LoginBody }>,
-    reply: FastifyReply
-  ) => {
-  const { username, password } = request.body;
-
-  try {
-  const user: any = await db.findUserByUsername(username);
-    if (!user) {
-      return reply.code(401).send({ error: "Invalid credentials" });
-    }
-
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return reply.code(401).send({ error: "Invalid credentials" });
-    }
-
-    const token = app.jwt.sign(
-      { userId: user.id, username: user.username },
-      { expiresIn: "7d" }
-    );
-
-    return reply.send({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-      },
-    });
-  } catch (error) {
-    request.log.error({ error }, "Login error");
-    return reply.code(500).send({ error: "Login failed" });
-  }
-}
-);
 
 const start = async () => {
   try {

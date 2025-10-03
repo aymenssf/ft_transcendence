@@ -1,0 +1,134 @@
+import type { FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
+import crypto, { sign } from "crypto";
+import bcrypt from "bcrypt";
+import loadSharedDb, { SecureDB, UserRow } from "./loadSharedDb.js";
+import { log } from "console";
+
+export interface LoginSuccess 
+{
+    token: string;
+    user: {
+        id: number;
+        username: string;
+        email: string;
+        avatar?: string | null;
+    };
+}
+
+export class AuthError extends Error
+{
+    status = 401 as const;
+    constructor(message: "Invalid credentials" | "Invalid username" | "Invalid password")
+    {
+        super(message);
+        this.name = "AuthError";
+    }
+}
+
+export async function verifyPassword(storedHash: string, plain: string): Promise<boolean>
+{
+    if (!storedHash) 
+        return false;
+    try 
+    {
+        if (/^\$2[aby]\$/.test(storedHash))
+            return await bcrypt.compare(plain, storedHash);
+        if (storedHash.startsWith("scrypt$1$"))
+        {
+            const parts = storedHash.split("$");
+            if (parts.length !== 4)
+                return false;
+            const [, , salt, hexHash] = parts;
+            const derived = await new Promise<any>((resolve, reject) =>
+            {
+                crypto.scrypt(plain, salt, 64, (err, buf) =>
+                {
+                    if (err) 
+                        reject(err);
+                    resolve(buf);
+                });
+            });
+            const storedBuf = Buffer.from(hexHash, "hex");
+            if (derived.length !== storedBuf.length)
+                return false;
+            return crypto.timingSafeEqual(storedBuf, derived);
+        }
+    }
+    catch (err)
+    {
+        return false;
+    }
+    return false;
+}
+
+export async function loginUser(params:{
+    db: SecureDB;
+    username: string;
+    password: string;
+    sign: (payload: object, options?: object) => string;
+    tokenTTL?: string;
+}): Promise<LoginSuccess>{
+    const {db, username, password, sign, tokenTTL = "7d"} = params;
+
+    const user = (await db.findUserByUsername(username)) as UserRow | undefined;
+
+    if (!user)
+        throw new AuthError("Invalid username");
+    const isValidPassword = await verifyPassword(user.password, password);
+    if (!isValidPassword)
+        throw new AuthError("Invalid password");
+
+    const token = sign({ userId: user.id, username: user.username }, { expiresIn: tokenTTL });
+    return {
+        token,
+        user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            avatar: (user as any).avatar ?? null,
+        },
+    };
+}
+
+export async function registeredUsersPlugin(app: FastifyInstance) 
+{
+    const db = await loadSharedDb();
+
+    if ((app as any).hasRoute && (app as any).hasRoute("/login"))
+    {
+		app.log.warn("registeredUsersPlugin: /login route already defined in server.ts; skipping duplicate");
+        return;
+    }
+
+	app.post("/login", async (request: FastifyRequest, reply: FastifyReply) => 
+    {
+        try
+        {
+            const { username, password } = request.body as { username: string; password: string; };
+            if (!username || !password)
+                throw new AuthError("Invalid credentials");
+            const result = await loginUser({
+                db,
+                username,
+                password,
+                sign: (payload, options) => app.jwt.sign(payload, options),
+            });
+            return reply.send(result);
+        }
+        catch (err: any)
+        {
+            if (err instanceof AuthError)
+                return reply.status(err.status).send({ error: err.message });
+            request.log.error({ err }, "Login error");
+            return reply.code(500).send({ error: "Login failed" });
+        }
+    });
+}
+
+export default
+{
+    AuthError,
+    verifyPassword,
+    loginUser,
+    registeredUsersPlugin,
+}

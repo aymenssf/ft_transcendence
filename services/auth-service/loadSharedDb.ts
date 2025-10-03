@@ -1,4 +1,3 @@
-// Helper to dynamically load the shared SQLite DB regardless of runtime location (TS vs compiled dist)
 import { URL } from "url";
 import crypto from "crypto";
 

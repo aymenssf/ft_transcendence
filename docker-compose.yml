@@ -47,18 +47,19 @@ services:
     ports:
       - "3012:3012"
     environment:
-      - NODE_ENV=production
       - JWT_SECRET=transcendence-secret-key-change-in-production
       - AUTH_SERVICE_URL=http://auth-service:3010
-      - AI_SERVICE_URL=http://game-service:3012
+      - AI_SERVICE_URL=http://ai-service:3013
     volumes:
+      - ./services/game-service:/app/services/game-service:rw
+      - /app/services/game-service/node_modules
       - ./database:/app/database:rw
+      - ./Shared_dataBase:/app/Shared_dataBase
     networks:
       - transcendence-network
-    depends_on:
-      - auth-service
+    # depends_on:
+      # - auth-service
     restart: unless-stopped
-    command: ["node", "dist/server.js"]
   
   ai-service:
     build:

@@ -1,0 +1,57 @@
+import { waitingQueue, playersSockets } from '../utils/store.js'
+import { createGameRoom, createInitialGameState, isPlaying } from "../helpers/helpers.js"
+import { startGameLoop } from "./gameLoop.js";
+
+function randomGame(connection, playerId) {
+    if (isPlaying(playerId)) {
+        connection.socket.send(JSON.stringify({
+            type: "join_error",
+            payload: {
+                playerId,
+                message: 'Player is already in game'
+            }
+        }));
+    }
+    console.log(`${playerId} requested to join random`);
+    if (!waitingQueue.has(playerId))
+        waitingQueue.add(playerId);
+
+    connection.socket.send(JSON.stringify({
+        type: "join_random_ack",
+        payload: { playerId }
+    }));
+
+    if (waitingQueue.size >= 2)
+        startRandomGame();
+}
+
+function startRandomGame() {
+    const iterator = waitingQueue.values();
+    const player_1 = iterator.next().value;
+    waitingQueue.delete(player_1);
+    const player_2 = iterator.next().value;
+    waitingQueue.delete(player_2);
+
+    console.log(`Player [${player_1} VS ${player_2}]`);
+
+    const player_1_socket = playersSockets.get(player_1);
+    const player_2_socket = playersSockets.get(player_2);
+
+    const gameRoom = createGameRoom(player_1, player_2, player_1_socket, "random");
+
+    gameRoom.sockets.add(player_2_socket);
+    gameRoom.status = "ongoing";
+    gameRoom.sockets.forEach(sock => sock.send(JSON.stringify(createInitialGameState(gameRoom.gameId, gameRoom.mode))));
+
+    setTimeout(() => {
+        gameRoom.sockets.forEach(sock => {
+            sock.send(JSON.stringify({
+                type: "game_start"
+            }));
+        });
+        startGameLoop(gameRoom);
+    }, 3000);
+
+}
+
+export default randomGame;

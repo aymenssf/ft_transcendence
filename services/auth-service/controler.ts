@@ -11,7 +11,7 @@ export function registerControllers(app: FastifyInstance, db: SecureDB)
     reply.code(200).send({ ok: true, service: "auth-service", status: "running" });
   });
 
-  app.post("/register", async (request: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) => {
+  app.post("/register", async (request: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) => { 
     const { username, email, password, avatar } = request.body;
     try 
     {

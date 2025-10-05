@@ -90,45 +90,9 @@ export async function loginUser(params:{
     };
 }
 
-export async function registeredUsersPlugin(app: FastifyInstance) 
-{
-    const db = await loadSharedDb();
-
-    if ((app as any).hasRoute && (app as any).hasRoute("/login"))
-    {
-		app.log.warn("registeredUsersPlugin: /login route already defined in server.ts; skipping duplicate");
-        return;
-    }
-
-	app.post("/login", async (request: FastifyRequest, reply: FastifyReply) => 
-    {
-        try
-        {
-            const { username, password } = request.body as { username: string; password: string; };
-            if (!username || !password)
-                throw new AuthError("Invalid credentials");
-            const result = await loginUser({
-                db,
-                username,
-                password,
-                sign: (payload, options) => app.jwt.sign(payload, options),
-            });
-            return reply.send(result);
-        }
-        catch (err: any)
-        {
-            if (err instanceof AuthError)
-                return reply.status(err.status).send({ error: err.message });
-            request.log.error({ err }, "Login error");
-            return reply.code(500).send({ error: "Login failed" });
-        }
-    });
-}
-
 export default
 {
     AuthError,
     verifyPassword,
     loginUser,
-    registeredUsersPlugin,
 }

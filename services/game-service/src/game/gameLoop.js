@@ -126,6 +126,7 @@ function checkBallCollision(ball, paddles) {
 // }
 
 export function startGameLoop(gameRoom, FPS = 60) {
+    gameRoom.status = "ongoing";
     gameRoom.loop = setInterval(() => {
         const { state, sockets } = gameRoom;
         const { ball, paddles, canvas } = state;

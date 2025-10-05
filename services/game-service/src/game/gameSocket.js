@@ -3,6 +3,7 @@ import { gameUpdate } from "./gameLoop.js";
 import randomGame from "./randomGame.js"
 import { findGameRoomByPlayer } from "../helpers/helpers.js"
 import { localGame } from "./localGame.js";
+import WebSocket from 'ws';
 
 async function gameSocket(fastify, options) {
     fastify.get('/ws', { websocket: true }, (connection, req) => {
@@ -32,7 +33,10 @@ async function gameSocket(fastify, options) {
                     // {type: "new_instance", playerId}
                     //
                     // aiOpponent();{p1: x,y, ball:x,y. p2}
-                    console.log('Request to play against AI')
+                    console.log('Request to play against AI');
+
+                    const aiSocket = new WebSocket("ws://ai-service:3013");
+                    
                     connection.socket.send(JSON.stringify({ type: "join_ai-opponent_ack", payload: {} }));
                 }
                 if (type === "invite_friend") {

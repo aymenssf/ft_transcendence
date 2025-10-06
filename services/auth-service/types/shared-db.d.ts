@@ -19,3 +19,8 @@ declare module "../../Shared_dataBase/database/db-connection.js" {
   const db: DB;
   export default db;
 }
+
+declare module "../../Shared_dataBase/prismaClient.js" {
+  import { PrismaClient } from '@prisma/client';
+  export const prisma: PrismaClient;
+}

@@ -1,33 +1,48 @@
 FROM node:20-slim
 
-WORKDIR /app/services/auth-service
-
 RUN apt-get update && apt-get install -y \
+    openssl \
     python3 \
     make \
     g++ \
-    sqlite3 \
-    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY services/auth-service/package*.json ./
-RUN npm ci --no-audit --no-fund
+WORKDIR /app
 
-ENV NODE_PATH=/app/services/auth-service/node_modules
-ENV PATH="$PATH:/app/services/auth-service/node_modules/.bin"
+# Copy root package files (workspace configuration)
+COPY package*.json ./
 
-COPY services/auth-service/ ./
-COPY Shared_dataBase/ /app/Shared_dataBase/
+# Copy workspace packages
+COPY Shared_dataBase ./Shared_dataBase
+COPY services ./services
 
-RUN ln -s /app/services/auth-service/node_modules /app/Shared_dataBase/node_modules || true
+# Install ALL workspace dependencies from root
+RUN npm install --legacy-peer-deps
+
+# Generate Prisma client
+RUN npm run prisma:generate
+
+# Build auth service
+WORKDIR /app/services/auth-service
+
+# Install auth service dependencies locally
+RUN npm install
+
+# Generate Prisma client for auth service specifically
+RUN npm run prisma:generate
+
+# Copy generated client to auth service node_modules
+RUN mkdir -p ./node_modules/.prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/
+RUN mkdir -p ./node_modules/@prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/
+
+RUN npm run build && ls -la dist/ || (echo "Build failed or dist directory not created" && exit 1)
+
+# Setup environment
+ENV NODE_ENV=production
+ENV DATABASE_URL="file:/app/database/transcendence.db"
 
 RUN mkdir -p /app/database && chmod 755 /app/database
 
-RUN npm run build
-
-RUN npm rebuild bcrypt --build-from-source
-
 EXPOSE 3010
 
-CMD ["node", "dist/server.js"]
-
+CMD ["sh", "-c", "cd /app && npm run prisma:migrate:deploy > /dev/null 2>&1 && cd /app/services/auth-service && npm run prisma:generate > /dev/null 2>&1 && mkdir -p ./node_modules/.prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/ && mkdir -p ./node_modules/@prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/ && echo 'Auth service starting...' && node dist/server.js"]

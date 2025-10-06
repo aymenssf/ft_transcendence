@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  username    String   @unique
+  email       String   @unique
+  password    String
+  avatar      String?
+  is_42_user  Boolean  @default(false)
+  created_at  DateTime @default(now())
+  chatRooms   ChatRoom[] @relation("UserChatRooms")
+
+}
+
+model ChatRoom {
+  id          Int      @id @default(autoincrement())
+  name        String?
+  type        String @default("private")
+  created_at  DateTime @default(now())
+
+  ownerId     Int
+  owner       User      @relation("UserChatRooms", fields: [ownerId], references: [id])
+}
+

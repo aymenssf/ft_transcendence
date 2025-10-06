@@ -1,5 +1,7 @@
-import { URL } from "url";
+import { PrismaClient } from '@prisma/client';
 import crypto from "crypto";
+
+const prisma = new PrismaClient();
 
 export interface UserRow {
   id: number;
@@ -7,8 +9,8 @@ export interface UserRow {
   email: string;
   password: string;
   avatar?: string | null;
-  is_42_user?: 0 | 1 | boolean;
-  created_at?: string;
+  is_42_user?: boolean;
+  created_at?: Date;
 }
 
 export interface DB {
@@ -21,6 +23,7 @@ export interface DB {
   findEmailByEmail(email: string): Promise<UserRow | undefined>;
   close(): void;
 }
+
 export interface SubscribeInput {
   username: string;
   email: string;
@@ -33,7 +36,7 @@ export interface PublicUser {
   username: string;
   email: string;
   avatar?: string | null;
-  created_at?: string;
+  created_at?: Date;
 }
 
 export interface SecureDB extends DB {
@@ -77,100 +80,104 @@ function validatePassword(p: string) {
     throw new ValidationError("Password must contain at least one number");
 }
 
-// Hashes a password using bcrypt if available, otherwise falls back to scrypt
 async function hashPassword(password: string): Promise<string> {
-  // Try to use bcrypt first
   try {
     const bcrypt = await import("bcrypt").then(m => m.default || m);
     if (typeof bcrypt.hash === "function") {
       return await bcrypt.hash(password, 12);
-      // Use bcrypt with 12 salt rounds
     }
     throw new Error("bcrypt hash function not found");
   } catch {
-    // If bcrypt is not available, use Node's built-in scrypt
     const salt = crypto.randomBytes(16).toString("hex");
     return new Promise((resolve, reject) => {
       crypto.scrypt(password, salt, 64, (err, derivedKey) => {
         if (err) return reject(err);
         resolve(`scrypt$1$${salt}$${derivedKey.toString("hex")}`);
-        // Store the salt and hash together for verification later
       });
     });
   }
 }
 
-function wrapSecure(db: any): SecureDB {
-  if (db.__secureWrapped) 
-    return db as SecureDB; // Avoid double wrapping
-  const secure : SecureDB = Object.assign(db, {
+function createPrismaDB(): SecureDB {
+  return {
+    async createUser(username: string, email: string, password: string) {
+      const user = await prisma.user.create({
+        data: { username, email, password },
+        select: { id: true, username: true, email: true }
+      });
+      return user;
+    },
+
+    async findUserByUsername(username: string): Promise<UserRow | undefined> {
+      const user = await prisma.user.findUnique({
+        where: { username }
+      });
+      return user || undefined;
+    },
+
+    async findEmailByEmail(email: string): Promise<UserRow | undefined> {
+      const user = await prisma.user.findUnique({
+        where: { email }
+      });
+      return user || undefined;
+    },
+
     async subscribe(input: SubscribeInput): Promise<PublicUser> {
       const { username, email, password, avatar = null } = input;
+      
       validateUsername(username);
       validateEmail(email);
       validatePassword(password);
 
-      const existingUser = await db.findUserByUsername(username);
+      const existingUser = await prisma.user.findUnique({
+        where: { username }
+      });
       if (existingUser) 
         throw new ValidationError("Username already exists");
-      const existingEmail = await db.findEmailByEmail(email);
+
+      const existingEmail = await prisma.user.findUnique({
+        where: { email }
+      });
       if (existingEmail) 
         throw new ValidationError("Email already exists");
 
       const hashedPassword = await hashPassword(password);
 
-      const insertResult: PublicUser = await new Promise((resolve, reject) => {
-        const sql = "INSERT INTO users (username, email, password, avatar) VALUES (?, ?, ?, ?)";
-        db.db.run(sql, [username, email, hashedPassword, avatar], function (this: any, err: any){
-          if (err)
-          {
-            if (err.code === "SQLITE_CONSTRAINT") 
-            {
-              if (/users\.username/.test(err.message))
-                return reject(new ValidationError("Username already exists"));
-              if (/users\.email/.test(err.message))
-                return reject(new ValidationError("Email already exists"));
-            }
-            return reject(err);
+      try {
+        const user = await prisma.user.create({
+          data: {
+            username,
+            email,
+            password: hashedPassword,
+            avatar
+          },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            avatar: true,
+            created_at: true
           }
-          const newId = this.lastID;
-          db.db.get(
-            "SELECT id, username, email, avatar, created_at FROM users WHERE id = ?", 
-            [newId],
-            (gErr: any, row: any) => {
-              if (gErr) 
-                return reject(gErr);
-              resolve(row as PublicUser);
-            }
-          );
         });
-      });
-      return insertResult;
+        return user;
+      } catch (err: any) {
+        if (err.code === 'P2002') {
+          const field = err.meta?.target?.[0];
+          if (field === 'username')
+            throw new ValidationError("Username already exists");
+          if (field === 'email')
+            throw new ValidationError("Email already exists");
+        }
+        throw err;
+      }
     },
-  }); 
-  (secure as any).__secureWrapped = true;
-  return secure
+
+    close() {
+      prisma.$disconnect();
+    }
+  };
 }
 
 export default async function loadSharedDb(): Promise<SecureDB> {
-  // Try path that works in local TS (from services/auth-service/server.ts)
-  const candidates = [
-    // Works when running TS directly (tsx) from services/auth-service/server.ts
-    "../../Shared_dataBase/database/db-connection.js",
-    // Works when running compiled JS from services/auth-service/dist/server.js
-    "../../../Shared_dataBase/database/db-connection.js",
-  ];
-
-  let lastErr: unknown;
-  for (const rel of candidates) {
-    try {
-      const mod = await import(new URL(rel, import.meta.url).href);
-  return wrapSecure(mod.default);
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr instanceof Error
-    ? lastErr
-    : new Error("Failed to load shared DB module from any candidate path");
+  return createPrismaDB();
 }

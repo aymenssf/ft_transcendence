@@ -1,15 +1,59 @@
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { PrismaClient } from '@prisma/client';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const prisma = new PrismaClient();
 
-const dbPath = process.env.NODE_ENV === 'production'
-  ? join(__dirname, '../../Shared_dataBase/db-connection.js')
-  : join(__dirname, '../../../Shared_dataBase/db-connection.js');
+export interface SimpleGameDB {
+  findUserById(id: number): Promise<any>;
+  getAllUsers(): Promise<any[]>;
+  
+  // Simple test 
+  testConnection(): Promise<boolean>;
+  
+  close(): void;
+}
 
-console.log('Loading shared database from:', dbPath);
+function createSimpleGameDB(): SimpleGameDB {
+  return {
+    async findUserById(id: number) {
+      return await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          avatar: true,
+          created_at: true
+        }
+      });
+    },
 
-const { default: db } = await import(dbPath);
+    async getAllUsers() {
+      return await prisma.user.findMany({
+        select: {
+          id: true,
+          username: true,
+          avatar: true,
+          created_at: true
+        }
+      });
+    },
 
-export default db;
+    async testConnection(): Promise<boolean> {
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        return true;
+      } catch (error) {
+        console.error('Database connection test failed:', error);
+        return false;
+      }
+    },
+
+    close() {
+      prisma.$disconnect();
+    }
+  };
+}
+
+export default async function loadSharedDb(): Promise<SimpleGameDB> {
+  return createSimpleGameDB();
+}

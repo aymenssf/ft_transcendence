@@ -1,31 +1,39 @@
 FROM node:20-slim
 
-WORKDIR /app/services/game-service
-
 RUN apt-get update && apt-get install -y \
+    openssl \
     python3 \
     make \
     g++ \
-    sqlite3 \
-    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY services/game-service/package*.json ./
-RUN npm ci --no-audit --no-fund
+WORKDIR /app
 
-ENV NODE_PATH=/app/services/game-service/node_modules
-ENV PATH="$PATH:/app/services/game-service/node_modules/.bin"
+COPY package*.json ./
 
-COPY services/game-service/ ./
-COPY Shared_dataBase/ /app/Shared_dataBase/
+COPY Shared_dataBase ./Shared_dataBase
+COPY services ./services
 
-RUN ln -s /app/services/game-service/node_modules /app/Shared_dataBase/node_modules || true
+RUN npm install --legacy-peer-deps
+
+RUN npm run prisma:generate
+
+WORKDIR /app/services/game-service
+
+RUN npm install
+
+RUN npm run prisma:generate
+
+RUN mkdir -p ./node_modules/.prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/
+RUN mkdir -p ./node_modules/@prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/
+
+RUN npm run build && ls -la dist/ || (echo "Build failed or dist directory not created" && exit 1)
+
+ENV NODE_ENV=production
+ENV DATABASE_URL="file:/app/database/transcendence.db"
 
 RUN mkdir -p /app/database && chmod 755 /app/database
 
-RUN npm run build
-
-
 EXPOSE 3012
 
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "cd /app/services/game-service && npm run prisma:generate > /dev/null 2>&1 && mkdir -p ./node_modules/.prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/ && mkdir -p ./node_modules/@prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/ && echo 'Game service starting...' && DATABASE_URL='file:/app/database/transcendence.db' NODE_PATH=./node_modules:/app/services/game-service/node_modules node dist/server.js"]

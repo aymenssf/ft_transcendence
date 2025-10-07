@@ -1,12 +1,11 @@
-import { createGameRoom, createInitialGameState} from "../helpers/helpers.js";
+import { createGameRoom, createInitialGameState } from "../helpers/helpers.js";
 import { gameUpdate, startGameLoop } from "./gameLoop.js";
 import WebSocket from "ws";
 
 export function aiOpponentGame(connection, playerId, difficulty) {
     console.log(`Player ${playerId} requests AI opponent , difficulty: ${difficulty}`);
 
-    const game_room = createGameRoom(playerId, connection, "ai_opponent");
-    game_room.p2 = "ai";
+    const game_room = createGameRoom(playerId, "ai", connection.socket, "ai_opponent");
 
     const aiSocket = new WebSocket(process.env.AI_SERVICE_URL || "ws://ai-service:3013");
 
@@ -20,7 +19,11 @@ export function aiOpponentGame(connection, playerId, difficulty) {
             payload: { roomId: game_room.id }
         }));
 
-        game_room.sockets.forEach(sock => sock.send(JSON.stringify(createInitialGameState(game_room.gameId, game_room.mode, difficulty))));
+        game_room.sockets.forEach(sock => {
+            if (sock.readyState === 1) {
+                sock.send(JSON.stringify(createInitialGameState(game_room.gameId, game_room.mode, difficulty)));
+            }
+        });
 
         setTimeout(() => {
             game_room.sockets.forEach(sock => {
@@ -37,17 +40,24 @@ export function aiOpponentGame(connection, playerId, difficulty) {
     aiSocket.on("message", (msg) => {
         const { type, payload } = JSON.parse(msg.toString());
 
-        if (type === "ai_move")
+        if (type === "game_update")
             gameUpdate(payload);
     });
 
-    aiSocket.on("close", () => {
-        console.log("AI socket closed");
-        //end game///
+    aiSocket.on("error", (error) => {
+        console.error("ai service connection error:", error);
+        connection.socket.send(JSON.stringify({
+            type: "error",
+            payload: { message: "Failed to connect to AI service" }
+        }));
+
+        //end gmae
     });
 
-    aiSocket.on("error", (err) => {
-        console.error("AI socket error");
-        //end gme
+    aiSocket.on("close", () => {
+        console.log("AI service disconnected");
+        game_room.sockets.delete(aiSocket);
+        // end game
     });
+
 }

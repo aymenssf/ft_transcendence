@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "type": "module",
     "scripts": {
-      "dev": "tsx watch server.ts",
+      "dev": "tsx watch src/server.ts",
       "build": "tsc",
       "start": "node dist/server.js",
       "prisma:generate": "prisma generate --schema=../../Shared_dataBase/prisma/schema.prisma"

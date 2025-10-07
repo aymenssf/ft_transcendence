@@ -6,7 +6,6 @@ services/ai-service/node_modules/
 
 Shared_dataBase/node_modules/
 */node_modules/
-.env
 *.log
 .DS_Store
 .vscode/

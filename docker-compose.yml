@@ -57,7 +57,7 @@ services:
       - JWT_SECRET=transcendence-secret-key-change-in-production
       - DATABASE_URL=file:/app/database/transcendence.db
       - AUTH_SERVICE_URL=http://auth-service:3010
-      - AI_SERVICE_URL=http://ai-service:3012
+      - AI_SERVICE_URL=http://ai-service:3013
       - PRISMA_HIDE_UPDATE_MESSAGE=true
       - PRISMA_DISABLE_WARNINGS=true
     volumes:
@@ -66,6 +66,7 @@ services:
       - transcendence-network
     depends_on:
       - auth-service
+      - ai-service
     restart: unless-stopped
     # command: ["node", "dist/server.js"]  # Commented out to use Dockerfile CMD
   
@@ -80,6 +81,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/database/transcendence.db
+      - GAME_SERVICE_URL=http://game-service:3012
       - PRISMA_HIDE_UPDATE_MESSAGE=true
       - PRISMA_DISABLE_WARNINGS=true
     volumes:

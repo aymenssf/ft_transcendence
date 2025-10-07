@@ -12,3 +12,14 @@ Shared_dataBase/node_modules/
 .vscode/
 */README.md
 transcendence.db
+
+# Build artifacts
+services/ai-service/dist/
+services/*/dist/
+
+# Test files
+test-frontend/
+test-*.html
+test-*.js
+test-*.sh
+watch-*.sh

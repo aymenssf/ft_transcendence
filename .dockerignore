@@ -3,7 +3,7 @@ services/auth-service/node_modules
 services/chat-service/node_modules
 services/game-service/node_modules
 services/ai-service/node_modules
-
+/test-frontend
 services/auth-service/dist
 Shared_dataBase/node_modules
 dist

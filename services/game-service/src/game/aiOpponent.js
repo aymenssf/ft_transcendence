@@ -1,8 +1,9 @@
 import { createGameRoom, createInitialGameState} from "../helpers/helpers.js";
 import { gameUpdate, startGameLoop } from "./gameLoop.js";
+import WebSocket from "ws";
 
-export function aiOpponentGame(connection, playerId) {
-    console.log(`Player ${playerId} requests AI opponent`);
+export function aiOpponentGame(connection, playerId, difficulty) {
+    console.log(`Player ${playerId} requests AI opponent , difficulty: ${difficulty}`);
 
     const game_room = createGameRoom(playerId, connection, "ai_opponent");
     game_room.p2 = "ai";
@@ -19,16 +20,16 @@ export function aiOpponentGame(connection, playerId) {
             payload: { roomId: game_room.id }
         }));
 
-        game_room.sockets.forEach(sock => sock.send(JSON.stringify(createInitialGameState(game_room.gameId, game_room.mode))));
+        game_room.sockets.forEach(sock => sock.send(JSON.stringify(createInitialGameState(game_room.gameId, game_room.mode, difficulty))));
 
-        // setTimeout(() => {
-        //     game_room.sockets.forEach(sock => {
-        //         sock.send(JSON.stringify({
-        //             type: "game_start"
-        //         }));
-        //     });
-        //     startGameLoop(game_room);
-        // }, 3000);
+        setTimeout(() => {
+            game_room.sockets.forEach(sock => {
+                sock.send(JSON.stringify({
+                    type: "game_start"
+                }));
+            });
+            startGameLoop(game_room);
+        }, 3000);
 
     });
 

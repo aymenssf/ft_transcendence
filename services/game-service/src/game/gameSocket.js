@@ -1,9 +1,10 @@
 import { waitingQueue, games, playersSockets } from '../utils/store.js'
 import { gameUpdate } from "./gameLoop.js";
 import randomGame from "./randomGame.js"
-import { createGameRoom, findGameRoomByPlayer } from "../helpers/helpers.js"
+import { findGameRoomByPlayer } from "../helpers/helpers.js"
 import { localGame } from "./localGame.js";
-import WebSocket from 'ws';
+
+import { aiOpponentGame } from './aiOpponent.js';
 
 async function gameSocket(fastify, options) {
     fastify.get('/ws', { websocket: true }, (connection, req) => {
@@ -29,7 +30,7 @@ async function gameSocket(fastify, options) {
                     // TO ADD LATER : end gameRoom...
                 }
                 if (type === "join_ai-opponent") {
-                    aiOpponentGame(connection, playerId);
+                    aiOpponentGame(connection, playerId, payload.difficulty);
                 }
                 if (type === "invite_friend") {
                     // friend invitation .....

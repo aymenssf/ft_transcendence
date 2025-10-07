@@ -35,6 +35,7 @@ function checkGameEnd(gameRoom, sockets) {
         });
 
         sockets.forEach(sock => sock.send(endGameMsg));
+        Array.from(sockets)[1].close();
         return { finished: true, winner };
     }
 
@@ -156,7 +157,7 @@ export function startGameLoop(gameRoom, FPS = 60) {
             type: "game_update",
             payload: {
                 paddles: state.paddles,
-                ball: { x: ball.x, y: ball.y }
+                ball: { x: ball.x, y: ball.y, dx: ball.dx, dy: ball.dy }
             }
         });
 

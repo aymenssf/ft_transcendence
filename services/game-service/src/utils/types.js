@@ -14,6 +14,7 @@
  * @property {string|null} p2
  * @property {"waiting"|"ongoing"|"finished"} status
  * @property {"local"|"friend"|"random"|"ai_opponent"|"tournament"} mode
+ * @property {"easy"|"medium"|"hard"} difficulty
  * @property {Set<string>} sockets
  * @property {NodeJS.Timer|null} loop
  * @property {Object} state

@@ -39,12 +39,13 @@ export function playerInOtherRoom(playerId, roomId) {
 //         throw new Error("ongoing without p2");
 // }
 
-export function createInitialGameState(gameId, mode) {
+export function createInitialGameState(gameId, mode, difficulty = "easy") {
     return {
         type: "game_config",
         payload: {
             gameId,
             mode,
+            difficulty: difficulty,
             canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, color: "#38D8FD" },
             paddle: { width: PADDLE_WIDTH, height: PADDLE_HEIGHT, color: "#0F28CA" },
             paddles: {

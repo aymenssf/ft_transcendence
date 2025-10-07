@@ -1,26 +1,11 @@
 # AI Service
 
-AI opponent service for Pong game.
+AI opponent service
 
 ## Features
 
 - WebSocket communication with game service
-- Three difficulty levels: easy, medium, hard
-- Ball velocity prediction for higher difficulties
-
-## Setup
-
-```bash
-npm install
-npm run build
-npm start
-```
-
-## Development
-
-```bash
-npm run dev
-```
+- Difficulty levels: easy, medium, hard
 
 ## Endpoints
 

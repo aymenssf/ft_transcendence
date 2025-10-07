@@ -1,5 +1,4 @@
 FROM node:20-alpine
-
 WORKDIR /app/services/game-service
 
 RUN apk add --no-cache sqlite sqlite-dev

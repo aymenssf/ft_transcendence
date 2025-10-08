@@ -7,7 +7,7 @@ export function aiOpponentGame(connection, playerId, difficulty) {
 
     const game_room = createGameRoom(playerId, "ai", connection.socket, "ai_opponent");
 
-    const aiSocket = new WebSocket(process.env.AI_SERVICE_URL || "ws://ai-service:3013");
+    const aiSocket = new WebSocket(process.env.AI_SERVICE_URL || "ws://ai-service:3013/");
 
     aiSocket.on("open", () => {
         console.log("Connected to AI service");

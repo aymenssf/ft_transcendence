@@ -56,7 +56,7 @@ services:
       - JWT_SECRET=transcendence-secret-key-change-in-production
       - DATABASE_URL=file:/app/database/transcendence.db
       - AUTH_SERVICE_URL=http://auth-service:3010
-      - AI_SERVICE_URL=ws://ai-service:3013
+      - AI_SERVICE_URL=ws://ai-service:3013/
       - PRISMA_HIDE_UPDATE_MESSAGE=true
       - PRISMA_DISABLE_WARNINGS=true
     volumes:

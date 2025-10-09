@@ -21,11 +21,13 @@
  * @property {Object} state.canvas
  * @property {Object} state.paddles
  * @property {Object} state.ball
+ * @property {string} winner
  */
 
 /**
  * @typedef {Object} Tournament
  * @property {string} tournamentId
+ * @property {string} title
  * @property {"waiting"|"semifinals"|"final"|"finished"} status
  * @property {string[]} players
  * @property {GameRoom[]} rounds   // list of game rooms (semis + final)

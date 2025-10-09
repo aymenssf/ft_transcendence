@@ -1,3 +1,4 @@
+import { GAME_ROOM_MODE, GAME_ROOM_STATUS } from "../helpers/consts.js";
 import { createGameRoom, createInitialGameState, isPlaying } from "../helpers/helpers.js";
 import { games, playersSockets } from "../utils/store.js";
 import { startGameLoop } from "./gameLoop.js";
@@ -21,7 +22,7 @@ async function friendRoutes(fastify, options) {
         if (isPlaying(to))
             return reply.status(404).send({ error: "Player is already in a game." });
 
-        const friendRoom = createGameRoom(from, null, host_socket, "friend");
+        const friendRoom = createGameRoom(from, null, host_socket, GAME_ROOM_MODE.FRIEND);
 
         guest_socket.send(JSON.stringify({
             type: "friend_invite",
@@ -80,7 +81,7 @@ async function friendRoutes(fastify, options) {
             friendRoom.sockets.forEach(sock => {
                 sock.send(JSON.stringify({ type: "game_start" }));
             });
-            friendRoom.status = "ongoing";
+            friendRoom.status = GAME_ROOM_STATUS.ONGOING;
             startGameLoop(friendRoom);
         }, 3000);
 

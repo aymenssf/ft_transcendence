@@ -1,6 +1,6 @@
 import { games } from "../utils/store.js";
 import { randomUUID } from 'crypto';
-import { BALL_START, CANVAS_HEIGHT, CANVAS_WIDTH, BALL_SPEED, PADDLE_HEIGHT, PADDLE_WIDTH } from "./consts.js";
+import { BALL_START, CANVAS_HEIGHT, CANVAS_WIDTH, BALL_SPEED, PADDLE_HEIGHT, PADDLE_WIDTH, GAME_ROOM_STATUS, GAME_ROOM_MODE } from "./consts.js";
 
 export function findGameRoomByPlayer(playerId) {
     for (const room of games.values()) {
@@ -57,14 +57,14 @@ export function createInitialGameState(gameId, mode, difficulty = "easy") {
     };
 }
 
-export function createGameRoom(player1, player2, player1_socket, mode = "random") {
+export function createGameRoom(player1, player2, player1_socket, mode = GAME_ROOM_MODE.RANDOM) {
 
     const gameId = randomUUID();
     const gameRoom = {
         gameId,
         p1: player1,
         p2: player2,
-        status: "waiting",
+        status: GAME_ROOM_STATUS.WAITING,
         mode: mode,
         sockets: new Set([player1_socket]),
         loop: null,
@@ -76,7 +76,9 @@ export function createGameRoom(player1, player2, player1_socket, mode = "random"
                 width: PADDLE_WIDTH, height: PADDLE_HEIGHT
             },
             ball: { radius: 10, x: BALL_START.x, y: BALL_START.x, dx: BALL_SPEED, dy: -BALL_SPEED }
-        }
+        },
+        winner : null
+
     };
     games.set(gameId, gameRoom);
 

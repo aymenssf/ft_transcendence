@@ -29,6 +29,7 @@ function checkGameEnd(gameRoom, sockets) {
         winner = gameRoom.p2;
 
     if (winner) {
+        gameRoom.winner = winner;
         const endGameMsg = JSON.stringify({
             type: "game_finish",
             payload: { winner }

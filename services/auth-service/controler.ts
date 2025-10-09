@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { AuthError, verifyPassword } from "./registered_users.js";
 import { updateUserHandler, type UpdateUserBody } from './user_update.js';
+import { validateUsername, validateEmail, validatePassword, ValidationError, hashPassword } from './loadSharedDb.js';
 
 // Instantiate Prisma client (singleton per module)
 const prisma = new PrismaClient();
@@ -11,63 +12,6 @@ const prisma = new PrismaClient();
 interface RegisterBody { username: string; email: string; password: string; avatar?: string | null }
 interface LoginBody { username: string; password: string }
 
-// Local validation functions (mirroring those in loadSharedDb.ts)
-class ValidationError extends Error {
-  status = 400;
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-function validateUsername(u: string) {
-  if (!u) 
-    throw new ValidationError('Username is required and cannot be empty');
-  if (u.length < 3 || u.length > 20) 
-    throw new ValidationError('Username must be between 3 and 20 characters');
-  if (!/^[a-zA-Z0-9_]+$/.test(u)) 
-    throw new ValidationError('Username can only contain letters, numbers, and underscores');
-}
-
-function validateEmail(e: string) {
-  if (!e) 
-    throw new ValidationError('Email is required and cannot be empty');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) 
-    throw new ValidationError('Email is not valid');
-}
-
-function validatePassword(p: string) {
-  if (!p) 
-    throw new ValidationError('Password is required and cannot be empty');
-  if (p.length < 8) 
-    throw new ValidationError('Password must be at least 8 characters long');
-  if (!/[A-Z]/.test(p)) 
-    throw new ValidationError('Password must contain at least one uppercase letter');
-  if (!/[a-z]/.test(p)) 
-    throw new ValidationError('Password must contain at least one lowercase letter');
-  if (!/[0-9]/.test(p)) 
-    throw new ValidationError('Password must contain at least one number');
-}
-
-async function hashPassword(password: string): Promise<string> {
-  try {
-    // Prefer bcrypt if available
-    if (typeof bcrypt.hash === 'function') {
-      return await bcrypt.hash(password, 12);
-    }
-    throw new Error('bcrypt hash function not found');
-  } catch {
-    // Fallback to scrypt for environments where bcrypt fails (e.g., alpine build issues)
-    const salt = crypto.randomBytes(16).toString('hex');
-    return new Promise((resolve, reject) => {
-      crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-        if (err) 
-          return reject(err);
-        resolve(`scrypt$1$${salt}$${derivedKey.toString('hex')}`);
-      });
-    });
-  }
-}
 
 export function registerControllers(app: FastifyInstance) 
 {

@@ -1,15 +1,13 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
-import loadSharedDb from "./loadSharedDb.js";
 import { registerControllers } from "./controler.js";
 
 async function bootstrap() {
   const app = Fastify({ logger: true });
   await app.register(cors);
   await app.register(jwt, { secret: process.env.JWT_SECRET || "transcendence-secret-key" });
-  const db = await loadSharedDb();
-  registerControllers(app, db);
+  registerControllers(app);
   try {
     await app.listen({ port: 3010, host: "0.0.0.0" });
     app.log.info("Auth Service running on port 3010");

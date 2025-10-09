@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from "crypto";
 
-const prisma = new PrismaClient();
+// Export prisma so other modules (e.g., user_update) can reuse the same instance
+export const prisma = new PrismaClient();
 
 export interface UserRow {
   id: number;
@@ -43,7 +44,7 @@ export interface SecureDB extends DB {
   subscribe(input: SubscribeInput): Promise<PublicUser>;
 }
 
-class ValidationError extends Error {
+export class ValidationError extends Error {
   status = 400;
   constructor(message: string) {
     super(message);
@@ -51,7 +52,7 @@ class ValidationError extends Error {
   }
 }
 
-function validateUsername(u: string) {
+export function validateUsername(u: string) {
   if (!u)
     throw new ValidationError("Username is required and cannot be empty");
   if (u.length < 3 || u.length > 20)
@@ -60,14 +61,14 @@ function validateUsername(u: string) {
     throw new ValidationError("Username can only contain letters, numbers, and underscores");
 }
 
-function validateEmail(e: string) {
+export function validateEmail(e: string) {
   if (!e)
     throw new ValidationError("Email is required and cannot be empty");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
     throw new ValidationError("Email is not valid");
 }
 
-function validatePassword(p: string) {
+export function validatePassword(p: string) {
   if (!p)
     throw new ValidationError("Password is required and cannot be empty");
   if (p.length < 8)
@@ -80,7 +81,7 @@ function validatePassword(p: string) {
     throw new ValidationError("Password must contain at least one number");
 }
 
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   try {
     const bcrypt = await import("bcrypt").then(m => m.default || m);
     if (typeof bcrypt.hash === "function") {

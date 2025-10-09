@@ -1,8 +1,9 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
-import crypto, { sign } from "crypto";
+import crypto from "crypto";
 import bcrypt from "bcrypt";
-import loadSharedDb, { SecureDB, UserRow } from "./loadSharedDb.js";
-import { log } from "console";
+import { PrismaClient } from "@prisma/client";
+
+// Single Prisma client instance for this module
+const prisma = new PrismaClient();
 
 export interface LoginSuccess 
 {
@@ -62,20 +63,19 @@ export async function verifyPassword(storedHash: string, plain: string): Promise
 }
 
 export async function loginUser(params:{
-    db: SecureDB;
     username: string;
     password: string;
     sign: (payload: object, options?: object) => string;
     tokenTTL?: string;
-}): Promise<LoginSuccess>{
-    const {db, username, password, sign, tokenTTL = "7d"} = params;
+}): Promise<LoginSuccess> {
+    const { username, password, sign, tokenTTL = "7d" } = params;
 
-    const user = (await db.findUserByUsername(username)) as UserRow | undefined;
-
-    if (!user)
+    const user = await prisma.user.findUnique({ where: { username } });
+    if (!user) 
         throw new AuthError("Invalid username");
+
     const isValidPassword = await verifyPassword(user.password, password);
-    if (!isValidPassword)
+    if (!isValidPassword) 
         throw new AuthError("Invalid password");
 
     const token = sign({ userId: user.id, username: user.username }, { expiresIn: tokenTTL });

@@ -13,7 +13,7 @@ const db = await loadSharedDb();
 
 await app.register(cors);
 await app.register(jwt, {
-  secret: process.env.JWT_SECRET || "transcendence-secret-key",
+  secret: process.env.JWT_SECRET as string,
 });
 
 app.decorate("authenticate", async function(request: FastifyRequest, reply: FastifyReply) {

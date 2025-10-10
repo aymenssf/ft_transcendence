@@ -1,17 +1,14 @@
-node_modules/
-services/auth-service/node_modules/
-services/chat-service/node_modules/
-services/game-service/node_modules/
-services/ai-service/node_modules/
-
+# Node modules
 Shared_dataBase/node_modules/
 */node_modules/
-.env
+*/.env
 *.log
 .DS_Store
 .vscode/
 */README.md
 transcendence.db
+# database
+*.db
 
 # Build artifacts
 services/ai-service/dist/
@@ -19,8 +16,14 @@ services/*/dist/
 
 # Test files
 test-frontend/
-test-*.html
-test-*.js
-test-*.sh
-watch-*.sh
 */ARCHITECTURE.md
+
+# Frontend
+frontend/
+
+# Package locks (keep only root)
+services/*/package-lock.json
+Shared_dataBase/package-lock.json
+
+# Backup files
+*.backup

@@ -11,13 +11,18 @@
       "skipLibCheck": true,
       "resolveJsonModule": true,
       "allowSyntheticDefaultImports": true,
-      "noEmitOnError": true,
+      "noEmitOnError": false,
       "sourceMap": true,
-      "types": ["node"]
+      "types": ["node"],
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["./src/*"]
+      }
     },
     "include": [
       "./**/*.ts",
-      "./types/**/*.d.ts"
+      "./types/**/*.d.ts",
+      "./src/**/*.ts"
     ],
     "exclude": [
       "node_modules",

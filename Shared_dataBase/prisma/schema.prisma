@@ -18,13 +18,13 @@ model User {
   created_at  DateTime @default(now())
 
   // Chat relationships
-  ownedRooms      ChatRoom[]        @relation("RoomOwner")
-  roomMemberships chatRoomMember[]
-  sentMessages    message[]         @relation("MessageSender")
+  ownedRooms      ChatRoom[]           @relation("RoomOwner")
+  roomMemberships MembersOnChatRooms[]
+  sentMessages    ChatMessage[]        @relation("MessageSender")
 
   // Blocking relationships
-  blockedUsers    block[]           @relation("Blocker")
-  blockedBy       block[]           @relation("Blocked")
+  blockedUsers    BlockedUser[]        @relation("Blocker")
+  blockedBy       BlockedUser[]        @relation("Blocked")
 }
 
 model ChatRoom {
@@ -38,11 +38,11 @@ model ChatRoom {
   owner       User                 @relation("RoomOwner", fields: [ownerId], references: [id])
 
   // Many-to-many relationship with users
-  members     chatRoomMember[]
-  messages    message[]
+  members     MembersOnChatRooms[]
+  messages    ChatMessage[]
 }
 
-model chatRoomMember {
+model MembersOnChatRooms {
   userId      Int
   chatRoomId  Int
   joinedAt    DateTime @default(now())
@@ -51,13 +51,12 @@ model chatRoomMember {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   chatRoom    ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
 
-  @@id([chatRoomId, userId])
+  @@id([userId, chatRoomId])
   @@index([userId])
   @@index([chatRoomId])
-  @@map("MembersOnChatRooms")
 }
 
-model message {
+model ChatMessage {
   id          Int      @id @default(autoincrement())
   content     String
   created_at  DateTime @default(now())
@@ -71,10 +70,10 @@ model message {
   @@index([chatRoomId])
   @@index([senderId])
   @@index([created_at])
-  @@map("ChatMessage")
 }
 
-model block {
+model BlockedUser {
+  id          Int      @id @default(autoincrement())
   blockerId   Int
   blockedId   Int
   created_at  DateTime @default(now())
@@ -82,8 +81,8 @@ model block {
   blocker     User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
   blocked     User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
 
-  @@id([blockerId, blockedId])
+  @@unique([blockerId, blockedId])
   @@index([blockerId])
   @@index([blockedId])
-  @@map("BlockedUser")
 }
+

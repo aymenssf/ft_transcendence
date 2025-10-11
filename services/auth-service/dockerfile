@@ -1,69 +1,48 @@
-# Builder stage
-FROM node:20-slim AS builder
+FROM node:20-slim
 
-RUN apt-get update && apt-get install -y openssl python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    openssl \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Copy root package files (workspace configuration)
 COPY package*.json ./
+
+# Copy workspace packages
 COPY Shared_dataBase ./Shared_dataBase
 COPY services ./services
 
+# Install ALL workspace dependencies from root
 RUN npm install --legacy-peer-deps
+
+# Generate Prisma client
 RUN npm run prisma:generate
 
+# Build auth service
 WORKDIR /app/services/auth-service
 
+# Install auth service dependencies locally
 RUN npm install
+
+# Generate Prisma client for auth service specifically
 RUN npm run prisma:generate
-RUN mkdir -p ./node_modules/.prisma && \
-    cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/ && \
-    mkdir -p ./node_modules/@prisma && \
-    cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/
-RUN npm run build && ls -la dist/ || (echo "Build failed" && exit 1)
 
-# Production stage
-FROM node:20-slim AS production
+# Copy generated client to auth service node_modules
+RUN mkdir -p ./node_modules/.prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/
+RUN mkdir -p ./node_modules/@prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/
 
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
-RUN groupadd -r authservice -g 1001 && useradd -r -g authservice -u 1001 -m -s /bin/bash authservice
+RUN npm run build && ls -la dist/ || (echo "Build failed or dist directory not created" && exit 1)
 
-WORKDIR /app
+# Setup environment
+ENV NODE_ENV=production
+ENV DATABASE_URL="file:/app/database/transcendence.db"
 
-COPY --chown=authservice:authservice package*.json ./
-COPY --chown=authservice:authservice Shared_dataBase/package*.json ./Shared_dataBase/
-COPY --chown=authservice:authservice Shared_dataBase/prisma ./Shared_dataBase/prisma
-COPY --chown=authservice:authservice services/auth-service/package*.json ./services/auth-service/
-
-WORKDIR /app/Shared_dataBase
-RUN npm install --omit=dev
-RUN npx prisma generate --schema=./prisma/schema.prisma
-
-WORKDIR /app/services/auth-service
-RUN npm install --omit=dev
-
-COPY --from=builder --chown=authservice:authservice /app/services/auth-service/dist ./dist
-
-RUN mkdir -p ./node_modules/.prisma && \
-    cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/ && \
-    mkdir -p ./node_modules/@prisma && \
-    cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/
-
-RUN mkdir -p /app/database && chown -R authservice:authservice /app/database
-
-COPY --chown=authservice:authservice services/auth-service/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-ENV NODE_ENV=production \
-    DATABASE_URL="file:/app/database/transcendence.db" \
-    NODE_PATH=./node_modules:/app/services/auth-service/node_modules
-
-USER authservice
+RUN mkdir -p /app/database && chmod 755 /app/database
 
 EXPOSE 3010
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3010/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
-
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "cd /app && npm run prisma:migrate:deploy  && cd /app/services/auth-service && npm run prisma:generate  && mkdir -p ./node_modules/.prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/ && mkdir -p ./node_modules/@prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/ && echo 'Auth service starting...' && node dist/server.js"]

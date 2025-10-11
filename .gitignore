@@ -1,13 +1,19 @@
 # Node modules
-Shared_dataBase/node_modules/
+/**/node_modules/
+**/Shared_dataBase/node_modules/
+**/services/*/node_modules/
+**/services/ai-service/node_modules/
+**/services/auth-service/node_modules/
+**/services/chat-service/node_modules/
+**/services/game-service/node_modules/
 */node_modules/
 */.env
 *.log
 .DS_Store
 .vscode/
 */README.md
-transcendence.db
 # database
+**/database/*
 *.db
 
 # Build artifacts

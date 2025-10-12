@@ -10,7 +10,7 @@ import { validateUsername, validateEmail, validatePassword, ValidationError, has
 const prisma = new PrismaClient();
 
 interface RegisterBody { username: string; email: string; password: string; avatar?: string | null }
-interface LoginBody { email: string; password: string }
+interface LoginBody { username: string; email: string; password: string }
 
 
 export function registerControllers(app: FastifyInstance) 
@@ -62,13 +62,23 @@ export function registerControllers(app: FastifyInstance)
 
   app.post("/login", async (request: FastifyRequest<{ Body: LoginBody }>, reply: FastifyReply) => {
     try {
-      const { email, password } = request.body;
-      if (!email || !password) 
+      const { username, email, password } = request.body;
+      if ((!username && !email) || !password) 
         throw new AuthError('Invalid credentials');
 
-      const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) 
-        throw new AuthError('Invalid username');
+      let user = null as any;
+      if (username) 
+      {
+        user = await prisma.user.findUnique({ where: { username } });
+        if (!user) 
+          throw new AuthError('Invalid username');  
+      } 
+      else if (email) 
+      {
+        user = await prisma.user.findUnique({ where: { email } });
+        if (!user) 
+          throw new AuthError('Invalid email');  
+      }
 
       const isValid = await verifyPassword(user.password, password);
       if (!isValid) 

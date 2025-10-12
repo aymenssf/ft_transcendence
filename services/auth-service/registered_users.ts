@@ -19,7 +19,7 @@ export interface LoginSuccess
 export class AuthError extends Error
 {
     status = 401 as const;
-    constructor(message: "Invalid credentials" | "Invalid username" | "Invalid password")
+    constructor(message: string)
     {
         super(message);
         this.name = "AuthError";

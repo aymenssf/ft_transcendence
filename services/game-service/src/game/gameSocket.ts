@@ -3,12 +3,18 @@ import { gameUpdate } from "./gameLoop.js";
 import randomGame from "./randomGame.js"
 import { findGameRoomByPlayer } from "../helpers/helpers.js"
 import { localGame } from "./localGame.js";
-
 import { aiOpponentGame } from './aiOpponent.js';
+import {FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
+import {SocketStream} from "@fastify/websocket";
+import {GameRoom} from "../utils/types.js";
+import {GAME_ROOM_STATUS} from "../helpers/consts.js";
 
-async function gameSocket(fastify, options) {
-    fastify.get('/ws', { websocket: true }, (connection, req) => {
-        const playerId = req.query.player_id;
+interface SocketQuery {
+    player_id: string;
+}
+async function gameSocket(fastify: FastifyInstance, options: any) {
+    fastify.get('/ws', { websocket: true }, (connection: SocketStream, req: FastifyRequest<{Querystring:SocketQuery}>) => {
+        const playerId: string = req.query.player_id;
         console.log(`New Socket Connection from ${playerId}`);
 
         if (playerId)
@@ -53,26 +59,29 @@ async function gameSocket(fastify, options) {
     });
 }
 
-function cleanupRoom(roomId) {
+function cleanupRoom(roomId: string) {
     const room = games.get(roomId);
     if (!room) return;
 
     if (room.loop)
+    {
         clearInterval(room.loop);
+        room.loop = null;
+    }
 
     games.delete(roomId);
 }
 
-function handleSocketClose(playerId) {
+function handleSocketClose(playerId: string) {
     console.log(`WS connection closed for ${playerId}`);
     playersSockets.delete(playerId);
 
     const gameRoom = findGameRoomByPlayer(playerId);
-    if (!gameRoom || gameRoom.status === "finished") return;
+    if (!gameRoom || gameRoom.status === GAME_ROOM_STATUS.FINISHED) return;
 
     const opponentId = gameRoom.p1 === playerId ? gameRoom.p2 : gameRoom.p1;
 
-    if (opponentId !== "local") {
+    if (opponentId && opponentId !== "local") {
         const opponentSocket = playersSockets.get(opponentId);
         if (opponentSocket && opponentSocket.readyState === 1) {
             opponentSocket.send(JSON.stringify({
@@ -83,7 +92,7 @@ function handleSocketClose(playerId) {
     }
 
     if (gameRoom.loop) clearInterval(gameRoom.loop);
-    gameRoom.status = "finished";
+    gameRoom.status = GAME_ROOM_STATUS.FINISHED;
 
     cleanupRoom(gameRoom.gameId);
 }

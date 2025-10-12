@@ -1,8 +1,11 @@
 import { games } from "../utils/store.js";
 import { randomUUID } from 'crypto';
 import { BALL_START, CANVAS_HEIGHT, CANVAS_WIDTH, BALL_SPEED, PADDLE_HEIGHT, PADDLE_WIDTH, GAME_ROOM_STATUS, GAME_ROOM_MODE } from "./consts.js";
+import {GameMode, GameRoom, GameState} from "../utils/types.js";
+import {SocketStream} from "@fastify/websocket";
+import {WebSocket} from "ws";
 
-export function findGameRoomByPlayer(playerId) {
+export function findGameRoomByPlayer(playerId: string): GameRoom|null {
     for (const room of games.values()) {
         if (room.p1 === playerId || room.p2 === playerId)
             return room;
@@ -10,7 +13,7 @@ export function findGameRoomByPlayer(playerId) {
     return null;
 }
 
-export function isPlaying(playerId) {
+export function isPlaying(playerId:string): boolean {
     for (const room of games.values()) {
         if ((room.p1 === playerId || room.p2 === playerId) && room.status === "ongoing")
             return true;
@@ -19,7 +22,7 @@ export function isPlaying(playerId) {
 }
 
 
-export function playerInOtherRoom(playerId, roomId) {
+export function playerInOtherRoom(playerId: string, roomId:string): boolean {
     if (findGameRoomByPlayer(playerId) == null)
         return false;
 
@@ -38,8 +41,35 @@ export function playerInOtherRoom(playerId, roomId) {
 //     if (room.p2 === null && room.mode !== "local" && room.status === "ongoing")
 //         throw new Error("ongoing without p2");
 // }
-
-export function createInitialGameState(gameId, mode, difficulty = "easy") {
+interface GameConfig {
+    type: string;
+    payload: {
+        gameId: string;
+        mode: GameMode;
+        difficulty: string;
+        canvas: {
+            width: number;
+            height: number;
+            color?: string;
+        }
+        paddle: {
+            width: number;
+            height: number;
+            color?: string;
+        }
+        paddles: {
+            left: { x:number, y:number };
+            right: { x:number, y:number };
+        }
+        ball: {
+            radius: number;
+            x:number;
+            y:number;
+            color?:string
+        };
+    }
+}
+export function createInitialGameState(gameId: string, mode: GameMode, difficulty = "easy"): GameConfig {
     return {
         type: "game_config",
         payload: {
@@ -57,10 +87,10 @@ export function createInitialGameState(gameId, mode, difficulty = "easy") {
     };
 }
 
-export function createGameRoom(player1, player2, player1_socket, mode = GAME_ROOM_MODE.RANDOM) {
+export function createGameRoom(player1: string|null, player2: string|null, player1_socket: WebSocket | undefined, mode:GameMode = GAME_ROOM_MODE.RANDOM): GameRoom {
 
     const gameId = randomUUID();
-    const gameRoom = {
+    const gameRoom: GameRoom = {
         gameId,
         p1: player1,
         p2: player2,

@@ -1,8 +1,11 @@
 import { createInitialGameState, createGameRoom } from "../helpers/helpers.js"
 import { startGameLoop } from "./gameLoop.js";
 import { isPlaying } from '../helpers/helpers.js';
+import {SocketStream} from "@fastify/websocket";
+import {GAME_ROOM_MODE, GAME_ROOM_STATUS} from "../helpers/consts.js";
+import {GameRoom} from "../utils/types.js";
 
-function localGame(connection, playerId) {
+function localGame(connection: SocketStream, playerId: string) {
     if (isPlaying(playerId)) {
         connection.socket.send(JSON.stringify({
             type: "join_error",
@@ -18,9 +21,9 @@ function localGame(connection, playerId) {
         payload: { playerId }
     }));
 
-    const gameRoom = createGameRoom(playerId, "local", connection.socket, "local");
+    const gameRoom: GameRoom = createGameRoom(playerId, "local", connection.socket, GAME_ROOM_MODE.LOCAL);
 
-    gameRoom.status = "ongoing";
+    gameRoom.status = GAME_ROOM_STATUS.ONGOING;
 
     connection.socket.send(JSON.stringify(createInitialGameState(gameRoom.gameId, gameRoom.mode)));
 

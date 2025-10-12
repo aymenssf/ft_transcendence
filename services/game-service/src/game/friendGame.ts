@@ -2,9 +2,14 @@ import { GAME_ROOM_MODE, GAME_ROOM_STATUS } from "../helpers/consts.js";
 import { createGameRoom, createInitialGameState, isPlaying } from "../helpers/helpers.js";
 import { games, playersSockets } from "../utils/store.js";
 import { startGameLoop } from "./gameLoop.js";
+import {FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
 
-async function friendRoutes(fastify, options) {
-    fastify.post("/invite", async (request, reply) => {
+interface InviteBody {
+    from: string;
+    to: string;
+}
+async function friendRoutes(fastify: FastifyInstance, options: any) {
+    fastify.post("/invite", async (request: FastifyRequest<{Body: InviteBody}>, reply: FastifyReply) => {
         const { from, to } = request.body;
 
         if (from === to)
@@ -27,18 +32,21 @@ async function friendRoutes(fastify, options) {
         guest_socket.send(JSON.stringify({
             type: "friend_invite",
             from: from,
-            roomId: friendRoom.roomId
+            roomId: friendRoom.gameId
         }));
 
-        return reply.send({ message: "Invite sent successfully", roomId: friendRoom.roomId });
+        return reply.send({ message: "Invite sent successfully", roomId: friendRoom.gameId });
     });
 
+interface InviteAcceptBody{
+    gameId: string;
+    guestId: string;
+}
+    fastify.post("/invite/accept", async (request: FastifyRequest<{Body:InviteAcceptBody}>, reply:FastifyReply) => {
+        const { gameId, guestId } = request.body;
 
-    fastify.post("/invite/accept", async (request, reply) => {
-        const { roomId, guest_id } = request.body;
-
-        const guest_socket = playersSockets.get(guest_id);
-        const friendRoom = games.get(roomId);
+        const guest_socket = playersSockets.get(guestId);
+        const friendRoom = games.get(gameId);
 
         if (!guest_socket)
             return reply.status(404).send({ error: "Guest socket not found" });
@@ -48,8 +56,10 @@ async function friendRoutes(fastify, options) {
 
         if (friendRoom.p2 != null)
             return reply.status(400).send({ error: "Room already full" });
-
-        const host_socket = playersSockets.get(friendRoom.p1);
+        let host_socket = null;
+        if (friendRoom.p1 != null) {
+             host_socket = playersSockets.get(friendRoom.p1);
+        }
 
         if (!host_socket)
             return reply.status(404).send({ error: "Host socket not found" });
@@ -59,41 +69,42 @@ async function friendRoutes(fastify, options) {
         if (host_socket.readyState !== 1)
             return reply.status(400).send({ error: "Host disconnected" });
 
-        if (isPlaying(friendRoom.p1)) {
-            games.delete(roomId);
+        if (friendRoom.p1 && isPlaying(friendRoom.p1)) {
+            games.delete(gameId);
             return reply.status(404).send({ error: "Host is already in a game." });
         }
-        friendRoom.p2 = guest_id;
+        friendRoom.p2 = guestId;
         friendRoom.sockets.add(guest_socket);
 
         host_socket.send(
             JSON.stringify({
                 type: "invite_accepted",
-                roomId,
-                opponent: guest_id
+                gameId,
+                opponent: guestId
             })
         );
 
         setTimeout(() => {
-            friendRoom.sockets.forEach(sock => sock.send(JSON.stringify(createInitialGameState(roomId))));
+            friendRoom.sockets.forEach(sock =>
+                sock?.send(JSON.stringify(createInitialGameState(gameId, GAME_ROOM_MODE.FRIEND))));
         }, 2000);
         setTimeout(() => {
             friendRoom.sockets.forEach(sock => {
-                sock.send(JSON.stringify({ type: "game_start" }));
+                sock?.send(JSON.stringify({ type: "game_start" }));
             });
             friendRoom.status = GAME_ROOM_STATUS.ONGOING;
             startGameLoop(friendRoom);
         }, 3000);
 
-        return reply.send({ success: true, roomId });
+        return reply.send({ success: true, gameId });
     });
 
 
-    fastify.post("/invite/decline", async (request, reply) => {
-        const { roomId, guest_id } = request.body;
+    fastify.post("/invite/decline", async (request:FastifyRequest<{Body: InviteAcceptBody}>, reply: FastifyReply) => {
+        const { gameId, guestId } = request.body;
 
-        const guest_socket = playersSockets.get(guest_id);
-        const friendRoom = games.get(roomId);
+        const guest_socket = playersSockets.get(guestId);
+        const friendRoom = games.get(gameId);
 
         if (!guest_socket)
             return reply.status(404).send({ error: "Guest socket not found" });
@@ -101,18 +112,20 @@ async function friendRoutes(fastify, options) {
         if (!friendRoom)
             return reply.status(404).send({ error: "Room not found" });
 
-        const host_socket = playersSockets.get(friendRoom.p1);
+        let host_socket = null;
+        if (friendRoom.p1 != null)
+            host_socket =  playersSockets.get(friendRoom.p1);
 
-        if (games.has(roomId))
-            games.delete(roomId);
+        if (games.has(gameId))
+            games.delete(gameId);
 
         if (!host_socket)
             return reply.status(404).send({ error: "Host socket not found" });
         host_socket.send(
             JSON.stringify({
                 type: "invite_declined",
-                roomId,
-                opponent: guest_id
+                gameId,
+                opponent: guestId
             })
         );
 

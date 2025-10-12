@@ -1,7 +1,9 @@
-import { BALL_SPEED, WIN_SCORE, PADDLE_SPEED } from '../helpers/consts.js'
+import {BALL_SPEED, WIN_SCORE, PADDLE_SPEED, GAME_ROOM_STATUS} from '../helpers/consts.js'
 import { games } from "../utils/store.js";
+import {GameBall, GameCanvas, GamePaddles, GameRoom} from "../utils/types.js";
+import {WebSocket} from "ws";
 
-function resetBall(gameRoom) {
+function resetBall(gameRoom: GameRoom) {
     const { ball, canvas } = gameRoom.state;
 
     ball.x = canvas.width / 2;
@@ -10,7 +12,7 @@ function resetBall(gameRoom) {
     ball.dy = (Math.random() > 0.5 ? -BALL_SPEED : BALL_SPEED);
 }
 
-function resetPaddles(gameRoom) {
+function resetPaddles(gameRoom: GameRoom) {
     gameRoom.state.paddles.left.x = 15;
     gameRoom.state.paddles.left.y = gameRoom.state.canvas.height / 2 - 75;
 
@@ -18,7 +20,7 @@ function resetPaddles(gameRoom) {
     gameRoom.state.paddles.right.y = gameRoom.state.canvas.height / 2 - 75;
 }
 
-function checkGameEnd(gameRoom, sockets) {
+function checkGameEnd(gameRoom: GameRoom, sockets: Set<WebSocket|undefined>) {
     const { left, right } = gameRoom.state.paddles;
 
     let winner = null;
@@ -35,15 +37,15 @@ function checkGameEnd(gameRoom, sockets) {
             payload: { winner }
         });
 
-        sockets.forEach(sock => sock.send(endGameMsg));
-        Array.from(sockets)[1].close();
+        sockets.forEach(sock => sock?.send(endGameMsg));
+        Array.from(sockets)[1]?.close();
         return { finished: true, winner };
     }
 
     return { finished: false, winner: null };
 }
 
-function movePaddles(paddles, canvas) {
+function movePaddles(paddles:GamePaddles, canvas: GameCanvas) {
     if (paddles.left.up) paddles.left.y -= PADDLE_SPEED;
     if (paddles.left.down) paddles.left.y += PADDLE_SPEED;
 
@@ -54,7 +56,7 @@ function movePaddles(paddles, canvas) {
     paddles.right.y = Math.max(0, Math.min(canvas.height - paddles.height, paddles.right.y));
 }
 
-function moveBall(ball, canvas) {
+function moveBall(ball:GameBall, canvas:GameCanvas) {
     ball.x += ball.dx;
     ball.y += ball.dy;
 
@@ -68,7 +70,7 @@ function moveBall(ball, canvas) {
 
 }
 
-function checkBallCollision(ball, paddles) {
+function checkBallCollision(ball:GameBall, paddles:GamePaddles) {
 
     if (!paddles || !paddles.height || !paddles.width) return;
 
@@ -127,7 +129,7 @@ function checkBallCollision(ball, paddles) {
 //     }
 // }
 
-export function startGameLoop(gameRoom, FPS = 60) {
+export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
     gameRoom.status = "ongoing";
     gameRoom.loop = setInterval(() => {
         const { state, sockets } = gameRoom;
@@ -152,7 +154,11 @@ export function startGameLoop(gameRoom, FPS = 60) {
         const { finished, winner } = checkGameEnd(gameRoom, sockets);
         if (finished) {
             console.log(`Game over! Winner is: ${winner}`);
-            clearInterval(gameRoom.loop);
+            if (gameRoom.loop)
+            {
+                clearInterval(gameRoom.loop);
+                gameRoom.loop = null;
+            }
         }
         const updateMsg = JSON.stringify({
             type: "game_update",
@@ -162,40 +168,64 @@ export function startGameLoop(gameRoom, FPS = 60) {
             }
         });
 
-        sockets.forEach(sock => sock.send(updateMsg));
+        sockets.forEach(sock => sock?.send(updateMsg));
     }, 1000 / FPS);
 
     return gameRoom.loop;
 }
 
-export function stopGameLoop(gameRoom) {
-    clearInterval(gameRoom.loop);
-    gameRoom.status = "finished";
+export function stopGameLoop(gameRoom: GameRoom) {
+    if (gameRoom.loop){
+        clearInterval(gameRoom.loop);
+        gameRoom.loop = null;
+    }
+    gameRoom.status = GAME_ROOM_STATUS.FINISHED;
 }
 
-export function gameUpdate(payload) {
+interface RemoteGameInput {
+    up:boolean;
+    down:boolean;
+}
 
+interface LocalGameInput {
+    left: RemoteGameInput;
+    right: RemoteGameInput;
+}
+
+
+interface GameUpdatePayload {
+    gameId: string;
+    playerId: string;
+    input: LocalGameInput | RemoteGameInput;
+}
+
+function isLocalGameInput(input: any): input is LocalGameInput {
+    return input && "left" in input && "right" in input;
+}
+
+export function gameUpdate(payload: GameUpdatePayload) {
     const { gameId, playerId, input } = payload;
     const gameRoom = games.get(gameId);
     if (!gameRoom || gameRoom.status !== "ongoing") return;
 
     if (gameRoom.mode === "local" && playerId === gameRoom.p1) {
+        if (isLocalGameInput(input)) {
+            gameRoom.state.paddles.left.up = input.left.up;
+            gameRoom.state.paddles.left.down = input.left.down;
 
-        gameRoom.state.paddles.left.up = input.left.up;
-        gameRoom.state.paddles.left.down = input.left.down;
-
-        gameRoom.state.paddles.right.up = input.right.up;
-        gameRoom.state.paddles.right.down = input.right.down;
-
+            gameRoom.state.paddles.right.up = input.right.up;
+            gameRoom.state.paddles.right.down = input.right.down;
+        }
         return;
     }
 
-    if (playerId === gameRoom.p1) {
-        gameRoom.state.paddles.left.up = input.up;
-        gameRoom.state.paddles.left.down = input.down;
-    } else if (playerId === gameRoom.p2) {
-        gameRoom.state.paddles.right.up = input.up;
-        gameRoom.state.paddles.right.down = input.down;
+    if (!isLocalGameInput(input)) {
+        if (playerId === gameRoom.p1) {
+            gameRoom.state.paddles.left.up = input.up;
+            gameRoom.state.paddles.left.down = input.down;
+        } else if (playerId === gameRoom.p2) {
+            gameRoom.state.paddles.right.up = input.up;
+            gameRoom.state.paddles.right.down = input.down;
+        }
     }
-
 }

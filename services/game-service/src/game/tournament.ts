@@ -1,12 +1,14 @@
-import { randomUUID } from "crypto";
-import { tournaments, games, playersSockets } from "../utils/store.js"
-import { GAME_ROOM_MODE, GAME_ROOM_STATUS, TOURNAMENT_STATUS } from "../helpers/consts.js"
-import { createGameRoom, createInitialGameState, isPlaying } from "../helpers/helpers.js";
+import {randomUUID} from "crypto";
+import {playersSockets, tournaments} from "../utils/store.js"
+import {GAME_ROOM_MODE, GAME_ROOM_STATUS, TOURNAMENT_STATUS} from "../helpers/consts.js"
+import {createGameRoom} from "../helpers/helpers.js";
+import {Tournament} from "../utils/types.js";
+import {FastifyInstance, FastifyReply, FastifyRequest} from "fastify";
 
-function createTournament(playerId, title = "Classic Tournament") {
-    const tournamentId = randomUUID();
+function createTournament(playerId: string, title = "Classic Tournament"):Tournament {
+    const tournamentId: string = randomUUID();
 
-    const tournament = {
+    return {
         tournamentId,
         title,
         status: TOURNAMENT_STATUS.WAITING,
@@ -14,11 +16,9 @@ function createTournament(playerId, title = "Classic Tournament") {
         rounds: [],
         winner: null
     };
-
-    return tournament;
 }
 
-function playerAlreadyInTournament(playerId) {
+function playerAlreadyInTournament(playerId: string) {
     for (const tournament of tournaments.values()) {
         if (tournament.status !== TOURNAMENT_STATUS.FINISHED && tournament.players.includes(playerId))
             return true;
@@ -26,7 +26,7 @@ function playerAlreadyInTournament(playerId) {
     return false;
 }
 
-function shuffle(array) {
+function shuffle(array:any[]) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [array[i], array[j]] = [array[j], array[i]];
@@ -34,7 +34,7 @@ function shuffle(array) {
     return array;
 }
 
-function startTournament(tournamentId) {
+function startTournament(tournamentId:string) {
     const tournament = tournaments.get(tournamentId);
     if (!tournament) return;
 
@@ -47,7 +47,7 @@ function startTournament(tournamentId) {
         [shuffled[2], shuffled[3]],
     ];
 
-    broadcastTournametMatchs(pairs.)
+    // broadcastTournametMatchs(pairs.)
 
     tournament.rounds = [];
 
@@ -56,11 +56,11 @@ function startTournament(tournamentId) {
         const socket2 = playersSockets.get(p2);
 
         if (!socket1 && !socket2) {
-            const gameRoom = createGameRoom(p1, p2, null, GAME_ROOM_MODE.TOURNAMENT);
+            const gameRoom = createGameRoom(p1, p2, undefined, GAME_ROOM_MODE.TOURNAMENT);
             gameRoom.status = GAME_ROOM_STATUS.FINISHED;
             tournament.rounds.push(gameRoom);
         } else if (!socket1) {
-            const gameRoom = createGameRoom(p1, p2, null, GAME_ROOM_MODE.TOURNAMENT);
+            const gameRoom = createGameRoom(p1, p2, undefined, GAME_ROOM_MODE.TOURNAMENT);
             gameRoom.sockets.add(socket2);
             gameRoom.winner = p2;
             gameRoom.state.paddles.right.score = 5;
@@ -78,15 +78,19 @@ function startTournament(tournamentId) {
             gameRoom.sockets.add(socket2);
             tournament.rounds.push(gameRoom);
         // TO BE COMPLETED LATERRRR>>>>>>>>>>>
+        
         }
 
     }
 
 }
 
-
-async function tournamentRoute(fastify, options) {
-    fastify.post("/tournament/create", (req, reply) => {
+interface TournamentCreateBody {
+    playerId: string;
+    title: string;
+}
+async function tournamentRoute(fastify:FastifyInstance, options: any) {
+    fastify.post("/tournament/create", (req: FastifyRequest<{Body:TournamentCreateBody}>, reply: FastifyReply) => {
         const { playerId, title } = req.body;
 
         if (!playerId)
@@ -121,7 +125,11 @@ async function tournamentRoute(fastify, options) {
         });
     });
 
-    fastify.post("/tournament/join", (req, reply) => {
+    interface TournamentJoinBody {
+        tournamentId: string;
+        playerId: string;
+    }
+    fastify.post("/tournament/join", (req: FastifyRequest<{Body:TournamentJoinBody}>, reply:FastifyReply) => {
         const { tournamentId, playerId } = req.body;
 
         if (!tournamentId || !tournaments.has(tournamentId))
@@ -135,14 +143,14 @@ async function tournamentRoute(fastify, options) {
 
         const tournament = tournaments.get(tournamentId);
 
-        if (tournament.players.includes(playerId))
+        if (tournament?.players.includes(playerId))
             return reply.code(400).send({ message: "Player already in tournament" });
 
-        if (tournament.players.length >= 4)
+        if (tournament?.players.length && tournament.players.length >= 4)
             return reply.code(400).send({ message: "Tournament is full" });
 
 
-        tournament.players.push(playerId);
+        tournament?.players.push(playerId);
 
         playersSockets.forEach(sock => {
             if (sock.readyState === 1) {
@@ -151,7 +159,7 @@ async function tournamentRoute(fastify, options) {
                         type: "tournament_player-joined",
                         payload: {
                             tournamentId,
-                            numPlayers: tournament.players.length
+                            numPlayers: tournament?.players.length
                         }
                     }));
                 } catch (err) {
@@ -160,7 +168,7 @@ async function tournamentRoute(fastify, options) {
             }
         });
 
-        if (tournament.players.length === 4) {
+        if (tournament?.players.length === 4) {
             // start the tournament...
             startTournament(tournamentId);
         }
@@ -168,11 +176,15 @@ async function tournamentRoute(fastify, options) {
         return reply.code(200).send({
             message: "Player joined tournament successfully",
             tournamentId,
-            numPlayers: tournament.players.length
+            numPlayers: tournament?.players.length
         });
     });
 
-    fastify.post("/tournament/leave", (req, reply) => {
+    interface TournamentLeaveBody{
+        tournamentId: string;
+        playerId: string;
+    }
+    fastify.post("/tournament/leave", (req: FastifyRequest<{Body:TournamentLeaveBody}>, reply:FastifyReply) => {
         const { tournamentId, playerId } = req.body;
 
         if (!tournaments.has(tournamentId))
@@ -180,7 +192,7 @@ async function tournamentRoute(fastify, options) {
 
         const tournament = tournaments.get(tournamentId);
 
-        if (!tournament.players.includes(playerId))
+        if (!tournament?.players.includes(playerId))
             return reply.code(404).send({ message: "Player not in tournament" });
 
         tournament.players = tournament.players.filter(p => p !== playerId);

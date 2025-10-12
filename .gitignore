@@ -7,6 +7,7 @@
 **/services/chat-service/node_modules/
 **/services/game-service/node_modules/
 */node_modules/
+.env
 */.env
 *.log
 .DS_Store

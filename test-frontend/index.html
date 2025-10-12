@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Test - ft_transcendence</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 450px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            color: #667eea;
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+
+        .logo p {
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .status-badge.online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .auth-section {
+            margin-bottom: 30px;
+        }
+
+        .auth-section h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .google-btn {
+            width: 100%;
+            padding: 14px 20px;
+            background: #fff;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+            color: #333;
+        }
+
+        .google-btn:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .google-btn img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 25px 0;
+            position: relative;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 100%;
+            height: 1px;
+            background: #ddd;
+        }
+
+        .divider span {
+            background: white;
+            padding: 0 15px;
+            color: #6c757d;
+            font-size: 14px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .user-info {
+            display: none;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+
+        .user-info.active {
+            display: block;
+        }
+
+        .user-info h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .user-info p {
+            margin: 8px 0;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .user-info strong {
+            color: #667eea;
+        }
+
+        .logout-btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+        }
+
+        .error-message {
+            display: none;
+            padding: 12px;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        .success-message {
+            display: none;
+            padding: 12px;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .success-message.active {
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            color: #667eea;
+            margin-top: 20px;
+        }
+
+        .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: block;
+            border: 3px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🏓 ft_transcendence</h1>
+            <p>Authentication Test Page</p>
+            <span id="service-status" class="status-badge offline">⏳ Checking...</span>
+        </div>
+
+        <div id="error" class="error-message"></div>
+        <div id="success" class="success-message"></div>
+
+        <!-- Login Section -->
+        <div id="login-section">
+            <div class="auth-section">
+                <h2>Sign in to continue</h2>
+                
+                <!-- Google Sign-in -->
+                <button class="google-btn" onclick="loginWithGoogle()">
+                    <svg width="24" height="24" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Continue with Google
+                </button>
+
+                <div class="divider">
+                    <span>OR</span>
+                </div>
+
+                <!-- Local Login Form -->
+                <form id="login-form" onsubmit="loginWithLocal(event)">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" placeholder="Enter your email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" placeholder="Enter your password" required>
+                    </div>
+                    <button type="submit" class="submit-btn">Sign In</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- User Info Section (Hidden by default) -->
+        <div id="user-info" class="user-info">
+            <h3>✅ Logged In Successfully!</h3>
+            <img id="user-avatar" class="avatar" style="display: none;">
+            <p><strong>ID:</strong> <span id="user-id"></span></p>
+            <p><strong>Username:</strong> <span id="user-username"></span></p>
+            <p><strong>Email:</strong> <span id="user-email"></span></p>
+            <p><strong>Provider:</strong> <span id="user-provider"></span></p>
+            <p><strong>Token:</strong> <span id="user-token" style="word-break: break-all; font-size: 11px;"></span></p>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <p>⏳ Processing...</p>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const AUTH_SERVICE_URL = 'http://localhost:3010';
+        
+        // Check service status
+        async function checkServiceStatus() {
+            const statusBadge = document.getElementById('service-status');
+            try {
+                const response = await fetch(`${AUTH_SERVICE_URL}/test`, {
+                    method: 'GET',
+                    mode: 'cors',
+                });
+                if (response.ok) {
+                    statusBadge.textContent = '✅ Service Online';
+                    statusBadge.className = 'status-badge online';
+                } else {
+                    statusBadge.textContent = '❌ Service Error';
+                    statusBadge.className = 'status-badge offline';
+                }
+            } catch (error) {
+                statusBadge.textContent = '❌ Service Offline';
+                statusBadge.className = 'status-badge offline';
+                console.error('Service check failed:', error);
+            }
+        }
+
+        // Check if user is already logged in
+        window.onload = function() {
+            checkServiceStatus();
+            checkAuthStatus();
+            
+            // Handle OAuth callback
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            const error = urlParams.get('error');
+            
+            if (token) {
+                handleAuthSuccess(token);
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else if (error) {
+                showError('Authentication failed: ' + error);
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        };
+
+        function loginWithGoogle() {
+            // Redirect to Google OAuth
+            window.location.href = `${AUTH_SERVICE_URL}/auth/google`;
+        }
+
+        async function loginWithLocal(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            showLoading(true);
+            hideMessages();
+            
+            try {
+                const response = await fetch(`${AUTH_SERVICE_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    handleAuthSuccess(data.token);
+                } else {
+                    showError(data.error || data.message || 'Login failed');
+                }
+            } catch (error) {
+                showError('Network error: ' + error.message + '. Make sure auth-service is running on port 3010');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function handleAuthSuccess(token) {
+            // Store token
+            localStorage.setItem('jwt_token', token);
+            
+            // Decode JWT to get user info (simple base64 decode - NOT SECURE FOR PRODUCTION)
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                displayUserInfo(payload, token);
+                showSuccess('Successfully logged in!');
+            } catch (error) {
+                showError('Invalid token received');
+            }
+        }
+
+        function displayUserInfo(user, token) {
+            // Hide login section
+            document.getElementById('login-section').style.display = 'none';
+            
+            // Show user info
+            const userInfoDiv = document.getElementById('user-info');
+            userInfoDiv.classList.add('active');
+            
+            // Handle both userId and id fields
+            document.getElementById('user-id').textContent = user.userId || user.id || 'N/A';
+            document.getElementById('user-username').textContent = user.username || 'N/A';
+            document.getElementById('user-email').textContent = user.email || 'N/A';
+            document.getElementById('user-provider').textContent = user.provider || 'local';
+            document.getElementById('user-token').textContent = token.substring(0, 50) + '...';
+            
+            // Show avatar if available
+            if (user.avatar) {
+                const avatarImg = document.getElementById('user-avatar');
+                avatarImg.src = user.avatar;
+                avatarImg.style.display = 'block';
+            }
+        }
+
+        function checkAuthStatus() {
+            const token = localStorage.getItem('jwt_token');
+            
+            if (token) {
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    
+                    // Check if token is expired
+                    if (payload.exp && payload.exp * 1000 < Date.now()) {
+                        logout();
+                        showError('Session expired. Please login again.');
+                    } else {
+                        displayUserInfo(payload, token);
+                    }
+                } catch (error) {
+                    logout();
+                }
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('jwt_token');
+            
+            // Show login section
+            document.getElementById('login-section').style.display = 'block';
+            
+            // Hide user info
+            document.getElementById('user-info').classList.remove('active');
+            
+            // Clear form
+            document.getElementById('login-form').reset();
+            
+            showSuccess('Logged out successfully!');
+            setTimeout(() => hideMessages(), 3000);
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.classList.add('active');
+        }
+
+        function hideMessages() {
+            document.getElementById('error').classList.remove('active');
+            document.getElementById('success').classList.remove('active');
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>

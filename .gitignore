@@ -21,11 +21,8 @@ services/ai-service/dist/
 services/*/dist/
 
 # Test files
-test-frontend/
 */ARCHITECTURE.md
 
-# Frontend
-frontend/
 
 # Package locks (keep only root)
 services/*/package-lock.json

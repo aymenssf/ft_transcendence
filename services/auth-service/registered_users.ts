@@ -73,7 +73,8 @@ export async function loginUser(params:{
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) 
         throw new AuthError("Invalid username");
-
+    if (!user.password) 
+        throw new AuthError("This account uses OAuth login. Please sign in with Google.");
     const isValidPassword = await verifyPassword(user.password, password);
     if (!isValidPassword) 
         throw new AuthError("Invalid password");

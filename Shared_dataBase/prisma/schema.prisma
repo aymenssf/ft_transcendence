@@ -12,11 +12,14 @@ model User {
   id          Int      @id @default(autoincrement())
   username    String   @unique
   email       String   @unique
-  password    String
+  password    String?
   avatar      String?
   is_42_user  Boolean  @default(false)
   created_at  DateTime @default(now())
 
+  provider    String? 
+  googleId    String? @unique // for i can store my google id
+  
   // Chat relationships
   ownedRooms      ChatRoom[]        @relation("RoomOwner")
   roomMemberships chatRoomMember[]
@@ -26,6 +29,7 @@ model User {
   blockedUsers    block[]           @relation("Blocker")
   blockedBy       block[]           @relation("Blocked")
 }
+
 
 model ChatRoom {
   id          Int      @id @default(autoincrement())

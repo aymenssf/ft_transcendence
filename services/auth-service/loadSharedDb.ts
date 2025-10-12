@@ -8,7 +8,7 @@ export interface UserRow {
   id: number;
   username: string;
   email: string;
-  password: string;
+  password: string | null;
   avatar?: string | null;
   is_42_user?: boolean;
   created_at?: Date;

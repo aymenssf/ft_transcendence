@@ -6,35 +6,24 @@ services:
     container_name: ft_transcendence_auth
     working_dir: /app/services/auth-service
     ports:
-     - "3010:3010"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=file:/app/database/transcendence.db
-      - JWT_SECRET=transcendence-secret-key-change-in-production
-      - PRISMA_HIDE_UPDATE_MESSAGE=true
-      - PRISMA_DISABLE_WARNINGS=true
+     - "${AUTH_SERVICE_PORT:-3010}:3010"
+    env_file:
+      - .env
     volumes:
       - ./database:/app/database:rw
     networks:
       - transcendence-network
     restart: unless-stopped
-    # command: ["node", "dist/server.js"]  # Commented out to use Dockerfile CMD which includes migration
 
   chat-service:
     build:
       context: .
       dockerfile: services/chat-service/Dockerfile
     container_name: ft_transcendence_chat
-    # working_dir: /app/services/chat-service  # Let Dockerfile handle working directory
     ports:
-      - "3011:3011"
-    environment:
-      - NODE_ENV=production
-      - JWT_SECRET=transcendence-secret-key-change-in-production
-      - DATABASE_URL=file:/app/database/transcendence.db
-      - AUTH_SERVICE_URL=http://auth-service:3010
-      - PRISMA_HIDE_UPDATE_MESSAGE=true
-      - PRISMA_DISABLE_WARNINGS=true
+      - "${CHAT_SERVICE_PORT:-3011}:3011"
+    env_file:
+      - .env
     volumes:
       - ./database:/app/database:rw
     networks:
@@ -42,23 +31,16 @@ services:
     depends_on:
       - auth-service
     restart: unless-stopped
-    # command: ["node", "dist/server.js"]  # Commented out to use Dockerfile CMD
 
   game-service:
     build:
       context: .
       dockerfile: services/game-service/Dockerfile
     container_name: ft_transcendence_game
-    # working_dir: /app/services/game-service  # Let Dockerfile handle working directory
     ports:
-      - "3012:3012"
-    environment:
-      - JWT_SECRET=transcendence-secret-key-change-in-production
-      - DATABASE_URL=file:/app/database/transcendence.db
-      - AUTH_SERVICE_URL=http://auth-service:3010
-      - AI_SERVICE_URL=ws://ai-service:3013/
-      - PRISMA_HIDE_UPDATE_MESSAGE=true
-      - PRISMA_DISABLE_WARNINGS=true
+      - "${GAME_SERVICE_PORT:-3012}:3012"
+    env_file:
+      - .env
     volumes:
       - ./services/game-service:/app/services/game-service:rw
       - /app/services/game-service/node_modules
@@ -70,28 +52,21 @@ services:
       - auth-service
       - ai-service
     restart: unless-stopped
-    # command: ["node", "dist/server.js"]  # Commented out to use Dockerfile CMD
 
   ai-service:
     build:
       context: .
       dockerfile: services/ai-service/Dockerfile
     container_name: ft_transcendence_ai
-    # working_dir: /app/services/ai-service  # Let Dockerfile handle working directory
     ports:
-      - "3013:3013"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=file:/app/database/transcendence.db
-      - GAME_SERVICE_URL=http://game-service:3012
-      - PRISMA_HIDE_UPDATE_MESSAGE=true
-      - PRISMA_DISABLE_WARNINGS=true
+      - "${AI_SERVICE_PORT:-3013}:3013"
+    env_file:
+      - .env
     volumes:
       - ./database:/app/database:rw
     networks:
       - transcendence-network
     restart: unless-stopped
-    # command: ["node", "dist/server.js"]  # Commented out to use Dockerfile CMD
 
 networks:
   transcendence-network:

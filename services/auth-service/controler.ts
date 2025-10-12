@@ -10,7 +10,7 @@ import { validateUsername, validateEmail, validatePassword, ValidationError, has
 const prisma = new PrismaClient();
 
 interface RegisterBody { username: string; email: string; password: string; avatar?: string | null }
-interface LoginBody { username: string; password: string }
+interface LoginBody { email: string; password: string }
 
 
 export function registerControllers(app: FastifyInstance) 
@@ -62,11 +62,11 @@ export function registerControllers(app: FastifyInstance)
 
   app.post("/login", async (request: FastifyRequest<{ Body: LoginBody }>, reply: FastifyReply) => {
     try {
-      const { username, password } = request.body;
-      if (!username || !password) 
+      const { email, password } = request.body;
+      if (!email || !password) 
         throw new AuthError('Invalid credentials');
 
-      const user = await prisma.user.findUnique({ where: { username } });
+      const user = await prisma.user.findUnique({ where: { email } });
       if (!user) 
         throw new AuthError('Invalid username');
 
@@ -75,8 +75,10 @@ export function registerControllers(app: FastifyInstance)
         throw new AuthError('Invalid password');
 
       const token = app.jwt.sign({ userId: user.id, username: user.username }, { expiresIn: '7d' });
+      reply.header('Authorization', `Bearer ${token}`);
       return reply.send({
         token,
+        token_type: 'Bearer',
         user: {
           id: user.id,
           username: user.username,

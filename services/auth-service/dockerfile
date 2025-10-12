@@ -45,4 +45,4 @@ RUN mkdir -p /app/database && chmod 755 /app/database
 
 EXPOSE 3010
 
-CMD ["sh", "-c", "cd /app && npm run prisma:migrate:deploy > /dev/null 2>&1 && cd /app/services/auth-service && npm run prisma:generate > /dev/null 2>&1 && mkdir -p ./node_modules/.prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/ && mkdir -p ./node_modules/@prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/ && echo 'Auth service starting...' && node dist/server.js"]
+CMD ["sh", "-c", "cd /app && npm run prisma:migrate:deploy  && cd /app/services/auth-service && npm run prisma:generate  && mkdir -p ./node_modules/.prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/.prisma/ && mkdir -p ./node_modules/@prisma && cp -r ../../Shared_dataBase/node_modules/@prisma/client ./node_modules/@prisma/ && echo 'Auth service starting...' && node dist/server.js"]

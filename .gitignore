@@ -28,6 +28,8 @@ services/*/dist/
 # Package locks (keep only root)
 services/*/package-lock.json
 Shared_dataBase/package-lock.json
-
+frontend_chat
+package-lock.json
 # Backup files
 *.backup
+package-lock.json

@@ -8,7 +8,7 @@ async function bootstrap() {
   const app = Fastify({ logger: true });
 
  await app.register(cors, {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000', 
+    origin: '*', // Allow all origins for development
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -21,7 +21,7 @@ async function bootstrap() {
 
 
 
-await app.register(GoogleAuthRoutes);  
+await app.register(GoogleAuthRoutes);
 
 
   registerControllers(app);

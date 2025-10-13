@@ -8,12 +8,12 @@
     }
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^6.17.1",
     "dotenv": "^17.2.3",
     "google-auth-library": "^10.4.0"
   },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "prisma": "^6.17.1"
   },
   "scripts": {
     "generate": "prisma generate --schema ./prisma/schema.prisma"

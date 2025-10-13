@@ -184,4 +184,107 @@ export async function userRoutes(app: FastifyInstance) {
       });
     }
   });
+
+  // Get user profile with stats
+  app.get('/api/users/:id/profile', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply) => {
+    try {
+      const targetUserId = parseInt(request.params.id);
+
+      if (isNaN(targetUserId)) {
+        return reply.status(400).send({ message: 'Invalid user ID' });
+      }
+
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+
+      const user = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          avatar: true,
+          created_at: true,
+          is_42_user: true
+        }
+      });
+
+      if (!user) {
+        await prisma.$disconnect();
+        return reply.status(404).send({ message: 'User not found' });
+      }
+
+      // TODO: Fetch game statistics from game-service
+      // For now, return placeholder stats
+      const stats = {
+        gamesPlayed: 0,
+        gamesWon: 0,
+        gamesLost: 0,
+        winRate: 0,
+        tournamentWins: 0,
+        rank: 'Beginner'
+      };
+
+      await prisma.$disconnect();
+
+      return {
+        user: {
+          ...user,
+          stats
+        }
+      };
+    } catch (error: any) {
+      app.log.error('Error fetching user profile:', error);
+      reply.status(500).send({
+        message: 'Failed to fetch user profile',
+        error: error.message
+      });
+    }
+  });
+
+  // Get online users
+  app.get('/api/users/online', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply) => {
+    try {
+      const { onlineUsers } = await import('../socket/handler.js');
+
+      const onlineUserIds = Array.from(onlineUsers.keys());
+
+      if (onlineUserIds.length === 0) {
+        return { users: [], count: 0 };
+      }
+
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+
+      const users = await prisma.user.findMany({
+        where: {
+          id: {
+            in: onlineUserIds
+          }
+        },
+        select: {
+          id: true,
+          username: true,
+          avatar: true
+        }
+      });
+
+      await prisma.$disconnect();
+
+      return {
+        users,
+        count: users.length
+      };
+    } catch (error: any) {
+      app.log.error('Error fetching online users:', error);
+      reply.status(500).send({
+        message: 'Failed to fetch online users',
+        error: error.message
+      });
+    }
+  });
 }

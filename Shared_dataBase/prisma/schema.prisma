@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/@prisma/client"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -17,9 +17,9 @@ model User {
   is_42_user  Boolean  @default(false)
   created_at  DateTime @default(now())
 
-  provider    String? 
+  provider    String?
   googleId    String? @unique // for i can store my google id
-  
+
   // Chat relationships
   ownedRooms      ChatRoom[]        @relation("RoomOwner")
   roomMemberships chatRoomMember[]
@@ -28,6 +28,13 @@ model User {
   // Blocking relationships
   blockedUsers    block[]           @relation("Blocker")
   blockedBy       block[]           @relation("Blocked")
+
+  // Game invitation relationships
+  sentGameInvites     GameInvitation[] @relation("GameInviteSender")
+  receivedGameInvites GameInvitation[] @relation("GameInviteReceiver")
+
+  // Tournament notifications
+  tournamentNotifications TournamentNotification[]
 }
 
 
@@ -44,6 +51,9 @@ model ChatRoom {
   // Many-to-many relationship with users
   members     chatRoomMember[]
   messages    message[]
+
+  // Game invitations sent from this room
+  gameInvitations GameInvitation[]
 }
 
 model chatRoomMember {
@@ -64,6 +74,8 @@ model chatRoomMember {
 model message {
   id          Int      @id @default(autoincrement())
   content     String
+  type        String   @default("text") // text, game_invitation, system
+  metadata    String?  // JSON string for additional data
   created_at  DateTime @default(now())
 
   senderId    Int
@@ -90,4 +102,42 @@ model block {
   @@index([blockerId])
   @@index([blockedId])
   @@map("BlockedUser")
+}
+
+model GameInvitation {
+  id            Int      @id @default(autoincrement())
+  senderId      Int
+  receiverId    Int
+  chatRoomId    Int?
+  status        String   @default("pending") // pending, accepted, declined, expired
+  gameRoomId    String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  sender        User     @relation("GameInviteSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver      User     @relation("GameInviteReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  chatRoom      ChatRoom? @relation(fields: [chatRoomId], references: [id], onDelete: SetNull)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@index([created_at])
+}
+
+model TournamentNotification {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  tournamentId  Int
+  title         String
+  message       String
+  type          String   @default("match") // match, start, win, lose
+  isRead        Boolean  @default(false)
+  created_at    DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tournamentId])
+  @@index([isRead])
+  @@index([created_at])
 }

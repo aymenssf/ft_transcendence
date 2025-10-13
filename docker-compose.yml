@@ -1,5 +1,5 @@
 services:
- auth-service:
+  auth-service:
     build:
       context: .
       dockerfile: services/auth-service/Dockerfile
@@ -43,7 +43,6 @@ services:
       - .env
     volumes:
       - ./services/game-service:/app/services/game-service:rw
-      - /app/services/game-service/node_modules
       - /app/services/game-service/node_modules
       - ./database:/app/database:rw
       - ./Shared_dataBase:/app/Shared_dataBase:rw

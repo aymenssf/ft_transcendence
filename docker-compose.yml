@@ -1,16 +1,5 @@
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: ft_transcendence_frontend
-    ports:
-      - "3000:3000"
-    networks:
-      - transcendence-network
-    restart: unless-stopped
-
-  auth-service:
+ auth-service:
     build:
       context: .
       dockerfile: services/auth-service/Dockerfile
@@ -55,8 +44,12 @@ services:
     volumes:
       - ./services/game-service:/app/services/game-service:rw
       - /app/services/game-service/node_modules
+      - /app/services/game-service/node_modules
       - ./database:/app/database:rw
-      - ./Shared_dataBase:/app/Shared_dataBase
+      - ./Shared_dataBase:/app/Shared_dataBase:rw
+      - /app/Shared_dataBase/node_modules
+    command: >
+      sh -c "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && node dist/src/server.js"
     networks:
       - transcendence-network
     depends_on:

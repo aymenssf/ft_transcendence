@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@ft/shared-database';
 
 export interface ChatMessage {
   id: number;
@@ -317,7 +315,7 @@ function createChatDB(): ChatDB {
     },
 
     close() {
-      prisma.$disconnect();
+      // No need to disconnect shared prisma instance
     }
   };
 }

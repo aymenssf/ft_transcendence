@@ -1,9 +1,6 @@
 import crypto from "crypto";
 import bcrypt from "bcrypt";
-import { PrismaClient } from "@prisma/client";
-
-// Single Prisma client instance for this module
-const prisma = new PrismaClient();
+import { prisma } from '@ft/shared-database';
 
 export interface LoginSuccess 
 {

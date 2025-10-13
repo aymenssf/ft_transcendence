@@ -1,19 +1,33 @@
-FROM node:20-alpine
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy and install Shared_dataBase first
+COPY Shared_dataBase/package*.json ./Shared_dataBase/
+COPY Shared_dataBase/prisma ./Shared_dataBase/prisma/
+COPY Shared_dataBase/prismaClient.ts ./Shared_dataBase/
+COPY Shared_dataBase/prismaClient.js ./Shared_dataBase/
+COPY Shared_dataBase/prismaClient.d.ts ./Shared_dataBase/
+
+WORKDIR /app/Shared_dataBase
+RUN npm install
+RUN npx prisma generate
+
+# Now build game service
 WORKDIR /app/services/game-service
-
-RUN apk add --no-cache sqlite sqlite-dev
-
 COPY services/game-service/package*.json ./
+# Install runtime + dev dependencies at image build so `tsc` is available for the build step
 RUN npm install --include=dev
-# RUN npm ci --no-audit --no-fund
 
-ENV PATH="/app/services/game-service/node_modules/.bin:$PATH"
-ENV NODE_PATH=/app/services/game-service/node_modules
+COPY services/game-service ./
+RUN npm run build
 
-RUN mkdir /app/Shared_dataBase
-RUN ln -s /app/services/game-service/node_modules /app/Shared_dataBase/node_modules || true
+ENV DATABASE_URL="file:/app/database/transcendence.db"
 
 RUN mkdir -p /app/database && chmod 755 /app/database
 
+EXPOSE 3012
 
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-c", "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && node dist/src/server.js"]

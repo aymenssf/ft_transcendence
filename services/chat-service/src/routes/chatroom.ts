@@ -18,8 +18,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
   }, async (request: any, reply) => {
     try {
       const userId = request.user.id;
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const chatRooms = await prisma.chatRoom.findMany({
         where: {
@@ -46,7 +45,6 @@ export async function chatroomRoutes(app: FastifyInstance) {
         }
       });
 
-      await prisma.$disconnect();
       return { chatRooms };
     } catch (error: any) {
       reply.status(500).send({
@@ -75,8 +73,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Password required for protected chat' });
       }
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       if (type === 'private' && targetUserId) {
         const existingChat = await prisma.chatRoom.findFirst({
@@ -90,7 +87,6 @@ export async function chatroomRoutes(app: FastifyInstance) {
         });
 
         if (existingChat) {
-          await prisma.$disconnect();
           return reply.status(400).send({
             message: 'A private chat already exists with this user',
             chatRoom: existingChat
@@ -137,10 +133,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
             }
           }
         }
-      });
-
-      await prisma.$disconnect();
-      return {
+      });      return {
         message: 'Chat room created successfully',
         chatRoom
       };
@@ -164,8 +157,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Invalid room ID' });
       }
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const chatRoom = await prisma.chatRoom.findUnique({
         where: { id: roomId },
@@ -174,33 +166,23 @@ export async function chatroomRoutes(app: FastifyInstance) {
         }
       });
 
-      if (!chatRoom) {
-        await prisma.$disconnect();
-        return reply.status(404).send({ message: 'Chat room not found' });
+      if (!chatRoom) {        return reply.status(404).send({ message: 'Chat room not found' });
       }
 
       const isMember = chatRoom.members.some((m: any) => m.userId === userId);
-      if (isMember) {
-        await prisma.$disconnect();
-        return reply.status(400).send({ message: 'Already a member of this room' });
+      if (isMember) {        return reply.status(400).send({ message: 'Already a member of this room' });
       }
 
       if (chatRoom.type === 'protected') {
-        if (!password || !chatRoom.password) {
-          await prisma.$disconnect();
-          return reply.status(400).send({ message: 'Password required' });
+        if (!password || !chatRoom.password) {          return reply.status(400).send({ message: 'Password required' });
         }
 
         const passwordMatch = await bcrypt.compare(password, chatRoom.password);
-        if (!passwordMatch) {
-          await prisma.$disconnect();
-          return reply.status(401).send({ message: 'Incorrect password' });
+        if (!passwordMatch) {          return reply.status(401).send({ message: 'Incorrect password' });
         }
       }
 
-      if (chatRoom.type === 'private') {
-        await prisma.$disconnect();
-        return reply.status(403).send({ message: 'Cannot join private rooms' });
+      if (chatRoom.type === 'private') {        return reply.status(403).send({ message: 'Cannot join private rooms' });
       }
 
       await prisma.chatRoomMember.create({
@@ -209,10 +191,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
           userId: userId,
           role: 'member'
         }
-      });
-
-      await prisma.$disconnect();
-      return { message: 'Joined chat room successfully' };
+      });      return { message: 'Joined chat room successfully' };
     } catch (error: any) {
       reply.status(500).send({
         message: 'Failed to join chat room',
@@ -232,8 +211,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Invalid room ID' });
       }
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const membership = await prisma.chatRoomMember.findUnique({
         where: {
@@ -244,9 +222,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
         }
       });
 
-      if (!membership) {
-        await prisma.$disconnect();
-        return reply.status(403).send({ message: 'Not a member of this chat room' });
+      if (!membership) {        return reply.status(403).send({ message: 'Not a member of this chat room' });
       }
 
       // Get blocked users to filter messages
@@ -276,10 +252,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
         orderBy: {
           created_at: 'asc'
         }
-      });
-
-      await prisma.$disconnect();
-      return { messages };
+      });      return { messages };
     } catch (error: any) {
       reply.status(500).send({
         message: 'Failed to fetch messages',
@@ -300,8 +273,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Invalid room ID' });
       }
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       // Check if user is a member
       const membership = await prisma.chatRoomMember.findUnique({
@@ -313,9 +285,7 @@ export async function chatroomRoutes(app: FastifyInstance) {
         }
       });
 
-      if (!membership) {
-        await prisma.$disconnect();
-        return reply.status(403).send({ message: 'Not a member of this chat room' });
+      if (!membership) {        return reply.status(403).send({ message: 'Not a member of this chat room' });
       }
 
       // Get all members
@@ -335,9 +305,6 @@ export async function chatroomRoutes(app: FastifyInstance) {
           joinedAt: 'asc'
         }
       });
-
-      await prisma.$disconnect();
-
       return { members };
     } catch (error: any) {
       reply.status(500).send({

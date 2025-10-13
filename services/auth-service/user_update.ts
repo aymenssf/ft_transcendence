@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { PublicUser } from "./loadSharedDb.js";
-import { prisma, validateUsername, validateEmail, validatePassword, hashPassword, ValidationError } from "./loadSharedDb.js";
+import {validateUsername, validateEmail, validatePassword, hashPassword, ValidationError } from "./loadSharedDb.js";
+import { prisma } from '@ft/shared-database';
 
 export interface UpdateUserBody {
 	username?: string;

@@ -1,13 +1,14 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
+import { prisma } from '@ft/shared-database';
 import { AuthError, verifyPassword } from "./registered_users.js";
 import { updateUserHandler, type UpdateUserBody } from './user_update.js';
 import { validateUsername, validateEmail, validatePassword, ValidationError, hashPassword } from './loadSharedDb.js';
 
 // Instantiate Prisma client (singleton per module)
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 
 interface RegisterBody { username: string; email: string; password: string; avatar?: string | null }
 interface LoginBody { username: string; email: string; password: string }

@@ -162,20 +162,17 @@ export async function tournamentRoutes(app: FastifyInstance) {
       }
 
       // Verify notification belongs to user
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const notification = await prisma.tournamentNotification.findUnique({
         where: { id: notificationId }
       });
 
       if (!notification) {
-        await prisma.$disconnect();
         return reply.status(404).send({ message: 'Notification not found' });
       }
 
       if (notification.userId !== userId) {
-        await prisma.$disconnect();
         return reply.status(403).send({ message: 'Not authorized' });
       }
 
@@ -204,8 +201,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
     try {
       const userId = request.user.id;
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       await prisma.tournamentNotification.updateMany({
         where: {
@@ -216,8 +212,6 @@ export async function tournamentRoutes(app: FastifyInstance) {
           isRead: true
         }
       });
-
-      await prisma.$disconnect();
 
       return {
         message: 'All notifications marked as read'

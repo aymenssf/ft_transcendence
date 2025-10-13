@@ -9,8 +9,7 @@ export async function userRoutes(app: FastifyInstance) {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {
     try {
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const users = await prisma.user.findMany({
         select: {
@@ -21,8 +20,6 @@ export async function userRoutes(app: FastifyInstance) {
           created_at: true
         }
       });
-
-      await prisma.$disconnect();
 
       return { users };
     } catch (error: any) {
@@ -48,8 +45,7 @@ export async function userRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Cannot block yourself' });
       }
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const existing = await prisma.block.findUnique({
         where: {
@@ -61,7 +57,6 @@ export async function userRoutes(app: FastifyInstance) {
       });
 
       if (existing) {
-        await prisma.$disconnect();
         return reply.status(400).send({ message: 'User already blocked' });
       }
 
@@ -71,8 +66,6 @@ export async function userRoutes(app: FastifyInstance) {
           blockedId: blockedId
         }
       });
-
-      await prisma.$disconnect();
 
       return {
         message: 'User blocked successfully',
@@ -97,8 +90,7 @@ export async function userRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Blocked user ID is required' });
       }
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       await prisma.block.delete({
         where: {
@@ -108,8 +100,6 @@ export async function userRoutes(app: FastifyInstance) {
           }
         }
       });
-
-      await prisma.$disconnect();
 
       return { message: 'User unblocked successfully' };
     } catch (error: any) {
@@ -126,8 +116,7 @@ export async function userRoutes(app: FastifyInstance) {
     try {
       const userId = request.user.id;
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const blocks = await prisma.block.findMany({
         where: { blockerId: userId },
@@ -143,8 +132,6 @@ export async function userRoutes(app: FastifyInstance) {
         }
       });
 
-      await prisma.$disconnect();
-
       return { blockedUsers: blocks };
     } catch (error: any) {
       reply.status(500).send({
@@ -156,8 +143,7 @@ export async function userRoutes(app: FastifyInstance) {
 
   app.get('/test/users', async (request, reply) => {
     try {
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const users = await prisma.user.findMany({
         select: {
@@ -168,8 +154,6 @@ export async function userRoutes(app: FastifyInstance) {
           created_at: true
         }
       });
-
-      await prisma.$disconnect();
 
       return {
         status: 'success',
@@ -196,8 +180,7 @@ export async function userRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Invalid user ID' });
       }
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const user = await prisma.user.findUnique({
         where: { id: targetUserId },
@@ -212,7 +195,6 @@ export async function userRoutes(app: FastifyInstance) {
       });
 
       if (!user) {
-        await prisma.$disconnect();
         return reply.status(404).send({ message: 'User not found' });
       }
 
@@ -226,8 +208,6 @@ export async function userRoutes(app: FastifyInstance) {
         tournamentWins: 0,
         rank: 'Beginner'
       };
-
-      await prisma.$disconnect();
 
       return {
         user: {
@@ -257,8 +237,7 @@ export async function userRoutes(app: FastifyInstance) {
         return { users: [], count: 0 };
       }
 
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const users = await prisma.user.findMany({
         where: {
@@ -272,8 +251,6 @@ export async function userRoutes(app: FastifyInstance) {
           avatar: true
         }
       });
-
-      await prisma.$disconnect();
 
       return {
         users,

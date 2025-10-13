@@ -1,8 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
 import crypto from "crypto";
-
+import { prisma } from '@ft/shared-database';
 // Export prisma so other modules (e.g., user_update) can reuse the same instance
-export const prisma = new PrismaClient();
+// export const prisma = new PrismaClient();
 
 export interface UserRow {
   id: number;

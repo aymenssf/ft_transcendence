@@ -35,15 +35,12 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
       const message = await app.db.createMessage(content, userId, chatRoomId);
 
       // Get room members to check blocking
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       const members = await prisma.chatRoomMember.findMany({
         where: { chatRoomId },
         select: { userId: true }
       });
-
-      await prisma.$disconnect();
 
       // Broadcast message to room members except blocked users
       for (const member of members) {
@@ -103,8 +100,7 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
       }
 
       // Find or create private chat room
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const { prisma } = await import('@ft/shared-database');
 
       let chatRoom = await prisma.chatRoom.findFirst({
         where: {
@@ -130,8 +126,6 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
           }
         });
       }
-
-      await prisma.$disconnect();
 
       // Save message
       const message = await app.db.createMessage(content, userId, chatRoom.id);

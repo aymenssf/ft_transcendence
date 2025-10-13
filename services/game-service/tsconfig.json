@@ -10,9 +10,9 @@
       "skipLibCheck": true,
       "forceConsistentCasingInFileNames": true,
       "resolveJsonModule": true,
-      "types": ["node"],
+      "types": ["node", "@fastify/websocket"],
       "lib": ["es2022"]
     },
-    "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts", "src/types/**/*.d.ts"],
     "exclude": ["node_modules", "dist"]
   }

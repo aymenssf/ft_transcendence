@@ -8,11 +8,13 @@ import {FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
 import {SocketStream} from "@fastify/websocket";
 import {GameRoom} from "../utils/types.js";
 import {GAME_ROOM_STATUS} from "../helpers/consts.js";
+import "@fastify/websocket";
 
 interface SocketQuery {
     player_id: string;
 }
 async function gameSocket(fastify: FastifyInstance, options: any) {
+    // @ts-ignore
     fastify.get('/ws', { websocket: true }, (connection: SocketStream, req: FastifyRequest<{Querystring:SocketQuery}>) => {
         const playerId: string = req.query.player_id;
         console.log(`New Socket Connection from ${playerId}`);
@@ -20,7 +22,7 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
         if (playerId)
             playersSockets.set(playerId, connection.socket);
 
-        connection.socket.on("message", (data) => {
+        connection.socket.on("message", (data:any) => {
             try {
                 const { type, payload } = JSON.parse(data.toString());
 
@@ -52,7 +54,7 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
             handleSocketClose(playerId);
         });
 
-        connection.socket.on('error', (error) => {
+        connection.socket.on('error', (error: any) => {
             console.error(`Error for ${playerId}:`, error);
             playersSockets.delete(playerId);
         });

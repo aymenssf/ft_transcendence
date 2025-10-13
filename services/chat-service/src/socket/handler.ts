@@ -11,6 +11,8 @@ export function setupSocketAuthentication(app: FastifyInstance) {
     try {
       const token = socket.handshake.auth.token;
 
+      app.log.info(`Socket authentication attempt, token present: ${!!token}`);
+
       if (!token) {
         return next(new Error('Authentication error: No token provided'));
       }
@@ -18,11 +20,14 @@ export function setupSocketAuthentication(app: FastifyInstance) {
       // Verify JWT token using Fastify's jwt.verify
       const decoded = await app.jwt.verify(token) as any;
 
+      app.log.info(`JWT decoded:`, decoded);
+
       // Attach user payload to socket
       socket.user = decoded as any;
 
       next();
-    } catch (error) {
+    } catch (error: any) {
+      app.log.error(`Socket authentication error:`, error);
       next(new Error('Authentication error: Invalid token'));
     }
   });
@@ -30,7 +35,8 @@ export function setupSocketAuthentication(app: FastifyInstance) {
 
 export function setupSocketConnection(app: FastifyInstance) {
   app.io.on('connection', (socket: Socket) => {
-    const userId = socket.user?.id;
+    // Support both 'userId' and 'id' fields from JWT
+    const userId = socket.user?.userId || socket.user?.id;
 
     if (userId) {
       // Add user to online users map

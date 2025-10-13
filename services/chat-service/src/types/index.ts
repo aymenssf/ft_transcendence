@@ -32,9 +32,10 @@ export interface Database {
 
 // JWT Payload interface
 export interface JWTPayload {
-  id: number;
+  id?: number;        // Used by Google OAuth
+  userId?: number;    // Used by regular login
   username: string;
-  email: string;
+  email?: string;
   [key: string]: any;
 }
 

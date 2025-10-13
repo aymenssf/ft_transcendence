@@ -48,7 +48,7 @@ services:
       - ./Shared_dataBase:/app/Shared_dataBase:rw
       - /app/Shared_dataBase/node_modules
     command: >
-      sh -c "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && node dist/src/server.js"
+      sh -c "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && npx tsx src/server.ts"
     networks:
       - transcendence-network
     depends_on:

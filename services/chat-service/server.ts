@@ -162,8 +162,7 @@ app.get('/db-test', async (request, reply) => {
 
 app.get('/test/users', async (request, reply) => {
   try {
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
+    const { prisma } = await import('@ft/shared-database');
 
     const users = await prisma.user.findMany({
       select: {
@@ -174,8 +173,6 @@ app.get('/test/users', async (request, reply) => {
         created_at: true
       }
     });
-
-    await prisma.$disconnect();
 
     return {
       status: 'success',

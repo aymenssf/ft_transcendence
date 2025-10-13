@@ -4,7 +4,7 @@
       "module": "NodeNext",
       "moduleResolution": "NodeNext",
       "outDir": "./dist",
-      "rootDir": "./src",
+      "rootDir": ".",
       "strict": true,
       "esModuleInterop": true,
       "skipLibCheck": true,
@@ -13,6 +13,6 @@
       "types": ["node", "@fastify/websocket"],
       "lib": ["es2022"]
     },
-    "include": ["src/**/*.ts", "src/types/**/*.d.ts"],
+    "include": ["src/**/*.ts", "loadSharedDb.ts", "src/types/**/*.d.ts"],
     "exclude": ["node_modules", "dist"]
   }

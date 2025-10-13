@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@ft/shared-database';
 
 export interface SimpleGameDB {
   findUserById(id: number): Promise<any>;
@@ -49,7 +47,7 @@ function createSimpleGameDB(): SimpleGameDB {
     },
 
     close() {
-      prisma.$disconnect();
+      // No need to disconnect shared prisma instance
     }
   };
 }

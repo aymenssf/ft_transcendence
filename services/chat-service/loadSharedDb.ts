@@ -37,6 +37,54 @@ export interface TournamentNotification {
   created_at: Date;
 }
 
+export interface UnreadMessage {
+  userId: number;
+  chatRoomId: number;
+  unreadCount: number;
+  lastMessageId?: number | null;
+  updated_at: Date;
+}
+
+export interface ChatDB {
+  findUserById(id: number): Promise<any>;
+  findUserByUsername(username: string): Promise<any>;
+
+  createChatRoom(name: string | null, type: string, ownerId: number): Promise<ChatRoom>;
+  findChatRoomById(id: number): Promise<ChatRoom | null>;
+  getChatRoomsByUser(userId: number): Promise<ChatRoom[]>;
+
+  createMessage(content: string, userId: number, chatRoomId: number, type?: string, metadata?: string): Promise<ChatMessage>;
+  getMessagesByChatRoom(chatRoomId: number, userId: number, limit?: number): Promise<ChatMessage[]>;
+  getMessagesByChatRoomPaginated(chatRoomId: number, userId: number, limit?: number, offset?: number): Promise<ChatMessage[]>;
+
+  // User status management
+  getUserStatus(userId: number): Promise<string>;
+  updateUserStatus(userId: number, status: string): Promise<void>;
+  getOnlineUsers(): Promise<any[]>;
+
+  // Unread messages
+  getUnreadMessageCount(userId: number, chatRoomId: number): Promise<number>;
+  getAllUnreadCounts(userId: number): Promise<UnreadMessage[]>;
+  incrementUnreadCount(userId: number, chatRoomId: number, messageId: number): Promise<void>;
+  markMessagesAsRead(userId: number, chatRoomId: number): Promise<void>;
+
+  // Blocking
+  isUserBlocked(blockerId: number, blockedId: number): Promise<boolean>;
+
+  // Game invitations
+  createGameInvitation(senderId: number, receiverId: number, chatRoomId?: number): Promise<GameInvitation>;
+  getGameInvitationById(id: number): Promise<GameInvitation | null>;
+  updateGameInvitationStatus(id: number, status: string, gameRoomId?: string): Promise<GameInvitation>;
+  getUserGameInvitations(userId: number, status?: string): Promise<GameInvitation[]>;
+
+  // Tournament notifications
+  createTournamentNotification(userId: number, tournamentId: number, title: string, message: string, type: string): Promise<TournamentNotification>;
+  getUserTournamentNotifications(userId: number, unreadOnly?: boolean): Promise<TournamentNotification[]>;
+  markNotificationAsRead(id: number): Promise<void>;
+
+  close(): void;
+}
+
 export interface ChatRoom {
   id: number;
   name?: string | null;
@@ -204,6 +252,145 @@ function createChatDB(): ChatDB {
         },
         take: limit
       }) as any;
+    },
+
+    async getMessagesByChatRoomPaginated(chatRoomId: number, userId: number, limit = 50, offset = 0): Promise<ChatMessage[]> {
+      // Get list of blocked users
+      const blockedUsers = await prisma.block.findMany({
+        where: { blockerId: userId },
+        select: { blockedId: true }
+      });
+
+      const blockedIds = blockedUsers.map((b: any) => b.blockedId);
+
+      // Fetch messages excluding blocked users with pagination
+      return await prisma.message.findMany({
+        where: {
+          chatRoomId,
+          senderId: {
+            notIn: blockedIds
+          }
+        },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              username: true,
+              avatar: true
+            }
+          }
+        },
+        orderBy: {
+          created_at: 'desc'
+        },
+        skip: offset,
+        take: limit
+      }) as any;
+    },
+
+    // User status management
+    async getUserStatus(userId: number): Promise<string> {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { status: true }
+      });
+      return user?.status || 'offline';
+    },
+
+    async updateUserStatus(userId: number, status: string): Promise<void> {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          status,
+          lastSeen: new Date()
+        }
+      });
+    },
+
+    async getOnlineUsers(): Promise<any[]> {
+      return await prisma.user.findMany({
+        where: {
+          status: {
+            in: ['online', 'in-game']
+          }
+        },
+        select: {
+          id: true,
+          username: true,
+          avatar: true,
+          status: true,
+          lastSeen: true
+        }
+      });
+    },
+
+    // Unread messages
+    async getUnreadMessageCount(userId: number, chatRoomId: number): Promise<number> {
+      const unread = await prisma.unreadMessage.findUnique({
+        where: {
+          userId_chatRoomId: {
+            userId,
+            chatRoomId
+          }
+        }
+      });
+      return unread?.unreadCount || 0;
+    },
+
+    async getAllUnreadCounts(userId: number): Promise<UnreadMessage[]> {
+      return await prisma.unreadMessage.findMany({
+        where: {
+          userId,
+          unreadCount: {
+            gt: 0
+          }
+        },
+        orderBy: {
+          updated_at: 'desc'
+        }
+      }) as any;
+    },
+
+    async incrementUnreadCount(userId: number, chatRoomId: number, messageId: number): Promise<void> {
+      await prisma.unreadMessage.upsert({
+        where: {
+          userId_chatRoomId: {
+            userId,
+            chatRoomId
+          }
+        },
+        update: {
+          unreadCount: {
+            increment: 1
+          },
+          lastMessageId: messageId
+        },
+        create: {
+          userId,
+          chatRoomId,
+          unreadCount: 1,
+          lastMessageId: messageId
+        }
+      });
+    },
+
+    async markMessagesAsRead(userId: number, chatRoomId: number): Promise<void> {
+      await prisma.unreadMessage.upsert({
+        where: {
+          userId_chatRoomId: {
+            userId,
+            chatRoomId
+          }
+        },
+        update: {
+          unreadCount: 0
+        },
+        create: {
+          userId,
+          chatRoomId,
+          unreadCount: 0
+        }
+      });
     },
 
     // Blocking

@@ -32,7 +32,7 @@ fi
 echo "✅ Port 3000 is available"
 echo ""
 echo "📍 Frontend will be available at: http://localhost:3000"
-echo "🔗 Make sure your auth-service is running at: http://localhost:8000"
+echo "🔗 Make sure your auth-service is running at: http://localhost:3010"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""

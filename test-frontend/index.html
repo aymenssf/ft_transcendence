@@ -276,6 +276,26 @@
         <div id="error" class="error-message"></div>
         <div id="success" class="success-message"></div>
 
+        <!-- Register Section -->
+        <div id="register-section" class="auth-section">
+            <h2>Create an account</h2>
+            <form id="register-form" onsubmit="registerUser(event)">
+                <div class="form-group">
+                    <label for="reg-username">Username</label>
+                    <input type="text" id="reg-username" placeholder="Choose a username" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">Email</label>
+                    <input type="email" id="reg-email" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Password</label>
+                    <input type="password" id="reg-password" placeholder="Strong password (min 8, Aa0)" required>
+                </div>
+                <button type="submit" class="submit-btn">Register</button>
+            </form>
+        </div>
+
         <!-- Login Section -->
         <div id="login-section">
             <div class="auth-section">
@@ -320,6 +340,28 @@
             <p><strong>Email:</strong> <span id="user-email"></span></p>
             <p><strong>Provider:</strong> <span id="user-provider"></span></p>
             <p><strong>Token:</strong> <span id="user-token" style="word-break: break-all; font-size: 11px;"></span></p>
+            <div style="margin-top: 15px;">
+                <h3 style="margin-bottom:10px;">Update profile</h3>
+                <form id="update-form" onsubmit="updateUser(event)">
+                    <div class="form-group">
+                        <label for="upd-username">New Username</label>
+                        <input type="text" id="upd-username" placeholder="Leave blank to keep" />
+                    </div>
+                    <div class="form-group">
+                        <label for="upd-email">New Email</label>
+                        <input type="email" id="upd-email" placeholder="Leave blank to keep" />
+                    </div>
+                    <div class="form-group">
+                        <label for="upd-password">New Password</label>
+                        <input type="password" id="upd-password" placeholder="Leave blank to keep" />
+                    </div>
+                    <div class="form-group">
+                        <label for="upd-avatar">Avatar URL</label>
+                        <input type="url" id="upd-avatar" placeholder="https://..." />
+                    </div>
+                    <button type="submit" class="submit-btn">Update</button>
+                </form>
+            </div>
             <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
 
@@ -380,6 +422,32 @@
             window.location.href = `${AUTH_SERVICE_URL}/auth/google`;
         }
 
+        async function registerUser(event) {
+            event.preventDefault();
+            const username = document.getElementById('reg-username').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+            showLoading(true); hideMessages();
+            try {
+                const res = await fetch(`${AUTH_SERVICE_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showSuccess('Registered! You can now login.');
+                    document.getElementById('login-email').value = email;
+                } else {
+                    showError(data.error || 'Registration failed');
+                }
+            } catch (e) {
+                showError('Network error: ' + e.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
         async function loginWithLocal(event) {
             event.preventDefault();
             
@@ -407,6 +475,53 @@
                 }
             } catch (error) {
                 showError('Network error: ' + error.message + '. Make sure auth-service is running on port 3010');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function updateUser(event) {
+            event.preventDefault();
+            const token = localStorage.getItem('jwt_token');
+            if (!token) { showError('Not authenticated'); return; }
+            const username = document.getElementById('upd-username').value.trim();
+            const email = document.getElementById('upd-email').value.trim();
+            const password = document.getElementById('upd-password').value;
+            const avatar = document.getElementById('upd-avatar').value.trim();
+            const payload = {};
+            if (username) payload.username = username;
+            if (email) payload.email = email;
+            if (password) payload.password = password;
+            if (avatar) payload.avatar = avatar;
+            if (Object.keys(payload).length === 0) { showError('Nothing to update'); return; }
+            showLoading(true); hideMessages();
+            try {
+                const res = await fetch(`${AUTH_SERVICE_URL}/user/update`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showSuccess('Profile updated');
+                    // refresh UI minimally
+                    if (data.user) {
+                        document.getElementById('user-username').textContent = data.user.username;
+                        document.getElementById('user-email').textContent = data.user.email;
+                        if (data.user.avatar) {
+                            const avatarImg = document.getElementById('user-avatar');
+                            avatarImg.src = data.user.avatar;
+                            avatarImg.style.display = 'block';
+                        }
+                    }
+                } else {
+                    showError(data.error || 'Update failed');
+                }
+            } catch (e) {
+                showError('Network error: ' + e.message);
             } finally {
                 showLoading(false);
             }
@@ -444,7 +559,11 @@
             // Show avatar if available
             if (user.avatar) {
                 const avatarImg = document.getElementById('user-avatar');
-                avatarImg.src = user.avatar;
+                let url = user.avatar;
+                if (typeof url === 'string' && !/^https?:\/\//.test(url)) {
+                    url = `${AUTH_SERVICE_URL.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
+                }
+                avatarImg.src = url;
                 avatarImg.style.display = 'block';
             }
         }
@@ -508,3 +627,4 @@
     </script>
 </body>
 </html>
+ 

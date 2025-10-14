@@ -222,6 +222,22 @@
         <!-- Login Section -->
         <div id="loginSection" class="login-section active">
             <div class="auth-section">
+                <h2 class="section-title">Create account</h2>
+                <form id="registerForm" onsubmit="registerUser(event)">
+                    <div class="info-row" style="border-bottom:none; gap:10px;">
+                        <input id="regUsername" type="text" placeholder="Username" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                        <input id="regEmail" type="email" placeholder="Email" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                    </div>
+                    <div class="info-row" style="border-bottom:none;">
+                        <input id="regPassword" type="password" placeholder="Password (min 8, Aa0)" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                    </div>
+                    <button type="submit" class="google-btn">Register</button>
+                </form>
+            </div>
+
+            <div class="divider">or</div>
+
+            <div class="auth-section">
                 <h2 class="section-title">Sign In</h2>
                 <button class="google-btn" onclick="loginWithGoogle()">
                     <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -232,13 +248,16 @@
                     </svg>
                     Sign in with Google
                 </button>
+                <div class="divider">or</div>
+                <form id="loginForm" onsubmit="loginLocal(event)">
+                    <div class="info-row" style="border-bottom:none; gap:10px;">
+                        <input id="loginEmail" type="email" placeholder="Email" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                        <input id="loginPassword" type="password" placeholder="Password" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                    </div>
+                    <button type="submit" class="google-btn">Sign in</button>
+                </form>
             </div>
-
-            <div class="divider">or</div>
-
-            <div class="footer">
-                Testing Google OAuth 2.0 Integration
-            </div>
+            <div class="footer">Testing Authentication (Google + Local)</div>
         </div>
 
         <!-- Profile Section -->
@@ -266,13 +285,25 @@
                     <span class="info-label">JWT Token:</span>
                     <span class="info-value" id="token" style="font-size: 10px; word-break: break-all;">-</span>
                 </div>
+                <div class="divider">Update profile</div>
+                <form id="updateForm" onsubmit="updateUser(event)">
+                    <div class="info-row" style="border-bottom:none; gap:10px;">
+                        <input id="updUsername" type="text" placeholder="New username" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                        <input id="updEmail" type="email" placeholder="New email" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                    </div>
+                    <div class="info-row" style="border-bottom:none; gap:10px;">
+                        <input id="updPassword" type="password" placeholder="New password" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                        <input id="updAvatar" type="url" placeholder="Avatar URL" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                    </div>
+                    <button type="submit" class="google-btn">Save changes</button>
+                </form>
                 <button class="btn-logout" onclick="logout()">Logout</button>
             </div>
         </div>
     </div>
 
     <script>
-        const AUTH_SERVICE_URL = 'http://localhost:3010';
+    const AUTH_SERVICE_URL = 'http://localhost:3010';
 
         // Check if user is already logged in
         window.addEventListener('DOMContentLoaded', () => {
@@ -282,6 +313,60 @@
 
         function loginWithGoogle() {
             window.location.href = `${AUTH_SERVICE_URL}/auth/google`;
+        }
+
+        async function registerUser(event) {
+            event.preventDefault();
+            const regUsernameEl = document.getElementById('regUsername');
+            const regEmailEl = document.getElementById('regEmail');
+            const regPasswordEl = document.getElementById('regPassword');
+            const username = regUsernameEl && 'value' in regUsernameEl ? regUsernameEl.value.trim() : '';
+            const email = regEmailEl && 'value' in regEmailEl ? regEmailEl.value.trim() : '';
+            const password = regPasswordEl && 'value' in regPasswordEl ? regPasswordEl.value : '';
+            try {
+                const res = await fetch(`${AUTH_SERVICE_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showMessage('Registered! You can now login.', 'success');
+                    const loginEmailEl = document.getElementById('loginEmail');
+                    if (loginEmailEl && 'value' in loginEmailEl) loginEmailEl.value = email;
+                } else {
+                    showMessage(data.error || 'Registration failed', 'error');
+                }
+            } catch (e) {
+                const err = /** @type {any} */ (e);
+                showMessage('Network error: ' + (err && err.message ? err.message : String(e)), 'error');
+            }
+        }
+
+        async function loginLocal(event) {
+            event.preventDefault();
+            const emailEl = document.getElementById('loginEmail');
+            const passEl = document.getElementById('loginPassword');
+            const email = emailEl && 'value' in emailEl ? emailEl.value.trim() : '';
+            const password = passEl && 'value' in passEl ? passEl.value : '';
+            try {
+                const res = await fetch(`${AUTH_SERVICE_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (res.ok && data.token) {
+                    localStorage.setItem('jwt_token', data.token);
+                    showMessage('Successfully logged in!', 'success');
+                    checkAuth();
+                } else {
+                    showMessage(data.error || 'Login failed', 'error');
+                }
+            } catch (e) {
+                const err = /** @type {any} */ (e);
+                showMessage('Network error: ' + (err && err.message ? err.message : String(e)), 'error');
+            }
         }
 
         function handleCallback() {
@@ -324,7 +409,11 @@
 
                 if (payload.avatar) {
                     const avatarImg = document.getElementById('userAvatar');
-                    avatarImg.src = payload.avatar;
+                    let url = payload.avatar;
+                    if (typeof url === 'string' && !/^https?:\/\//.test(url)) {
+                        url = `${AUTH_SERVICE_URL.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
+                    }
+                    avatarImg.src = url;
                     avatarImg.style.display = 'block';
                 }
 
@@ -360,6 +449,57 @@
             statusDiv.textContent = message;
             statusDiv.className = `status-message ${type}`;
             statusDiv.style.display = 'block';
+        }
+
+        async function updateUser(event) {
+            event.preventDefault();
+            const token = localStorage.getItem('jwt_token');
+            if (!token) { showMessage('Not authenticated', 'error'); return; }
+            const payload = {};
+            const uEl = document.getElementById('updUsername');
+            const eEl = document.getElementById('updEmail');
+            const pEl = document.getElementById('updPassword');
+            const aEl = document.getElementById('updAvatar');
+            const u = uEl && 'value' in uEl ? uEl.value.trim() : '';
+            const e = eEl && 'value' in eEl ? eEl.value.trim() : '';
+            const p = pEl && 'value' in pEl ? pEl.value : '';
+            const a = aEl && 'value' in aEl ? aEl.value.trim() : '';
+            if (u) payload.username = u;
+            if (e) payload.email = e;
+            if (p) payload.password = p;
+            if (a) payload.avatar = a;
+            if (Object.keys(payload).length === 0) { showMessage('Nothing to update', 'error'); return; }
+            try {
+                const res = await fetch(`${AUTH_SERVICE_URL}/user/update`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showMessage('Profile updated', 'success');
+                    // reflect in UI if returned
+                    if (data.user) {
+                        const usernameEl = document.getElementById('username');
+                        const emailEl2 = document.getElementById('email');
+                        if (usernameEl) usernameEl.textContent = data.user.username || '-';
+                        if (emailEl2) emailEl2.textContent = data.user.email || '-';
+                        if (data.user.avatar) {
+                            const img = document.getElementById('userAvatar');
+                            let url = data.user.avatar;
+                            if (typeof url === 'string' && !/^https?:\/\//.test(url)) {
+                                url = `${AUTH_SERVICE_URL.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
+                            }
+                            if (img && 'src' in img && 'style' in img) { img.src = url; img.style.display = 'block'; }
+                        }
+                    }
+                } else {
+                    showMessage(data.error || 'Update failed', 'error');
+                }
+            } catch (e) {
+                const err = /** @type {any} */ (e);
+                showMessage('Network error: ' + (err && err.message ? err.message : String(e)), 'error');
+            }
         }
     </script>
 </body>

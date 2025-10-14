@@ -1,5 +1,7 @@
 import { prisma } from '@ft/shared-database';
+import crypto from 'crypto'
 
+const randomUserId = () => crypto.randomInt(1, 2147483647);
 interface GoogleUserData{
     googleId: string,
     email: string,
@@ -50,16 +52,29 @@ export async function findOrCreateGoogleUser(googledata: GoogleUserData )
     counter++;
   }
 
-  user = await prisma.user.create({
-    data: {
-      email: googledata.email,
-      username: username,
-      googleId: googledata.googleId,
-      provider: 'google',
-      avatar: googledata.avatar,
-      password: null  
+  // Create with random integer id; retry on rare id collision
+  for (let attempt = 0; ; attempt++) {
+    const id = randomUserId();
+    try {
+      user = await prisma.user.create({
+        data: {
+          id,
+          email: googledata.email,
+          username: username,
+          googleId: googledata.googleId,
+          provider: 'google',
+          avatar: googledata.avatar,
+          password: null  
+        }
+      });
+      break;
+    } catch (err: any) {
+      if (err?.code === 'P2002' && err?.meta?.target?.includes?.('id')) {
+        if (attempt < 5) continue;
+      }
+      throw err;
     }
-  });
+  }
   
   return user;  
 }

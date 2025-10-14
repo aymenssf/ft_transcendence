@@ -7,6 +7,7 @@ import { AuthError, verifyPassword } from "./registered_users.js";
 import { updateUserHandler, type UpdateUserBody } from './user_update.js';
 import { validateUsername, validateEmail, validatePassword, ValidationError, hashPassword } from './loadSharedDb.js';
 
+const DEFAULT_AVATAR_REL = 'avatar/default_avatar/default_avatar.jpg';
 // Instantiate Prisma client (singleton per module)
 // const prisma = new PrismaClient();
 
@@ -16,9 +17,7 @@ interface LoginBody { username: string; email: string; password: string }
 
 export function registerControllers(app: FastifyInstance) 
 {
-  app.get("/test", async (_req, reply) => {
-    reply.code(200).send({ ok: true, service: "auth-service", status: "running" });
-  });
+  const randomUserId = () => crypto.randomInt(1, 2147483647);
 
   app.post("/register", async (request: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) => { 
     const { username, email, password, avatar = null } = request.body;
@@ -37,11 +36,29 @@ export function registerControllers(app: FastifyInstance)
 
       const hashedPassword = await hashPassword(password);
 
-      const user = await prisma.user.create({
-        data: { username, email, password: hashedPassword, avatar },
-        select: { id: true, username: true, email: true, avatar: true, created_at: true }
-      });
-
+      const avatarValue = (typeof avatar === 'string' && avatar.trim() !== '')
+        ? avatar
+        : DEFAULT_AVATAR_REL;
+        
+      // Create user with random integer ID, retry on rare ID collision
+      let user: { id: number; username: string; email: string; avatar: string | null; created_at: Date };
+      for (let attempt = 0; ; attempt++) {
+        const id = randomUserId();
+        try {
+          user = await prisma.user.create({
+            data: { id, username, email, password: hashedPassword, avatar: avatarValue },
+            select: { id: true, username: true, email: true, avatar: true, created_at: true }
+          }) as any;
+          break;
+        } catch (err: any) {
+          // P2002 unique constraint violation could be on id (collision) or username/email
+          if (err?.code === 'P2002' && err?.meta?.target && Array.isArray(err.meta.target) && err.meta.target.includes('id')) {
+            if (attempt < 5) continue; // try a few times with new random id
+          }
+          throw err;
+        }
+      }
+      
       request.log.info({ userId: user.id }, 'New user created');
       return reply.send({ message: 'User registered successfully', user });
     } catch (err: any) {
@@ -85,7 +102,26 @@ export function registerControllers(app: FastifyInstance)
       if (!isValid) 
         throw new AuthError('Invalid password');
 
-      const token = app.jwt.sign({ userId: user.id, username: user.username }, { expiresIn: '7d' });
+      // Ensure avatar present (fallback to default)
+      const rawAvatar = (user as any).avatar;
+      const avatarValue = (typeof rawAvatar === 'string' && rawAvatar.trim() !== '')
+        ? rawAvatar
+        : DEFAULT_AVATAR_REL;
+
+      // Optionally persist default avatar if it was missing
+      if (!rawAvatar || (typeof rawAvatar === 'string' && rawAvatar.trim() === '')) {
+        try {
+          await prisma.user.update({ where: { id: user.id }, data: { avatar: avatarValue } });
+        } catch {}
+      }
+
+      const token = app.jwt.sign({
+        userId: user.id,
+        username: user.username,
+        email: user.email,
+        avatar: avatarValue,
+        provider: 'local',
+      }, { expiresIn: '7d' });
       reply.header('Authorization', `Bearer ${token}`);
       return reply.send({
         token,
@@ -94,7 +130,7 @@ export function registerControllers(app: FastifyInstance)
           id: user.id,
           username: user.username,
           email: user.email,
-          avatar: (user as any).avatar ?? null,
+          avatar: avatarValue,
         },
       });
     } catch (err: any) {

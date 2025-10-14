@@ -229,28 +229,7 @@ export async function userRoutes(app: FastifyInstance) {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {
     try {
-      const { onlineUsers } = await import('../socket/handler.js');
-
-      const onlineUserIds = Array.from(onlineUsers.keys());
-
-      if (onlineUserIds.length === 0) {
-        return { users: [], count: 0 };
-      }
-
-      const { prisma } = await import('@ft/shared-database');
-
-      const users = await prisma.user.findMany({
-        where: {
-          id: {
-            in: onlineUserIds
-          }
-        },
-        select: {
-          id: true,
-          username: true,
-          avatar: true
-        }
-      });
+      const users = await app.db.getOnlineUsers();
 
       return {
         users,
@@ -260,6 +239,69 @@ export async function userRoutes(app: FastifyInstance) {
       app.log.error('Error fetching online users:', error);
       reply.status(500).send({
         message: 'Failed to fetch online users',
+        error: error.message
+      });
+    }
+  });
+
+  // Get user status
+  app.get('/api/users/:id/status', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply) => {
+    try {
+      const targetUserId = parseInt(request.params.id);
+
+      if (isNaN(targetUserId)) {
+        return reply.status(400).send({ message: 'Invalid user ID' });
+      }
+
+      const status = await app.db.getUserStatus(targetUserId);
+
+      return {
+        userId: targetUserId,
+        status
+      };
+    } catch (error: any) {
+      app.log.error('Error fetching user status:', error);
+      reply.status(500).send({
+        message: 'Failed to fetch user status',
+        error: error.message
+      });
+    }
+  });
+
+  // Get multiple user statuses
+  app.post('/api/users/statuses', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply) => {
+    try {
+      const { userIds } = request.body as { userIds: number[] };
+
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return reply.status(400).send({ message: 'Valid userIds array is required' });
+      }
+
+      const { prisma } = await import('@ft/shared-database');
+
+      const users = await prisma.user.findMany({
+        where: {
+          id: {
+            in: userIds
+          }
+        },
+        select: {
+          id: true,
+          username: true,
+          status: true,
+          lastSeen: true
+        }
+      });
+
+      return { users };
+    } catch (error: any) {
+      app.log.error('Error fetching user statuses:', error);
+      reply.status(500).send({
+        message: 'Failed to fetch user statuses',
         error: error.message
       });
     }

@@ -226,6 +226,8 @@ export async function chatroomRoutes(app: FastifyInstance) {
     try {
       const roomId = parseInt(request.params.id);
       const userId = request.user.id;
+      const limit = parseInt(request.query.limit) || 50;
+      const offset = parseInt(request.query.offset) || 0;
 
       if (isNaN(roomId)) {
         return reply.status(400).send({ message: 'Invalid room ID' });
@@ -245,37 +247,91 @@ export async function chatroomRoutes(app: FastifyInstance) {
       if (!membership) {        return reply.status(403).send({ message: 'Not a member of this chat room' });
       }
 
-      // Get blocked users to filter messages
-      const blockedUsers = await prisma.block.findMany({
-        where: { blockerId: userId },
-        select: { blockedId: true }
-      });
+      // Use the paginated method from the database
+      const messages = await app.db.getMessagesByChatRoomPaginated(roomId, userId, limit, offset);
 
-      const blockedIds = blockedUsers.map((b: any) => b.blockedId);
+      // Reverse messages for chronological order (newest first was fetched)
+      messages.reverse();
 
-      const messages = await prisma.message.findMany({
-        where: {
-          chatRoomId: roomId,
-          senderId: {
-            notIn: blockedIds
-          }
-        },
-        include: {
-          sender: {
-            select: {
-              id: true,
-              username: true,
-              avatar: true
-            }
-          }
-        },
-        orderBy: {
-          created_at: 'asc'
-        }
-      });      return { messages };
+      return {
+        messages,
+        limit,
+        offset,
+        hasMore: messages.length === limit
+      };
     } catch (error: any) {
       reply.status(500).send({
         message: 'Failed to fetch messages',
+        error: error.message
+      });
+    }
+  });
+
+  // Get unread message count for a chat room
+  app.get('/api/chatrooms/:id/unread-count', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply) => {
+    try {
+      const roomId = parseInt(request.params.id);
+      const userId = request.user.id;
+
+      if (isNaN(roomId)) {
+        return reply.status(400).send({ message: 'Invalid room ID' });
+      }
+
+      const unreadCount = await app.db.getUnreadMessageCount(userId, roomId);
+
+      return {
+        chatRoomId: roomId,
+        unreadCount
+      };
+    } catch (error: any) {
+      reply.status(500).send({
+        message: 'Failed to fetch unread count',
+        error: error.message
+      });
+    }
+  });
+
+  // Get all unread counts for user
+  app.get('/api/chatrooms/unread-counts', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply) => {
+    try {
+      const userId = request.user.id;
+
+      const unreadCounts = await app.db.getAllUnreadCounts(userId);
+
+      return { unreadCounts };
+    } catch (error: any) {
+      reply.status(500).send({
+        message: 'Failed to fetch unread counts',
+        error: error.message
+      });
+    }
+  });
+
+  // Mark messages as read
+  app.post('/api/chatrooms/:id/mark-read', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply) => {
+    try {
+      const roomId = parseInt(request.params.id);
+      const userId = request.user.id;
+
+      if (isNaN(roomId)) {
+        return reply.status(400).send({ message: 'Invalid room ID' });
+      }
+
+      await app.db.markMessagesAsRead(userId, roomId);
+
+      return {
+        message: 'Messages marked as read',
+        chatRoomId: roomId
+      };
+    } catch (error: any) {
+      reply.status(500).send({
+        message: 'Failed to mark messages as read',
         error: error.message
       });
     }

@@ -83,12 +83,32 @@ export async function chatroomRoutes(app: FastifyInstance) {
               { members: { some: { userId: userId } } },
               { members: { some: { userId: targetUserId } } }
             ]
+          },
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    email: true
+                  }
+                }
+              }
+            },
+            owner: {
+              select: {
+                id: true,
+                username: true
+              }
+            }
           }
         });
 
         if (existingChat) {
-          return reply.status(400).send({
-            message: 'A private chat already exists with this user',
+          // Return the existing chat instead of an error
+          return reply.status(200).send({
+            message: 'Using existing private chat',
             chatRoom: existingChat
           });
         }

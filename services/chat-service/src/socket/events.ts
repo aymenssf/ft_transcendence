@@ -3,7 +3,8 @@ import { Socket } from 'socket.io';
 import { onlineUsers } from './handler.js';
 
 export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
-  const userId = socket.user?.id;
+  // Support both 'userId' and 'id' fields from JWT
+  const userId = socket.user?.userId || socket.user?.id;
 
   // Join a chat room
   socket.on('join-room', async (data: { chatRoomId: number }) => {

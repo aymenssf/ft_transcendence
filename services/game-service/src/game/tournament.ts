@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
-import { playersSockets, tournaments } from "../utils/store.js"
+import { games, playersSockets, tournaments } from "../utils/store.js"
 import { GAME_ROOM_MODE, GAME_ROOM_STATUS, TOURNAMENT_STATUS } from "../helpers/consts.js"
-import { createGameRoom } from "../helpers/helpers.js";
-import {Tournament, TournamentStatus} from "../utils/types.js";
+import { createGameRoom, findSocketForPlayer, getTournamentByRoomId } from "../helpers/helpers.js";
+import { GameRoom, Tournament, TournamentStatus } from "../utils/types.js";
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import WebSocket from "ws"
 
@@ -17,6 +17,40 @@ function createTournament(playerId: string, title = "Classic Tournament"): Tourn
         rounds: [],
         winner: null
     };
+}
+
+
+export function handleTournamentRoundWinner(gameRoom: GameRoom) {
+    const tournament = getTournamentByRoomId(gameRoom.gameId);
+    if (!tournament) return;
+
+    gameRoom.status = GAME_ROOM_STATUS.FINISHED;
+
+    if (tournament.status === TOURNAMENT_STATUS.FINAL) {
+        tournament.winner = gameRoom.winner;
+        tournament.status = TOURNAMENT_STATUS.FINISHED;
+        return;
+    }
+
+    const [semi1, semi2] = tournament.rounds;
+    if (!semi1 || !semi2) return;
+
+    if (semi1.status === GAME_ROOM_STATUS.FINISHED && semi2.status === GAME_ROOM_STATUS.FINISHED) {
+        tournament.status = TOURNAMENT_STATUS.FINAL;
+
+        const winner1 = semi1.winner;
+        const winner2 = semi2.winner;
+        if (!winner1 || !winner2) return;
+
+        const winner1_sock = findSocketForPlayer(semi1, winner1);
+        const winner2_sock = findSocketForPlayer(semi2, winner2);
+
+        const finalRoom = createGameRoom(winner1, winner2, winner1_sock, GAME_ROOM_MODE.TOURNAMENT);
+        if (winner2_sock) finalRoom.sockets.add(winner2_sock);
+
+        tournament.rounds.push(finalRoom);
+        notifyTournamentPlayers(tournament.tournamentId, TOURNAMENT_STATUS.FINAL);
+    }
 }
 
 function playerAlreadyInTournament(playerId: string) {
@@ -36,7 +70,7 @@ function shuffle(array: any[]) {
 }
 
 
-function notifyTournamentPlayers(tournamentId: string, status: TournamentStatus) {
+export function notifyTournamentPlayers(tournamentId: string, status: TournamentStatus) {
     const tournament = tournaments.get(tournamentId);
     if (!tournament) return;
 
@@ -46,19 +80,33 @@ function notifyTournamentPlayers(tournamentId: string, status: TournamentStatus)
         message = {
             type: "tournament_semi-finals",
             payload: {
-                semi1: [tournament.rounds[0].p1, tournament.rounds[0].p2],
-                semi2: [tournament.rounds[1].p1, tournament.rounds[1].p2],
+                tournamentId,
+                semi1: {
+                    players: [tournament.rounds[0].p1, tournament.rounds[0].p2],
+                    gameId: tournament.rounds[0].gameId,
+                },
+                semi2: {
+                    players: [tournament.rounds[1].p1, tournament.rounds[1].p2],
+                    gameId: tournament.rounds[1].gameId,
+                },
             },
         };
     } else if (status === TOURNAMENT_STATUS.FINAL) {
         const finalRound = tournament.rounds.at(-1);
+        if (!finalRound) return;
+
         message = {
             type: "tournament_final",
             payload: {
-                final: [finalRound?.p1, finalRound?.p2],
+                tournamentId,
+                final: {
+                    players: [finalRound.p1, finalRound.p2],
+                    gameId: finalRound.gameId,
+                },
             },
         };
     } else return;
+
 
     const data = JSON.stringify(message);
 
@@ -70,7 +118,6 @@ function notifyTournamentPlayers(tournamentId: string, status: TournamentStatus)
                 uniqueSockets.add(s);
         }
     }
-
 
     for (const sock of uniqueSockets) {
         if (sock?.readyState === WebSocket.OPEN)
@@ -120,9 +167,9 @@ function startTournament(tournamentId: string) {
             const gameRoom = createGameRoom(p1, p2, socket1, GAME_ROOM_MODE.TOURNAMENT);
             gameRoom.sockets.add(socket2);
             tournament.rounds.push(gameRoom);
+            games.set(gameRoom.gameId, gameRoom);
             // TO BE COMPLETED LATERRRR>>>>>>>>>>>
             notifyTournamentPlayers(tournamentId, TOURNAMENT_STATUS.SEMI_FINAL);
-
         }
 
     }
@@ -133,7 +180,7 @@ interface TournamentCreateBody {
     playerId: string;
     title: string;
 }
-async function tournamentRoute(fastify: FastifyInstance, options: any) {
+export async function tournamentRoute(fastify: FastifyInstance, options: any) {
     fastify.post("/tournament/create", (req: FastifyRequest<{ Body: TournamentCreateBody }>, reply: FastifyReply) => {
         const { playerId, title } = req.body;
 

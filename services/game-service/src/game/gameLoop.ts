@@ -1,7 +1,9 @@
-import {BALL_SPEED, WIN_SCORE, PADDLE_SPEED, GAME_ROOM_STATUS} from '../helpers/consts.js'
+import { BALL_SPEED, WIN_SCORE, PADDLE_SPEED, GAME_ROOM_STATUS, GAME_ROOM_MODE } from '../helpers/consts.js'
 import { games } from "../utils/store.js";
-import {GameBall, GameCanvas, GamePaddles, GameRoom} from "../utils/types.js";
-import {WebSocket} from "ws";
+import { GameBall, GameCanvas, GamePaddles, GameRoom } from "../utils/types.js";
+import { WebSocket } from "ws";
+import { createInitialGameState } from '../helpers/helpers.js';
+import { handleTournamentRoundWinner } from './tournament.js';
 
 function resetBall(gameRoom: GameRoom) {
     const { ball, canvas } = gameRoom.state;
@@ -20,7 +22,7 @@ function resetPaddles(gameRoom: GameRoom) {
     gameRoom.state.paddles.right.y = gameRoom.state.canvas.height / 2 - 75;
 }
 
-function checkGameEnd(gameRoom: GameRoom, sockets: Set<WebSocket|undefined>) {
+function checkGameEnd(gameRoom: GameRoom, sockets: Set<WebSocket | undefined>) {
     const { left, right } = gameRoom.state.paddles;
 
     let winner = null;
@@ -32,20 +34,25 @@ function checkGameEnd(gameRoom: GameRoom, sockets: Set<WebSocket|undefined>) {
 
     if (winner) {
         gameRoom.winner = winner;
+        gameRoom.status = GAME_ROOM_STATUS.FINISHED;
         const endGameMsg = JSON.stringify({
             type: "game_finish",
             payload: { winner }
         });
 
         sockets.forEach(sock => sock?.send(endGameMsg));
-        Array.from(sockets)[1]?.close();
+        if (gameRoom.mode === GAME_ROOM_MODE.AI_OPPONENT)
+            Array.from(sockets)[1]?.close();
+
+        if (gameRoom.mode === GAME_ROOM_MODE.TOURNAMENT)
+            handleTournamentRoundWinner(gameRoom);
         return { finished: true, winner };
     }
 
     return { finished: false, winner: null };
 }
 
-function movePaddles(paddles:GamePaddles, canvas: GameCanvas) {
+function movePaddles(paddles: GamePaddles, canvas: GameCanvas) {
     if (paddles.left.up) paddles.left.y -= PADDLE_SPEED;
     if (paddles.left.down) paddles.left.y += PADDLE_SPEED;
 
@@ -56,7 +63,7 @@ function movePaddles(paddles:GamePaddles, canvas: GameCanvas) {
     paddles.right.y = Math.max(0, Math.min(canvas.height - paddles.height, paddles.right.y));
 }
 
-function moveBall(ball:GameBall, canvas:GameCanvas) {
+function moveBall(ball: GameBall, canvas: GameCanvas) {
     ball.x += ball.dx;
     ball.y += ball.dy;
 
@@ -70,7 +77,7 @@ function moveBall(ball:GameBall, canvas:GameCanvas) {
 
 }
 
-function checkBallCollision(ball:GameBall, paddles:GamePaddles) {
+function checkBallCollision(ball: GameBall, paddles: GamePaddles) {
 
     if (!paddles || !paddles.height || !paddles.width) return;
 
@@ -111,26 +118,24 @@ function checkBallCollision(ball:GameBall, paddles:GamePaddles) {
     }
 }
 
+export function startGame(room: GameRoom) {
 
+    room.sockets.forEach(sock => {
+        sock?.send(JSON.stringify(createInitialGameState(room.gameId, room.mode)));
+    });
 
-// function checkBallCollision(ball, paddles) {
-//     if (ball.x - ball.radius <= paddles.left.x + paddles.width &&
-//         ball.y + ball.radius >= paddles.left.y &&
-//         ball.y - ball.radius <= paddles.left.y + paddles.height) {
-//         ball.dx = -ball.dx;
-//         ball.x = paddles.left.x + paddles.width + ball.radius;
-//     }
-
-//     if (ball.x + ball.radius >= paddles.right.x &&
-//         ball.y + ball.radius >= paddles.right.y &&
-//         ball.y - ball.radius <= paddles.right.y + paddles.height) {
-//         ball.dx = -ball.dx;
-//         ball.x = paddles.right.x - paddles.width - ball.radius;
-//     }
-// }
+    setTimeout(() => {
+        room.sockets.forEach(sock => {
+            sock?.send(JSON.stringify({
+                type: "game_start"
+            }));
+        });
+        startGameLoop(room);
+    }, 3000);
+}
 
 export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
-    gameRoom.status = "ongoing";
+    gameRoom.status = GAME_ROOM_STATUS.ONGOING;
     gameRoom.loop = setInterval(() => {
         const { state, sockets } = gameRoom;
         const { ball, paddles, canvas } = state;
@@ -154,8 +159,7 @@ export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
         const { finished, winner } = checkGameEnd(gameRoom, sockets);
         if (finished) {
             console.log(`Game over! Winner is: ${winner}`);
-            if (gameRoom.loop)
-            {
+            if (gameRoom.loop) {
                 clearInterval(gameRoom.loop);
                 gameRoom.loop = null;
             }
@@ -175,7 +179,7 @@ export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
 }
 
 export function stopGameLoop(gameRoom: GameRoom) {
-    if (gameRoom.loop){
+    if (gameRoom.loop) {
         clearInterval(gameRoom.loop);
         gameRoom.loop = null;
     }
@@ -183,8 +187,8 @@ export function stopGameLoop(gameRoom: GameRoom) {
 }
 
 interface RemoteGameInput {
-    up:boolean;
-    down:boolean;
+    up: boolean;
+    down: boolean;
 }
 
 interface LocalGameInput {
@@ -206,9 +210,9 @@ function isLocalGameInput(input: any): input is LocalGameInput {
 export function gameUpdate(payload: GameUpdatePayload) {
     const { gameId, playerId, input } = payload;
     const gameRoom = games.get(gameId);
-    if (!gameRoom || gameRoom.status !== "ongoing") return;
+    if (!gameRoom || gameRoom.status !== GAME_ROOM_STATUS.ONGOING) return;
 
-    if (gameRoom.mode === "local" && playerId === gameRoom.p1) {
+    if (gameRoom.mode === GAME_ROOM_MODE.LOCAL && playerId === gameRoom.p1) {
         if (isLocalGameInput(input)) {
             gameRoom.state.paddles.left.up = input.left.up;
             gameRoom.state.paddles.left.down = input.left.down;

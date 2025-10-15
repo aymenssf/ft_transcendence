@@ -2,11 +2,13 @@ import Fastify, {FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
 import websocket from "@fastify/websocket";
 import gameSocket from "./game/gameSocket.js";
 import friendRoutes from "./game/friendGame.js";
+import { tournamentRoute } from "./game/tournament.js";
 
 const app: FastifyInstance = Fastify({ logger: true });
 await app.register(websocket);
 await app.register(friendRoutes);
 await app.register(gameSocket);
+await app.register(tournamentRoute);
 
 
 app.get('/', async (req: FastifyRequest, reply:FastifyReply) => {

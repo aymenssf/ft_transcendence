@@ -51,6 +51,7 @@ export interface GameRoom {
     sockets: Set<WebSocket | undefined>;
     loop: ReturnType<typeof setInterval> | null;
     state: GameState;
+    readyPlayers: Set<String>;
     winner: string|null;
 }
 

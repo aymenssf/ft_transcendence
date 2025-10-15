@@ -1,13 +1,13 @@
 import { waitingQueue, games, playersSockets } from '../utils/store.js'
 import { gameUpdate } from "./gameLoop.js";
 import randomGame from "./randomGame.js"
-import { findGameRoomByPlayer } from "../helpers/helpers.js"
+import { findGameRoomByPlayer, handlePlayerReady } from "../helpers/helpers.js"
 import { localGame } from "./localGame.js";
 import { aiOpponentGame } from './aiOpponent.js';
-import {FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
-import {SocketStream} from "@fastify/websocket";
-import {GameRoom} from "../utils/types.js";
-import {GAME_ROOM_STATUS} from "../helpers/consts.js";
+import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { SocketStream } from "@fastify/websocket";
+import { GameRoom } from "../utils/types.js";
+import { GAME_ROOM_STATUS } from "../helpers/consts.js";
 import "@fastify/websocket";
 
 interface SocketQuery {
@@ -15,14 +15,14 @@ interface SocketQuery {
 }
 async function gameSocket(fastify: FastifyInstance, options: any) {
     // @ts-ignore
-    fastify.get('/ws', { websocket: true }, (connection: SocketStream, req: FastifyRequest<{Querystring:SocketQuery}>) => {
+    fastify.get('/ws', { websocket: true }, (connection: SocketStream, req: FastifyRequest<{ Querystring: SocketQuery }>) => {
         const playerId: string = req.query.player_id;
         console.log(`New Socket Connection from ${playerId}`);
 
         if (playerId)
             playersSockets.set(playerId, connection.socket);
 
-        connection.socket.on("message", (data:any) => {
+        connection.socket.on("message", (data: any) => {
             try {
                 const { type, payload } = JSON.parse(data.toString());
 
@@ -34,16 +34,17 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
                     waitingQueue.delete(playerId);
                 if (type === "join_local")
                     localGame(connection, playerId);
+                if (type === "join_ai-opponent")
+                    aiOpponentGame(connection, playerId, payload.difficulty);
                 if (type === "leave_game") {
                     // TO ADD LATER : end gameRoom...
-                }
-                if (type === "join_ai-opponent") {
-                    aiOpponentGame(connection, playerId, payload.difficulty);
                 }
                 if (type === "invite_friend") {
                     // friend invitation .....
                     console.log('Friend invitation');
                 }
+                if (type === "player_ready")
+                    handlePlayerReady(connection, playerId, payload.gameId);
 
             } catch (err) {
                 console.error("Invalid message:", data.toString(), err);
@@ -65,8 +66,7 @@ function cleanupRoom(roomId: string) {
     const room = games.get(roomId);
     if (!room) return;
 
-    if (room.loop)
-    {
+    if (room.loop) {
         clearInterval(room.loop);
         room.loop = null;
     }

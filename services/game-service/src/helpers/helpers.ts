@@ -1,11 +1,12 @@
-import { games } from "../utils/store.js";
+import { games, tournaments } from "../utils/store.js";
 import { randomUUID } from 'crypto';
 import { BALL_START, CANVAS_HEIGHT, CANVAS_WIDTH, BALL_SPEED, PADDLE_HEIGHT, PADDLE_WIDTH, GAME_ROOM_STATUS, GAME_ROOM_MODE } from "./consts.js";
-import {GameMode, GameRoom, GameState} from "../utils/types.js";
-import {SocketStream} from "@fastify/websocket";
-import {WebSocket} from "ws";
+import { GameMode, GameRoom, GameState } from "../utils/types.js";
+import { SocketStream } from "@fastify/websocket";
+import { WebSocket } from "ws";
+import { startGame } from "../game/gameLoop.js";
 
-export function findGameRoomByPlayer(playerId: string): GameRoom|null {
+export function findGameRoomByPlayer(playerId: string): GameRoom | null {
     for (const room of games.values()) {
         if (room.p1 === playerId || room.p2 === playerId)
             return room;
@@ -13,7 +14,7 @@ export function findGameRoomByPlayer(playerId: string): GameRoom|null {
     return null;
 }
 
-export function isPlaying(playerId:string): boolean {
+export function isPlaying(playerId: string): boolean {
     for (const room of games.values()) {
         if ((room.p1 === playerId || room.p2 === playerId) && room.status === "ongoing")
             return true;
@@ -22,7 +23,7 @@ export function isPlaying(playerId:string): boolean {
 }
 
 
-export function playerInOtherRoom(playerId: string, roomId:string): boolean {
+export function playerInOtherRoom(playerId: string, roomId: string): boolean {
     if (findGameRoomByPlayer(playerId) == null)
         return false;
 
@@ -33,6 +34,18 @@ export function playerInOtherRoom(playerId: string, roomId:string): boolean {
 
     return false;
 }
+
+export function getTournamentByRoomId(gameId: string) {
+    for (const tourn of tournaments.values()) {
+        for (const round of tourn.rounds) {
+            if (round.gameId === gameId) {
+                return tourn;
+            }
+        }
+    }
+    return null;
+}
+
 
 // export function assertRoomConsistency(room) {
 //     if (!room.gameId) throw new Error("missing gameId");
@@ -58,14 +71,14 @@ interface GameConfig {
             color?: string;
         }
         paddles: {
-            left: { x:number, y:number };
-            right: { x:number, y:number };
+            left: { x: number, y: number };
+            right: { x: number, y: number };
         }
         ball: {
             radius: number;
-            x:number;
-            y:number;
-            color?:string
+            x: number;
+            y: number;
+            color?: string
         };
     }
 }
@@ -87,16 +100,24 @@ export function createInitialGameState(gameId: string, mode: GameMode, difficult
     };
 }
 
-export function createGameRoom(player1: string|null, player2: string|null, player1_socket: WebSocket | undefined, mode:GameMode = GAME_ROOM_MODE.RANDOM): GameRoom {
+export function findSocketForPlayer(room: GameRoom, playerId: string): WebSocket | undefined {
+    if (playerId === room.p1) return Array.from(room.sockets)[0];
+    if (playerId === room.p2) return Array.from(room.sockets)[1];
+    return undefined;
+}
+
+export function createGameRoom(player1: string | null, player2: string | null, player1_socket: WebSocket | undefined, mode: GameMode = GAME_ROOM_MODE.RANDOM): GameRoom {
 
     const gameId = randomUUID();
+    const sockets = new Set<WebSocket>();
+    if (player1_socket) sockets.add(player1_socket);
     const gameRoom: GameRoom = {
         gameId,
         p1: player1,
         p2: player2,
         status: GAME_ROOM_STATUS.WAITING,
         mode: mode,
-        sockets: new Set([player1_socket]),
+        sockets,
         loop: null,
         state: {
             canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
@@ -107,11 +128,41 @@ export function createGameRoom(player1: string|null, player2: string|null, playe
             },
             ball: { radius: 10, x: BALL_START.x, y: BALL_START.x, dx: BALL_SPEED, dy: -BALL_SPEED }
         },
-        winner : null
+        readyPlayers: new Set(),
+        winner: null
 
     };
     games.set(gameId, gameRoom);
 
     return gameRoom;
 
+}
+export function handlePlayerReady(connection: SocketStream, playerId: string, gameId: string) {
+    const game = games.get(gameId);
+    if (!game) {
+        console.warn(`[handlePlayerReady] Game not found: ${gameId}`);
+        return;
+    }
+
+    if (game.p1 !== playerId && game.p2 !== playerId) {
+        console.warn(`[handlePlayerReady] Player ${playerId} not part of game ${gameId}`);
+        return;
+    }
+
+    if (game.readyPlayers.has(playerId)) return;
+
+    game.readyPlayers.add(playerId);
+
+    for (const s of game.sockets) {
+        s?.send(JSON.stringify({
+            type: "player_ready",
+            payload: {
+                gameId,
+                readyPlayers: Array.from(game.readyPlayers),
+            },
+        }));
+    }
+
+    if (game.readyPlayers.size === 2)
+        startGame(game);
 }

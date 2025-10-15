@@ -19,6 +19,7 @@ RUN npx prisma generate
 WORKDIR /app/services/game-service
 COPY services/game-service/package*.json ./
 # Install runtime + dev dependencies at image build so `tsc` is available for the build step
+RUN npm install @fastify/cors@^8
 RUN npm install --include=dev
 
 COPY services/game-service ./

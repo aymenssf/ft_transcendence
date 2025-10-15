@@ -181,6 +181,15 @@ interface TournamentCreateBody {
     title: string;
 }
 export async function tournamentRoute(fastify: FastifyInstance, options: any) {
+
+    fastify.get("/tournaments", (req: FastifyRequest, reply: FastifyReply) => {
+        const nonStartedTournaments = Array.from(tournaments.values()).filter(
+            (tournament) => tournament.status === TOURNAMENT_STATUS.WAITING
+        );
+
+        return reply.send(nonStartedTournaments);
+    });
+
     fastify.post("/tournament/create", (req: FastifyRequest<{ Body: TournamentCreateBody }>, reply: FastifyReply) => {
         const { playerId, title } = req.body;
 
@@ -209,7 +218,7 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
                 }
             }
         });
-
+        console.log("new Tournament has been created");
         return reply.code(201).send({
             message: "Created successfully",
             tournamentId: tournament.tournamentId

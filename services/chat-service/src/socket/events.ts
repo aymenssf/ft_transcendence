@@ -6,6 +6,28 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
   // Support both 'userId' and 'id' fields from JWT
   const userId = socket.user?.userId || socket.user?.id;
 
+  // Update user status manually (e.g., "in-game")
+  socket.on('update-status', async (data: { status: string }) => {
+    try {
+      const { status } = data;
+
+      if (!userId || !['online', 'offline', 'in-game'].includes(status)) {
+        socket.emit('error', { message: 'Invalid status' });
+        return;
+      }
+
+      await app.db.updateUserStatus(userId, status);
+
+      // Broadcast status change to all users
+      app.io.emit('user-status-change', { userId, status });
+
+      socket.emit('status-updated', { status });
+    } catch (error: any) {
+      app.log.error('Error updating status:', error);
+      socket.emit('error', { message: error.message });
+    }
+  });
+
   // Join a chat room
   socket.on('join-room', async (data: { chatRoomId: number }) => {
     const roomId = data.chatRoomId.toString();
@@ -52,6 +74,11 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
 
         if (!isBlocked) {
           const memberSocketId = onlineUsers.get(member.userId);
+
+          // Increment unread count if user is not currently viewing this room
+          // (You could also check if they're in the room via socket.io rooms)
+          await app.db.incrementUnreadCount(member.userId, chatRoomId, message.id);
+
           if (memberSocketId) {
             app.io.to(memberSocketId).emit('message', {
               id: message.id,
@@ -61,6 +88,13 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
               senderId: message.senderId,
               sender: message.sender,
               created_at: message.created_at
+            });
+
+            // Also emit unread count update
+            const unreadCount = await app.db.getUnreadMessageCount(member.userId, chatRoomId);
+            app.io.to(memberSocketId).emit('unread-count-update', {
+              chatRoomId,
+              unreadCount
             });
           }
         }
@@ -268,5 +302,31 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
   socket.on('stop-typing', (data: { roomId: number }) => {
     const roomId = data.roomId.toString();
     socket.to(roomId).emit('user-stop-typing', { userId, roomId });
+  });
+
+  // Mark messages as read
+  socket.on('mark-messages-read', async (data: { chatRoomId: number }) => {
+    try {
+      const { chatRoomId } = data;
+
+      if (!userId || !chatRoomId) {
+        socket.emit('error', { message: 'Invalid data' });
+        return;
+      }
+
+      await app.db.markMessagesAsRead(userId, chatRoomId);
+
+      socket.emit('messages-marked-read', { chatRoomId });
+
+      // Emit updated unread count (should be 0)
+      socket.emit('unread-count-update', {
+        chatRoomId,
+        unreadCount: 0
+      });
+
+    } catch (error: any) {
+      app.log.error('Error marking messages as read:', error);
+      socket.emit('error', { message: error.message });
+    }
   });
 }

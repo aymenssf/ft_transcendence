@@ -12,6 +12,18 @@ export interface Database {
 
   createMessage(content: string, userId: number, chatRoomId: number, type?: string, metadata?: string): Promise<any>;
   getMessagesByChatRoom(chatRoomId: number, userId: number, limit?: number): Promise<any[]>;
+  getMessagesByChatRoomPaginated(chatRoomId: number, userId: number, limit?: number, offset?: number): Promise<any[]>;
+
+  // User status management
+  getUserStatus(userId: number): Promise<string>;
+  updateUserStatus(userId: number, status: string): Promise<void>;
+  getOnlineUsers(): Promise<any[]>;
+
+  // Unread messages
+  getUnreadMessageCount(userId: number, chatRoomId: number): Promise<number>;
+  getAllUnreadCounts(userId: number): Promise<any[]>;
+  incrementUnreadCount(userId: number, chatRoomId: number, messageId: number): Promise<void>;
+  markMessagesAsRead(userId: number, chatRoomId: number): Promise<void>;
 
   // Blocking
   isUserBlocked(blockerId: number, blockedId: number): Promise<boolean>;
@@ -75,4 +87,56 @@ export interface ApiResponse<T = any> {
   message?: string;
   data?: T;
   error?: string;
+}
+
+// User status types
+export type UserStatus = 'online' | 'offline' | 'in-game';
+
+export interface UserStatusInfo {
+  userId: number;
+  status: UserStatus;
+  username?: string;
+  avatar?: string;
+  lastSeen?: Date;
+}
+
+// Unread message types
+export interface UnreadMessageInfo {
+  userId: number;
+  chatRoomId: number;
+  unreadCount: number;
+  lastMessageId?: number | null;
+  updated_at: Date;
+}
+
+// Message history types
+export interface MessageHistoryQuery {
+  chatRoomId: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface MessageHistoryResponse {
+  messages: any[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+// Socket event types
+export interface TypingEvent {
+  userId: number;
+  roomId: string;
+}
+
+export interface UserStatusChangeEvent {
+  userId: number;
+  status: UserStatus;
+  username?: string;
+  avatar?: string;
+}
+
+export interface UnreadCountUpdateEvent {
+  chatRoomId: number;
+  unreadCount: number;
 }

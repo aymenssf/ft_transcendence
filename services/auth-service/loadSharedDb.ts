@@ -100,12 +100,28 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 function createPrismaDB(): SecureDB {
+  const randomUserId = () => crypto.randomInt(1, 2147483647);
   return {
     async createUser(username: string, email: string, password: string) {
-      const user = await prisma.user.create({
-        data: { username, email, password },
-        select: { id: true, username: true, email: true }
-      });
+      let user: { id: number; username: string; email: string };
+      for (let attempt = 0; ; attempt++) 
+      {
+        const id = randomUserId();
+        try {
+          user = await prisma.user.create({
+            data: { id, username, email, password },
+            select: { id: true, username: true, email: true }
+          });
+          break;
+        } catch (err: any) {
+          if (err?.code === 'P2002' && err?.meta?.target?.includes?.('id')) 
+          {
+            if (attempt < 5) 
+              continue; // retry with a new id
+          }
+          throw err;
+        }
+      }
       return user;
     },
 
@@ -123,8 +139,9 @@ function createPrismaDB(): SecureDB {
       return user || undefined;
     },
 
-    async subscribe(input: SubscribeInput): Promise<PublicUser> {
+  async subscribe(input: SubscribeInput): Promise<PublicUser> {
       const { username, email, password, avatar = null } = input;
+      const DEFAULT_AVATAR_REL = 'avatar/default_avatar/default_avatar.jpg';
       
       validateUsername(username);
       validateEmail(email);
@@ -145,22 +162,38 @@ function createPrismaDB(): SecureDB {
       const hashedPassword = await hashPassword(password);
 
       try {
-        const user = await prisma.user.create({
-          data: {
-            username,
-            email,
-            password: hashedPassword,
-            avatar
-          },
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            avatar: true,
-            created_at: true
+        let created: PublicUser;
+        for (let attempt = 0; ; attempt++) 
+        {
+          const id = randomUserId();
+          try {
+            created = await prisma.user.create({
+              data: {
+                id,
+                username,
+                email,
+                password: hashedPassword,
+                avatar: (typeof avatar === 'string' && avatar.trim() !== '') ? avatar : DEFAULT_AVATAR_REL
+              },
+              select: {
+                id: true,
+                username: true,
+                email: true,
+                avatar: true,
+                created_at: true
+              }
+            });
+            break;
+          } catch (err: any) {
+            if (err?.code === 'P2002' && err?.meta?.target?.includes?.('id')) 
+            {
+              if (attempt < 5) 
+                continue;
+            }
+            throw err;
           }
-        });
-        return user;
+        }
+        return created!;
       } catch (err: any) {
         if (err.code === 'P2002') {
           const field = err.meta?.target?.[0];

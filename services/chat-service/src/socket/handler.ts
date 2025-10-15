@@ -34,7 +34,7 @@ export function setupSocketAuthentication(app: FastifyInstance) {
 }
 
 export function setupSocketConnection(app: FastifyInstance) {
-  app.io.on('connection', (socket: Socket) => {
+  app.io.on('connection', async (socket: Socket) => {
     // Support both 'userId' and 'id' fields from JWT
     const userId = socket.user?.userId || socket.user?.id;
 
@@ -43,27 +43,54 @@ export function setupSocketConnection(app: FastifyInstance) {
       onlineUsers.set(userId, socket.id);
       app.log.info(`User ${userId} connected with socket ${socket.id}`);
 
+      // Update user status to online in database
+      try {
+        await app.db.updateUserStatus(userId, 'online');
+      } catch (error: any) {
+        app.log.error(`Failed to update user status for user ${userId}:`, error);
+      }
+
       // Broadcast online users count
       app.io.emit('online-users-count', onlineUsers.size);
 
-      // Notify user is online
-      socket.broadcast.emit('user-online', { userId });
+      // Get user info and broadcast user is online
+      try {
+        const user = await app.db.findUserById(userId);
+        socket.broadcast.emit('user-status-change', {
+          userId,
+          status: 'online',
+          username: user?.username,
+          avatar: user?.avatar
+        });
+      } catch (error: any) {
+        app.log.error(`Failed to get user info for user ${userId}:`, error);
+      }
     }
 
     // Register all socket events
     registerSocketEvents(app, socket);
 
     // Handle disconnect
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       if (userId) {
         onlineUsers.delete(userId);
         app.log.info(`User ${userId} disconnected`);
+
+        // Update user status to offline in database
+        try {
+          await app.db.updateUserStatus(userId, 'offline');
+        } catch (error: any) {
+          app.log.error(`Failed to update user status for user ${userId}:`, error);
+        }
 
         // Broadcast updated online users count
         app.io.emit('online-users-count', onlineUsers.size);
 
         // Notify user is offline
-        socket.broadcast.emit('user-offline', { userId });
+        socket.broadcast.emit('user-status-change', {
+          userId,
+          status: 'offline'
+        });
       }
     });
   });

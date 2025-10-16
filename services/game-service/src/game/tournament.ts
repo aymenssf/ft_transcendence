@@ -190,7 +190,17 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
         return reply.send(nonStartedTournaments);
     });
 
-    fastify.post("/tournament/create", (req: FastifyRequest<{ Body: TournamentCreateBody }>, reply: FastifyReply) => {
+    fastify.get('/tournaments/:tournamentID', (req: FastifyRequest, reply: FastifyReply) => {
+        const { tournamentID } = req.params as { tournamentID: string };
+        const tournament = tournaments.get(tournamentID);
+        if (!tournament) {
+            return reply.status(404).send({ error: 'Tournament not found' });
+        }
+        return reply.send(tournament);
+    });
+
+
+    fastify.post("/tournaments/create", (req: FastifyRequest<{ Body: TournamentCreateBody }>, reply: FastifyReply) => {
         const { playerId, title } = req.body;
 
         if (!playerId)
@@ -229,7 +239,7 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
         tournamentId: string;
         playerId: string;
     }
-    fastify.post("/tournament/join", (req: FastifyRequest<{ Body: TournamentJoinBody }>, reply: FastifyReply) => {
+    fastify.post("/tournaments/join", (req: FastifyRequest<{ Body: TournamentJoinBody }>, reply: FastifyReply) => {
         const { tournamentId, playerId } = req.body;
 
         if (!tournamentId || !tournaments.has(tournamentId))
@@ -284,7 +294,7 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
         tournamentId: string;
         playerId: string;
     }
-    fastify.post("/tournament/leave", (req: FastifyRequest<{ Body: TournamentLeaveBody }>, reply: FastifyReply) => {
+    fastify.post("/tournaments/leave", (req: FastifyRequest<{ Body: TournamentLeaveBody }>, reply: FastifyReply) => {
         const { tournamentId, playerId } = req.body;
 
         if (!tournaments.has(tournamentId))

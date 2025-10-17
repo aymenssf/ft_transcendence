@@ -31,4 +31,5 @@ RUN mkdir -p /app/database && chmod 755 /app/database
 
 EXPOSE 3012
 
-CMD ["sh", "-c", "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && node dist/src/server.js"]
+CMD ["npm", "run", "dev"]
+# CMD ["sh", "-c", "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && node dist/src/server.js"]

@@ -123,6 +123,7 @@ export function notifyTournamentPlayers(tournamentId: string, status: Tournament
         if (sock?.readyState === WebSocket.OPEN)
             sock.send(data);
     }
+    console.log(`${message.type} sent To : ${uniqueSockets.size}`);
 }
 
 
@@ -169,11 +170,13 @@ function startTournament(tournamentId: string) {
             tournament.rounds.push(gameRoom);
             games.set(gameRoom.gameId, gameRoom);
             // TO BE COMPLETED LATERRRR>>>>>>>>>>>
-            notifyTournamentPlayers(tournamentId, TOURNAMENT_STATUS.SEMI_FINAL);
+
         }
 
     }
-
+    if (tournament.rounds[0].status !== GAME_ROOM_STATUS.FINISHED && tournament.rounds[1].status !== GAME_ROOM_STATUS.FINISHED)
+        notifyTournamentPlayers(tournamentId, TOURNAMENT_STATUS.SEMI_FINAL);
+    
 }
 
 interface TournamentCreateBody {
@@ -279,9 +282,12 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
         });
 
         if (tournament?.players.length === 4) {
-            // start the tournament...
-            startTournament(tournamentId);
+            console.log(`Tournament ${tournament.tournamentId} has 4 players!`);
+            setTimeout(() => {
+                startTournament(tournamentId);
+            }, 2000);
         }
+
 
         return reply.code(200).send({
             message: "Player joined tournament successfully",

@@ -5,6 +5,7 @@ import { createGameRoom, findSocketForPlayer, getTournamentByRoomId } from "../h
 import { GameRoom, Tournament, TournamentStatus } from "../utils/types.js";
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import WebSocket from "ws"
+import { startGame } from "./gameLoop.js";
 
 function createTournament(playerId: string, title = "Classic Tournament"): Tournament {
     const tournamentId: string = randomUUID();
@@ -23,12 +24,16 @@ function createTournament(playerId: string, title = "Classic Tournament"): Tourn
 export function handleTournamentRoundWinner(gameRoom: GameRoom) {
     const tournament = getTournamentByRoomId(gameRoom.gameId);
     if (!tournament) return;
-
+    console.log(`Tournament Match Finished between ${gameRoom.p1} and ${gameRoom.p2} : Winner is ${gameRoom.winner}`);
     gameRoom.status = GAME_ROOM_STATUS.FINISHED;
+    const roundIndex = tournament.rounds.findIndex(r => r.gameId === gameRoom.gameId);
+    if (roundIndex !== -1) tournament.rounds[roundIndex] = gameRoom;
 
     if (tournament.status === TOURNAMENT_STATUS.FINAL) {
         tournament.winner = gameRoom.winner;
         tournament.status = TOURNAMENT_STATUS.FINISHED;
+
+        notifyTournamentPlayers(tournament.tournamentId, TOURNAMENT_STATUS.FINISHED);
         return;
     }
 
@@ -36,11 +41,11 @@ export function handleTournamentRoundWinner(gameRoom: GameRoom) {
     if (!semi1 || !semi2) return;
 
     if (semi1.status === GAME_ROOM_STATUS.FINISHED && semi2.status === GAME_ROOM_STATUS.FINISHED) {
-        tournament.status = TOURNAMENT_STATUS.FINAL;
-
         const winner1 = semi1.winner;
         const winner2 = semi2.winner;
         if (!winner1 || !winner2) return;
+
+        tournament.status = TOURNAMENT_STATUS.FINAL;
 
         const winner1_sock = findSocketForPlayer(semi1, winner1);
         const winner2_sock = findSocketForPlayer(semi2, winner2);
@@ -49,9 +54,46 @@ export function handleTournamentRoundWinner(gameRoom: GameRoom) {
         if (winner2_sock) finalRoom.sockets.add(winner2_sock);
 
         tournament.rounds.push(finalRoom);
+        games.set(finalRoom.gameId, finalRoom);
+
         notifyTournamentPlayers(tournament.tournamentId, TOURNAMENT_STATUS.FINAL);
+        startGame(finalRoom);
     }
 }
+
+
+// export function handleTournamentRoundWinner(gameRoom: GameRoom) {
+//     const tournament = getTournamentByRoomId(gameRoom.gameId);
+//     if (!tournament) return;
+
+//     gameRoom.status = GAME_ROOM_STATUS.FINISHED;
+
+//     if (tournament.status === TOURNAMENT_STATUS.FINAL) {
+//         tournament.winner = gameRoom.winner;
+//         tournament.status = TOURNAMENT_STATUS.FINISHED;
+//         return;
+//     }
+
+//     const [semi1, semi2] = tournament.rounds;
+//     if (!semi1 || !semi2) return;
+
+//     if (semi1.status === GAME_ROOM_STATUS.FINISHED && semi2.status === GAME_ROOM_STATUS.FINISHED) {
+//         tournament.status = TOURNAMENT_STATUS.FINAL;
+
+//         const winner1 = semi1.winner;
+//         const winner2 = semi2.winner;
+//         if (!winner1 || !winner2) return;
+
+//         const winner1_sock = findSocketForPlayer(semi1, winner1);
+//         const winner2_sock = findSocketForPlayer(semi2, winner2);
+
+//         const finalRoom = createGameRoom(winner1, winner2, winner1_sock, GAME_ROOM_MODE.TOURNAMENT);
+//         if (winner2_sock) finalRoom.sockets.add(winner2_sock);
+
+//         tournament.rounds.push(finalRoom);
+//         notifyTournamentPlayers(tournament.tournamentId, TOURNAMENT_STATUS.FINAL);
+//     }
+// }
 
 function playerAlreadyInTournament(playerId: string) {
     for (const tournament of tournaments.values()) {
@@ -105,6 +147,14 @@ export function notifyTournamentPlayers(tournamentId: string, status: Tournament
                 },
             },
         };
+    } else if (status === TOURNAMENT_STATUS.FINISHED) {
+        message = {
+            type: "tournament_finish",
+            payload: {
+                tournamentId,
+                winner: tournament.winner,
+            },
+        };
     } else return;
 
 
@@ -123,7 +173,7 @@ export function notifyTournamentPlayers(tournamentId: string, status: Tournament
         if (sock?.readyState === WebSocket.OPEN)
             sock.send(data);
     }
-    console.log(`${message.type} sent To : ${uniqueSockets.size}`);
+    console.log(`********** ${message.type}********* sent To : ${uniqueSockets.size}`);
 }
 
 
@@ -174,9 +224,13 @@ function startTournament(tournamentId: string) {
         }
 
     }
-    if (tournament.rounds[0].status !== GAME_ROOM_STATUS.FINISHED && tournament.rounds[1].status !== GAME_ROOM_STATUS.FINISHED)
-        notifyTournamentPlayers(tournamentId, TOURNAMENT_STATUS.SEMI_FINAL);
-    
+    // if (tournament.rounds[0].status !== GAME_ROOM_STATUS.FINISHED && tournament.rounds[1].status !== GAME_ROOM_STATUS.FINISHED)
+    notifyTournamentPlayers(tournamentId, TOURNAMENT_STATUS.SEMI_FINAL);
+    setTimeout(() => {
+        if (tournament.rounds[0].status !== GAME_ROOM_STATUS.FINISHED) startGame(tournament.rounds[0]);
+        if (tournament.rounds[1].status !== GAME_ROOM_STATUS.FINISHED) startGame(tournament.rounds[1]);
+    }, 2000);
+
 }
 
 interface TournamentCreateBody {

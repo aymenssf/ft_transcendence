@@ -1,14 +1,94 @@
 import { games, tournaments } from "../utils/store.js";
 import { randomUUID } from 'crypto';
-import { BALL_START, CANVAS_HEIGHT, CANVAS_WIDTH, BALL_SPEED, PADDLE_HEIGHT, PADDLE_WIDTH, GAME_ROOM_STATUS, GAME_ROOM_MODE } from "./consts.js";
+import { BALL_START, CANVAS_HEIGHT, CANVAS_WIDTH, BALL_SPEED, PADDLE_HEIGHT, PADDLE_WIDTH, GAME_ROOM_STATUS, GAME_ROOM_MODE, TOURNAMENT_STATUS } from "./consts.js";
 import { GameMode, GameRoom, GameState } from "../utils/types.js";
 import { SocketStream } from "@fastify/websocket";
 import { WebSocket } from "ws";
 import { startGame } from "../game/gameLoop.js";
+import { playersSockets } from "../utils/store.js";
+
+
+export function leaveTournament(playerId: string) {
+    for (const tournament of tournaments.values()) {
+        if (tournament.status === TOURNAMENT_STATUS.WAITING && tournament.players.includes(playerId)) {
+            tournament.players = tournament.players.filter(p => p !== playerId);
+
+            if (tournament.players.length === 0) {
+                tournaments.delete(tournament.tournamentId);
+                console.log(`Tournament ${tournament.tournamentId} removed (no players left).`);
+                playersSockets.forEach(sock => {
+                    if (sock.readyState === 1) {
+                        try {
+                            sock.send(JSON.stringify({
+                                type: "tournament_deleted",
+                                payload: {
+                                    tournamentId: tournament.tournamentId
+                                }
+                            }));
+                        } catch (err) {
+                            console.error("WS send error:", err);
+                        }
+                    }
+                });
+            } else {
+                console.log(`Player ${playerId} left tournament ${tournament.tournamentId}.`);
+                playersSockets.forEach(sock => {
+                    if (sock.readyState === 1) {
+                        try {
+                            sock.send(JSON.stringify({
+                                type: "tournament_player-left",
+                                payload: {
+                                    tournamentId: tournament.tournamentId,
+                                    numPlayers: tournament.players.length
+                                }
+                            }));
+                        } catch (err) {
+                            console.error("WS send error:", err);
+                        }
+                    }
+                });
+
+            }
+        }
+    }
+}
+
+export function leaveTournamentGames(playerId: string) {
+    let game = null;
+
+    for (const room of games.values()) {
+        if (
+            room.mode === GAME_ROOM_MODE.TOURNAMENT &&
+            room.status === GAME_ROOM_STATUS.ONGOING &&
+            (room.p1 === playerId || room.p2 === playerId)
+        ) {
+            game = room;
+            break;
+        }
+    }
+
+    if (!game) return;
+
+    if (game.loop) {
+        clearInterval(game.loop);
+        game.loop = null;
+    }
+
+    game.status = GAME_ROOM_STATUS.FINISHED;
+    game.winner = game.p1 === playerId ? game.p2 : game.p1;
+
+    if (game.state?.paddles) {
+        const leftForfeit = game.p1 === playerId;
+        game.state.paddles.left.score = leftForfeit ? 0 : 5;
+        game.state.paddles.right.score = leftForfeit ? 5 : 0;
+    }
+
+    console.log(`Player ${playerId} forfeited tournament game ${game.gameId}. Winner: ${game.winner}`);
+}
 
 export function findGameRoomByPlayer(playerId: string): GameRoom | null {
     for (const room of games.values()) {
-        if (room.p1 === playerId || room.p2 === playerId)
+        if ((room.p1 === playerId || room.p2 === playerId) && room.status === GAME_ROOM_STATUS.ONGOING)
             return room;
     }
     return null;
@@ -16,12 +96,20 @@ export function findGameRoomByPlayer(playerId: string): GameRoom | null {
 
 export function isPlaying(playerId: string): boolean {
     for (const room of games.values()) {
-        if ((room.p1 === playerId || room.p2 === playerId) && room.status === "ongoing")
+        if ((room.p1 === playerId || room.p2 === playerId) && room.status === GAME_ROOM_STATUS.ONGOING)
             return true;
     }
     return false;
 }
 
+
+export function isPlayerInTournament(playerId: string): boolean {
+    for (const tournament of tournaments) {
+
+    }
+    return false;
+
+}
 
 export function playerInOtherRoom(playerId: string, roomId: string): boolean {
     if (findGameRoomByPlayer(playerId) == null)
@@ -119,6 +207,7 @@ export function createGameRoom(player1: string | null, player2: string | null, p
         mode: mode,
         sockets,
         loop: null,
+        paused: true,
         state: {
             canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
             paddles: {
@@ -164,5 +253,6 @@ export function handlePlayerReady(connection: SocketStream, playerId: string, ga
     }
 
     if (game.readyPlayers.size === 2)
-        startGame(game);
+        game.paused = false;
+    // startGame(game);
 }

@@ -2,7 +2,7 @@ export type GameMode = "local" | "friend" | "random" | "ai_opponent" | "tourname
 export type GameStatus = "waiting" | "ongoing" | "finished";
 export type Difficulty = "easy" | "medium" | "hard";
 export type TournamentStatus = "waiting" | "semifinals" | "final" | "finished";
-import {WebSocket} from "ws";
+import { WebSocket } from "ws";
 
 export interface GameCanvas {
     width: number;
@@ -48,11 +48,12 @@ export interface GameRoom {
     status: GameStatus;
     mode: GameMode;
     difficulty?: Difficulty;
+    paused: boolean;
     sockets: Set<WebSocket | undefined>;
     loop: ReturnType<typeof setInterval> | null;
     state: GameState;
     readyPlayers: Set<String>;
-    winner: string|null;
+    winner: string | null;
 }
 
 export interface Tournament {

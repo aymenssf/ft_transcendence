@@ -53,11 +53,11 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
 
         connection.socket.on('close', () => {
             handleSocketClose(playerId);
+            playersSockets.delete(playerId);
         });
 
         connection.socket.on('error', (error: any) => {
             console.error(`Error for ${playerId}:`, error);
-            playersSockets.delete(playerId);
         });
     });
 }
@@ -80,6 +80,8 @@ function handleSocketClose(playerId: string) {
 
     const gameRoom = findGameRoomByPlayer(playerId);
     if (!gameRoom || gameRoom.status === GAME_ROOM_STATUS.FINISHED) return;
+
+
 
     const opponentId = gameRoom.p1 === playerId ? gameRoom.p2 : gameRoom.p1;
 

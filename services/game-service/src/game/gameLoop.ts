@@ -139,7 +139,7 @@ export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
     gameRoom.loop = setInterval(() => {
         const { state, sockets } = gameRoom;
         const { ball, paddles, canvas } = state;
-
+        if (gameRoom.paused) return;
         movePaddles(paddles, canvas);
         moveBall(ball, canvas);
         checkBallCollision(ball, paddles);
@@ -197,7 +197,7 @@ interface LocalGameInput {
 }
 
 
-interface GameUpdatePayload {
+export interface GameUpdatePayload {
     gameId: string;
     playerId: string;
     input: LocalGameInput | RemoteGameInput;

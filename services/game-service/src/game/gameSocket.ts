@@ -1,7 +1,7 @@
 import { waitingQueue, games, playersSockets } from '../utils/store.js'
 import { gameUpdate } from "./gameLoop.js";
 import randomGame from "./randomGame.js"
-import { findGameRoomByPlayer, handlePlayerReady } from "../helpers/helpers.js"
+import { findGameRoomByPlayer, handlePlayerDisconnect, handlePlayerReady, leaveTournament } from "../helpers/helpers.js"
 import { localGame } from "./localGame.js";
 import { aiOpponentGame } from './aiOpponent.js';
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
@@ -53,6 +53,8 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
 
         connection.socket.on('close', () => {
             handleSocketClose(playerId);
+            leaveTournament(playerId);
+            handlePlayerDisconnect(playerId);
             playersSockets.delete(playerId);
         });
 
@@ -77,6 +79,7 @@ function cleanupRoom(roomId: string) {
 function handleSocketClose(playerId: string) {
     console.log(`WS connection closed for ${playerId}`);
     playersSockets.delete(playerId);
+    waitingQueue.delete(playerId);
 
     const gameRoom = findGameRoomByPlayer(playerId);
     if (!gameRoom || gameRoom.status === GAME_ROOM_STATUS.FINISHED) return;

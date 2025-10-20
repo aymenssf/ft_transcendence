@@ -53,37 +53,47 @@ export function leaveTournament(playerId: string) {
     }
 }
 
-export function leaveTournamentGames(playerId: string) {
-    let game = null;
+export function handlePlayerDisconnect(playerId: string) {
+    for (const game of games.values()) {
+        const isPlayerInGame = game.p1 === playerId || game.p2 === playerId;
+        if (!isPlayerInGame) continue;
 
-    for (const room of games.values()) {
-        if (
-            room.mode === GAME_ROOM_MODE.TOURNAMENT &&
-            room.status === GAME_ROOM_STATUS.ONGOING &&
-            (room.p1 === playerId || room.p2 === playerId)
-        ) {
-            game = room;
-            break;
+        if (game.mode === GAME_ROOM_MODE.LOCAL || game.mode === GAME_ROOM_MODE.AI_OPPONENT)
+            continue;
+
+        if (game.status === GAME_ROOM_STATUS.WAITING)
+            continue;
+
+        const opponentId = game.p1 === playerId ? game.p2 : game.p1;
+
+        if (game.loop) {
+            clearInterval(game.loop);
+            game.loop = null;
         }
+
+        if (game.state?.paddles) {
+            const leftForfeit = game.p1 === playerId;
+            game.state.paddles.left.score = leftForfeit ? 0 : 5;
+            game.state.paddles.right.score = leftForfeit ? 5 : 0;
+        }
+        game.winner = opponentId;
+        game.status = GAME_ROOM_STATUS.FINISHED;
+
+        if (opponentId) {
+            const opponentSocket = playersSockets.get(opponentId);
+            if (opponentSocket?.readyState === WebSocket.OPEN)
+                opponentSocket.send(JSON.stringify({
+                    type: "player_disconnected",
+                    payload: {
+                        gameId: game.gameId
+                    },
+                }));
+        }
+        console.log(
+            `Player ${playerId} disconnected. Opponent ${opponentId} wins game ${game.gameId} (5–0).`
+        );
+
     }
-
-    if (!game) return;
-
-    if (game.loop) {
-        clearInterval(game.loop);
-        game.loop = null;
-    }
-
-    game.status = GAME_ROOM_STATUS.FINISHED;
-    game.winner = game.p1 === playerId ? game.p2 : game.p1;
-
-    if (game.state?.paddles) {
-        const leftForfeit = game.p1 === playerId;
-        game.state.paddles.left.score = leftForfeit ? 0 : 5;
-        game.state.paddles.right.score = leftForfeit ? 5 : 0;
-    }
-
-    console.log(`Player ${playerId} forfeited tournament game ${game.gameId}. Winner: ${game.winner}`);
 }
 
 export function findGameRoomByPlayer(playerId: string): GameRoom | null {

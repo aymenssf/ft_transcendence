@@ -237,6 +237,7 @@ export function createGameRoom(player1: string | null, player2: string | null, p
 
 }
 export function handlePlayerReady(connection: SocketStream, playerId: string, gameId: string) {
+    console.log("Player : is ready", playerId)
     const game = games.get(gameId);
     if (!game) {
         console.warn(`[handlePlayerReady] Game not found: ${gameId}`);
@@ -263,6 +264,8 @@ export function handlePlayerReady(connection: SocketStream, playerId: string, ga
     }
 
     if (game.readyPlayers.size === 2)
+        game.paused = false;
+    else if (game.readyPlayers.size === 1 && (game.mode === GAME_ROOM_MODE.AI_OPPONENT || game.mode === GAME_ROOM_MODE.LOCAL))
         game.paused = false;
     // startGame(game);
 }

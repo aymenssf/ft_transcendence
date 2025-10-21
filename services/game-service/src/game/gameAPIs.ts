@@ -1,24 +1,27 @@
 
-import {FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
-import {games, playersSockets} from "../utils/store.js";
-import {GameMode, GameRoom} from "../utils/types.js";
-import {createGameRoom} from "../helpers/helpers.js";
-import {GAME_ROOM_MODE, GAME_ROOM_STATUS, GameRoomMode} from "../helpers/consts.js";
-import {gameUpdate, GameUpdatePayload} from "./gameLoop.js";
+import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { games, playersSockets } from "../utils/store.js";
+import { GameMode, GameRoom } from "../utils/types.js";
+import { createGameRoom } from "../helpers/helpers.js";
+import { GAME_ROOM_MODE, GAME_ROOM_STATUS, GameRoomMode } from "../helpers/consts.js";
+import { gameUpdate, GameUpdatePayload } from "./gameLoop.js";
+import { verifyJWT } from "../middleware/verifyJWT.js";
 
 interface CreateGameBody {
-    playerId: string;
+    playerId?: string;
     mode: GameRoomMode;
 }
 
 interface JoinGameBody {
-    playerId: string;
+    playerId?: string;
 }
 
 export async function gameAPIs(fastify: FastifyInstance, options: any) {
 
-    fastify.post("/api/game/create", (req: FastifyRequest<{ Body: CreateGameBody }>, reply: FastifyReply) => {
-        const { playerId, mode } = req.body;
+    fastify.post<{ Body: CreateGameBody }>("/api/game/create", { preHandler: verifyJWT }, (req, reply) => {
+        const user = (req as any).user;
+        const playerId = user.userId;
+        const { mode } = req.body;
 
         if (!playerId || !mode) {
             return reply.code(400).send({
@@ -48,8 +51,9 @@ export async function gameAPIs(fastify: FastifyInstance, options: any) {
         });
     });
 
-    fastify.post("/api/game/join/:id", (req: FastifyRequest<{ Body: JoinGameBody; Params: { id: string } }>, reply: FastifyReply) => {
-        const { playerId } = req.body;
+    fastify.post<{ Body: JoinGameBody; Params: { id: string } }>("/api/game/join/:id", { preHandler: verifyJWT }, (req, reply) => {
+        const user = (req as any).user;
+        const playerId = user.userId;
         const { id: gameId } = req.params;
 
         if (!playerId) {
@@ -87,8 +91,10 @@ export async function gameAPIs(fastify: FastifyInstance, options: any) {
         });
     });
 
-    fastify.post("/api/game/input", (req: FastifyRequest<{ Body: GameUpdatePayload }>, reply: FastifyReply) => {
-        const { gameId, playerId, input } = req.body;
+    fastify.post<{ Body: GameUpdatePayload }>("/api/game/input", { preHandler: verifyJWT }, (req, reply) => {
+        const user = (req as any).user;
+        const playerId = user.userId;
+        const { gameId, input } = req.body;
 
         const gameRoom = games.get(gameId);
         if (!gameRoom) {

@@ -6,6 +6,7 @@ import { GameRoom, Tournament, TournamentStatus } from "../utils/types.js";
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import WebSocket from "ws"
 import { startGame } from "./gameLoop.js";
+import { verifyJWT } from "../middleware/verifyJWT.js";
 
 function createTournament(playerId: string, title = "Classic Tournament"): Tournament {
     const tournamentId: string = randomUUID();
@@ -257,8 +258,10 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
     });
 
 
-    fastify.post("/tournaments/create", (req: FastifyRequest<{ Body: TournamentCreateBody }>, reply: FastifyReply) => {
-        const { playerId, title } = req.body;
+    fastify.post<{ Body: TournamentCreateBody }>("/tournaments/create", { preHandler: [verifyJWT] }, (req, reply) => {
+        const user = (req as any).user;
+        const playerId = user.userId;
+        const { title } = req.body;
 
         if (!playerId)
             return reply.code(400).send({ error: "playerId is required" });
@@ -296,8 +299,10 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
         tournamentId: string;
         playerId: string;
     }
-    fastify.post("/tournaments/join", (req: FastifyRequest<{ Body: TournamentJoinBody }>, reply: FastifyReply) => {
-        const { tournamentId, playerId } = req.body;
+    fastify.post<{ Body: TournamentJoinBody }>("/tournaments/join", { preHandler: [verifyJWT] }, (req, reply) => {
+        const user = (req as any).user;
+        const playerId = user.userId;
+        const { tournamentId } = req.body;
 
         if (!tournamentId || !tournaments.has(tournamentId))
             return reply.code(404).send({ message: "Tournament not found" });
@@ -354,8 +359,10 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
         tournamentId: string;
         playerId: string;
     }
-    fastify.post("/tournaments/leave", (req: FastifyRequest<{ Body: TournamentLeaveBody }>, reply: FastifyReply) => {
-        const { tournamentId, playerId } = req.body;
+    fastify.post<{ Body: TournamentLeaveBody }>("/tournaments/leave", { preHandler: [verifyJWT] }, (req, reply) => {
+        const user = (req as any).user;
+        const playerId = user.userId;
+        const { tournamentId } = req.body;
 
         if (!tournaments.has(tournamentId))
             return reply.code(404).send({ message: "Tournament not found" });

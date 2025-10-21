@@ -1,3 +1,4 @@
+// @ts-ignore
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import websocket from "@fastify/websocket";
 import gameSocket from "./game/gameSocket.js";
@@ -5,10 +6,16 @@ import friendRoutes from "./game/friendGame.js";
 import { tournamentRoute } from "./game/tournament.js";
 // @ts-ignore
 import cors from '@fastify/cors';
+// @ts-ignore
+import jwt from '@fastify/jwt';
 import { gameAPIs } from "./game/gameAPIs.js"
 
 
 const app: FastifyInstance = Fastify({ logger: true });
+await app.register(jwt, {
+    secret: process.env.JWT_SECRET as string
+});
+
 await app.register(cors, { origin: '*' });
 await app.register(websocket);
 await app.register(friendRoutes);

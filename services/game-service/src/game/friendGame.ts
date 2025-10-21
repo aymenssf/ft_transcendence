@@ -1,19 +1,27 @@
 import { GAME_ROOM_MODE, GAME_ROOM_STATUS } from "../helpers/consts.js";
 import { createGameRoom, createInitialGameState, isPlaying } from "../helpers/helpers.js";
+import { verifyJWT } from "../middleware/verifyJWT.js";
 import { games, playersSockets } from "../utils/store.js";
 import { startGameLoop } from "./gameLoop.js";
-import {FastifyInstance, FastifyRequest, FastifyReply} from "fastify";
+import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 interface InviteBody {
-    from: string;
+    from?: string;
     to: string;
 }
-async function friendRoutes(fastify: FastifyInstance, options: any) {
-    fastify.post("/invite", async (request: FastifyRequest<{Body: InviteBody}>, reply: FastifyReply) => {
-        const { from, to } = request.body;
+interface InviteAcceptBody {
+    gameId: string;
+    guestId?: string;
+}
 
-        if (from === to)
-            return reply.status(400).send({ error: "Cannot invite yourself" });
+async function friendRoutes(fastify: FastifyInstance, options: any) {
+    fastify.post<{ Body: InviteBody }>("/invite", { preHandler: [verifyJWT] }, async (request, reply) => {
+        const user = (request as any).user;
+        const from = user.userId;
+        const { to } = request.body;
+
+        if (from === to || !to)
+            return reply.status(400).send({ error: "Cannot invite yourself or guest invalid" });
         console.log(`Friend invite from : ${from}, to ${to}`);
 
         const host_socket = playersSockets.get(from);
@@ -38,12 +46,13 @@ async function friendRoutes(fastify: FastifyInstance, options: any) {
         return reply.send({ message: "Invite sent successfully", roomId: friendRoom.gameId });
     });
 
-interface InviteAcceptBody{
-    gameId: string;
-    guestId: string;
-}
-    fastify.post("/invite/accept", async (request: FastifyRequest<{Body:InviteAcceptBody}>, reply:FastifyReply) => {
-        const { gameId, guestId } = request.body;
+    fastify.post<{ Body: InviteAcceptBody }>("/invite/accept", { preHandler: [verifyJWT] }, async (request, reply) => {
+        const user = (request as any).user;
+        const guestId = user.userId;
+        const { gameId } = request.body;
+
+        if (!gameId)
+            return reply.status(400).send({ error: "gameId invalid" });
 
         const guest_socket = playersSockets.get(guestId);
         const friendRoom = games.get(gameId);
@@ -58,7 +67,7 @@ interface InviteAcceptBody{
             return reply.status(400).send({ error: "Room already full" });
         let host_socket = null;
         if (friendRoom.p1 != null) {
-             host_socket = playersSockets.get(friendRoom.p1);
+            host_socket = playersSockets.get(friendRoom.p1);
         }
 
         if (!host_socket)
@@ -100,8 +109,13 @@ interface InviteAcceptBody{
     });
 
 
-    fastify.post("/invite/decline", async (request:FastifyRequest<{Body: InviteAcceptBody}>, reply: FastifyReply) => {
-        const { gameId, guestId } = request.body;
+    fastify.post<{ Body: InviteAcceptBody }>("/invite/decline", { preHandler: [verifyJWT] }, async (request, reply) => {
+        const user = (request as any).user;
+        const guestId = user.userId;
+        const { gameId } = request.body;
+
+        if (!gameId)
+            return reply.status(400).send({ error: "Cannot invite yourself" });
 
         const guest_socket = playersSockets.get(guestId);
         const friendRoom = games.get(gameId);
@@ -114,7 +128,7 @@ interface InviteAcceptBody{
 
         let host_socket = null;
         if (friendRoom.p1 != null)
-            host_socket =  playersSockets.get(friendRoom.p1);
+            host_socket = playersSockets.get(friendRoom.p1);
 
         if (games.has(gameId))
             games.delete(gameId);

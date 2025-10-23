@@ -13,10 +13,10 @@
     "license": "ISC",
     "description": "",
     "dependencies": {
-        "@fastify/websocket": "8.3.1",
-        "@prisma/client": "^5.22.0",
-        "@ft/shared-database": "file:../../Shared_dataBase",
         "@fastify/jwt": "^8.0.0",
+        "@fastify/websocket": "8.3.1",
+        "@ft/shared-database": "file:../../Shared_dataBase",
+        "@prisma/client": "^5.22.0",
         "cors": "^2.8.5",
         "fastify": "4.29.1",
         "sqlite3": "^5.1.6",
@@ -28,6 +28,7 @@
         "@types/node": "^24.7.2",
         "@types/ws": "^8.18.1",
         "nodemon": "^3.1.10",
+        "prisma": "^5.22.0",
         "typescript": "^5.5.0"
     }
 }

@@ -1,10 +1,11 @@
+import 'dotenv/config';
 import Fastify, { fastify } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import { registerControllers } from "./controler.js";
-import { GoogleAuthRoutes } from "./src/routes/google-auth.routes.js";
+import { GoogleAuthRoutes } from "./src/routes/42-auth.routes.js";
 
 async function bootstrap() {
   const app = Fastify({ logger: true });
@@ -23,7 +24,7 @@ async function bootstrap() {
 
 
 
-await app.register(GoogleAuthRoutes);
+  await app.register(GoogleAuthRoutes);
 
 
   registerControllers(app);

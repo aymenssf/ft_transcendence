@@ -31,29 +31,51 @@ fi
 
 echo "✅ Port 3000 is available"
 echo ""
-echo "📍 Frontend will be available at: http://localhost:3000"
+echo "📍 Main Test Page: http://localhost:3000/index.html"
 echo "🔗 Make sure your auth-service is running at: http://localhost:3010"
+echo ""
+echo "🧪 Test the complete OAuth flow:"
+echo "   1. Click '🚀 Login with 42 School' button"
+echo "   2. Authorize the application on 42"
+echo "   3. Get redirected back with authentication"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# Function to open browser
+open_browser() {
+    sleep 2
+    if command -v xdg-open &> /dev/null; then
+        xdg-open "http://localhost:3000/index.html" &
+    elif command -v open &> /dev/null; then
+        open "http://localhost:3000/index.html" &
+    elif command -v start &> /dev/null; then
+        start "http://localhost:3000/index.html" &
+    else
+        echo "💡 Manually open: http://localhost:3000/index.html"
+    fi
+}
+
 # Try different methods to start HTTP server
 if command -v python3 &> /dev/null; then
     echo "🐍 Using Python 3..."
+    open_browser &
     python3 -m http.server 3000
 elif command -v python &> /dev/null; then
     echo "🐍 Using Python..."
+    open_browser &
     python -m SimpleHTTPServer 3000
 elif command -v php &> /dev/null; then
     echo "🐘 Using PHP..."
+    open_browser &
     php -S localhost:3000
 else
     echo "❌ No suitable HTTP server found!"
     echo ""
     echo "Please install one of the following:"
-    echo "  • Python 3: brew install python3"
+    echo "  • Python 3: sudo apt install python3"
     echo "  • Node.js http-server: npm install -g http-server"
     echo "  • Or use VS Code Live Server extension"
     exit 1

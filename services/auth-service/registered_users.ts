@@ -10,6 +10,7 @@ export interface LoginSuccess
         username: string;
         email: string;
         avatar?: string | null;
+        usernameTournament?: string | null;
     };
 }
 
@@ -76,7 +77,7 @@ export async function loginUser(params:{
     if (!isValidPassword) 
         throw new AuthError("Invalid password");
 
-    const token = sign({ userId: user.id, username: user.username }, { expiresIn: tokenTTL });
+    const token = sign({ userId: user.id, username: user.username, usernameTournament: (user as any).usernameTournament ?? null }, { expiresIn: tokenTTL });
     return {
         token,
         user: {
@@ -84,6 +85,7 @@ export async function loginUser(params:{
             username: user.username,
             email: user.email,
             avatar: (user as any).avatar ?? null,
+            usernameTournament: (user as any).usernameTournament ?? null,
         },
     };
 }

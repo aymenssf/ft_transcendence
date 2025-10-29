@@ -292,6 +292,10 @@
                     <label for="reg-password">Password</label>
                     <input type="password" id="reg-password" placeholder="Strong password (min 8, Aa0)" required>
                 </div>
+                <div class="form-group">
+                    <label for="reg-usernameTournament">Tournament username (optional)</label>
+                    <input type="text" id="reg-usernameTournament" placeholder="3-20 alphanumeric (defaults to username)" />
+                </div>
                 <button type="submit" class="submit-btn">Register</button>
             </form>
         </div>
@@ -338,6 +342,7 @@
             <p><strong>Email:</strong> <span id="user-email"></span></p>
             <p><strong>Provider:</strong> <span id="user-provider"></span></p>
             <p><strong>Token:</strong> <span id="user-token" style="word-break: break-all; font-size: 11px;"></span></p>
+            <p><strong>Tournament username:</strong> <span id="user-usernameTournament"></span></p>
             <div style="margin-top: 15px;">
                 <h3 style="margin-bottom:10px;">Update profile</h3>
                 <form id="update-form" onsubmit="updateUser(event)">
@@ -356,6 +361,10 @@
                     <div class="form-group">
                         <label for="upd-avatar">Avatar URL</label>
                         <input type="url" id="upd-avatar" placeholder="https://..." />
+                    </div>
+                    <div class="form-group">
+                        <label for="upd-usernameTournament">Tournament username</label>
+                        <input type="text" id="upd-usernameTournament" placeholder="3-20 alphanumeric (leave blank to keep)" />
                     </div>
                     <button type="submit" class="submit-btn">Update</button>
                 </form>
@@ -403,9 +412,14 @@
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
             const error = urlParams.get('error');
-            
+            const userParam = urlParams.get('user');
+
             if (token) {
-                handleAuthSuccess(token);
+                let parsedUser = null;
+                if (userParam) {
+                    try { parsedUser = JSON.parse(decodeURIComponent(userParam)); } catch (e) { parsedUser = null; }
+                }
+                handleAuthSuccess(token, parsedUser);
                 // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
             } else if (error) {
@@ -425,12 +439,20 @@
             const username = document.getElementById('reg-username').value.trim();
             const email = document.getElementById('reg-email').value.trim();
             const password = document.getElementById('reg-password').value;
+            const regTournament = document.getElementById('reg-usernameTournament').value.trim();
+            // choose tournament username: use provided or default to username
+            const usernameTournament = regTournament === '' ? username : regTournament;
+            // client-side validation for tournament username
+            if (usernameTournament && !/^[a-zA-Z0-9]{3,20}$/.test(usernameTournament)) {
+                showError('Tournament username must be 3-20 characters, alphanumeric only');
+                return;
+            }
             showLoading(true); hideMessages();
             try {
                 const res = await fetch(`${AUTH_SERVICE_URL}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, email, password })
+                    body: JSON.stringify({ username, email, password, usernameTournament })
                 });
                 const data = await res.json();
                 if (res.ok) {
@@ -467,7 +489,7 @@
                 const data = await response.json();
                 
                 if (response.ok && data.token) {
-                    handleAuthSuccess(data.token);
+                    handleAuthSuccess(data.token, data.user);
                 } else {
                     showError(data.error || data.message || 'Login failed');
                 }
@@ -486,11 +508,19 @@
             const email = document.getElementById('upd-email').value.trim();
             const password = document.getElementById('upd-password').value;
             const avatar = document.getElementById('upd-avatar').value.trim();
+            const updTournament = document.getElementById('upd-usernameTournament').value.trim();
             const payload = {};
             if (username) payload.username = username;
             if (email) payload.email = email;
             if (password) payload.password = password;
             if (avatar) payload.avatar = avatar;
+            if (updTournament) {
+                if (!/^[a-zA-Z0-9]{3,20}$/.test(updTournament)) {
+                    showError('Tournament username must be 3-20 characters, alphanumeric only');
+                    return;
+                }
+                payload.usernameTournament = updTournament;
+            }
             if (Object.keys(payload).length === 0) { showError('Nothing to update'); return; }
             showLoading(true); hideMessages();
             try {
@@ -509,6 +539,12 @@
                     if (data.user) {
                         document.getElementById('user-username').textContent = data.user.username;
                         document.getElementById('user-email').textContent = data.user.email;
+                        if (data.user.usernameTournament !== undefined) {
+                            document.getElementById('user-usernameTournament').textContent = data.user.usernameTournament || '';
+                            // update stored user info
+                            const stored = JSON.parse(localStorage.getItem('user_info') || 'null');
+                            if (stored) { stored.usernameTournament = data.user.usernameTournament; localStorage.setItem('user_info', JSON.stringify(stored)); }
+                        }
                         if (data.user.avatar) {
                             const avatarImg = document.getElementById('user-avatar');
                             avatarImg.src = data.user.avatar;
@@ -526,12 +562,22 @@
         }
 
         function handleAuthSuccess(token) {
+            // Accept optional second arg user data
+            const userFromArgs = arguments[1];
             // Store token
             localStorage.setItem('jwt_token', token);
-            
+            // If server provided user object prefer it
+            if (userFromArgs) {
+                localStorage.setItem('user_info', JSON.stringify(userFromArgs));
+                displayUserInfo(userFromArgs, token);
+                showSuccess('Successfully logged in!');
+                return;
+            }
             // Decode JWT to get user info (simple base64 decode - NOT SECURE FOR PRODUCTION)
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
+                // store payload as user_info for later UI use
+                localStorage.setItem('user_info', JSON.stringify(payload));
                 displayUserInfo(payload, token);
                 showSuccess('Successfully logged in!');
             } catch (error) {
@@ -550,6 +596,7 @@
             // Handle both userId and id fields
             document.getElementById('user-id').textContent = user.userId || user.id || 'N/A';
             document.getElementById('user-username').textContent = user.username || 'N/A';
+            document.getElementById('user-usernameTournament').textContent = user.usernameTournament || '';
             document.getElementById('user-email').textContent = user.email || 'N/A';
             document.getElementById('user-provider').textContent = user.provider || 'local';
             document.getElementById('user-token').textContent = token.substring(0, 50) + '...';
@@ -578,7 +625,9 @@
                         logout();
                         showError('Session expired. Please login again.');
                     } else {
-                        displayUserInfo(payload, token);
+                        // Prefer stored user_info (from login response) so we display usernameTournament reliably
+                        const stored = JSON.parse(localStorage.getItem('user_info') || 'null');
+                        displayUserInfo(stored || payload, token);
                     }
                 } catch (error) {
                     logout();

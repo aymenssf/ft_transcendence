@@ -9,6 +9,7 @@ export interface CreateUserData {
   avatar?: string;
   provider?: string;
   is_42_user?: boolean;
+  usernameTournament?: string;
 }
 
 export interface UpdateUserData {
@@ -18,6 +19,7 @@ export interface UpdateUserData {
   password?: string;
   status?: string;
   lastSeen?: Date;
+  usernameTournament?: string | null;
 }
 
 export class UserService {
@@ -36,6 +38,7 @@ export class UserService {
           username: true,
           email: true,
           avatar: true,
+          usernameTournament: true,
           is_42_user: true,
           provider: true,
           status: true,
@@ -60,6 +63,7 @@ export class UserService {
           username: true,
           email: true,
           avatar: true,
+          usernameTournament: true,
           is_42_user: true,
           provider: true,
           status: true,
@@ -84,6 +88,7 @@ export class UserService {
           username: true,
           email: true,
           avatar: true,
+          usernameTournament: true,
           is_42_user: true,
           provider: true,
           status: true,
@@ -114,6 +119,7 @@ export class UserService {
           email: userData.email,
           password: hashedPassword,
           avatar: userData.avatar,
+          usernameTournament: userData.usernameTournament,
           provider: userData.provider || '42',
           is_42_user: userData.is_42_user || false,
           status: 'online',
@@ -124,6 +130,7 @@ export class UserService {
           username: true,
           email: true,
           avatar: true,
+          usernameTournament: true,
           is_42_user: true,
           provider: true,
           status: true,
@@ -133,12 +140,24 @@ export class UserService {
       });
 
       return user;
-    } 
+      } 
     catch (error) {
       console.error('Error creating user:', error);
-      if (error instanceof Error && error.message.includes('Unique constraint')) 
-        throw new Error('User with this email or username already exists');
-      throw new Error('Failed to create user');
+        // Inspect Prisma unique constraint error if available
+        const e: any = error;
+        if (e && e.code === 'P2002' && e.meta && Array.isArray(e.meta.target)) {
+          const target = e.meta.target[0];
+          if (target === 'username') 
+            throw new Error('username already exists');
+          if (target === 'email') 
+            throw new Error('email already exists');
+          if (target === 'usernameTournament') 
+            throw new Error('tournament username already exists');
+        }
+        if (error instanceof Error && String(error.message).toLowerCase().includes('unique')) {
+          throw new Error('User with this email or username already exists');
+        }
+        throw new Error('Failed to create user');
     }
   }
 
@@ -216,7 +235,28 @@ export class UserService {
           is_42_user: true
         };
 
-        return await this.createUser(userData);
+        // default tournament username to profile login
+        userData.usernameTournament = profile.login;
+
+        try {
+          return await this.createUser(userData);
+        } catch (err: any) {
+          // If username conflict is handled below; also handle tournament username conflict
+          const msg = String(err?.message || '').toLowerCase();
+          if (msg.includes('username already exists')) 
+          {
+            const modifiedUsername = `${profile.login}_42_${Date.now()}`;
+            userData.username = modifiedUsername;
+            return await this.createUser(userData);
+          }
+          if (msg.includes('tournament username already exists') || msg.includes('tournament')) 
+          {
+            const modifiedTour = `${profile.login}_tour_${Date.now()}`;
+            userData.usernameTournament = modifiedTour;
+            return await this.createUser(userData);
+          }
+          throw err;
+        }
       }
     } 
     catch (error) {

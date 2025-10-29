@@ -40,6 +40,9 @@ model User {
 
   // Tournament notifications
   tournamentNotifications TournamentNotification[]
+
+  /// Tournament username (optional). Enforced unique at application level as well.
+  usernameTournament String?  @unique
 }
 
 

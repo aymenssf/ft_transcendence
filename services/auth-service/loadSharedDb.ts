@@ -10,6 +10,7 @@ export interface UserRow {
   email: string;
   password: string | null;
   avatar?: string | null;
+  usernameTournament?: string | null;
   is_42_user?: boolean;
   created_at?: Date;
 }
@@ -29,6 +30,7 @@ export interface SubscribeInput {
   username: string;
   email: string;
   password: string;
+  usernameTournament?: string;
   avatar?: string | null;
 }
 
@@ -37,6 +39,7 @@ export interface PublicUser {
   username: string;
   email: string;
   avatar?: string | null;
+  usernameTournament?: string | null;
   created_at?: Date;
 }
 
@@ -59,6 +62,15 @@ export function validateUsername(u: string) {
     throw new ValidationError("Username must be between 3 and 20 characters");
   if (!/^[a-zA-Z0-9_]+$/.test(u))
     throw new ValidationError("Username can only contain letters, numbers, and underscores");
+}
+
+export function validateTournamentUsername(u: string) {
+  if (!u)
+    throw new ValidationError("Tournament username is required and cannot be empty");
+  if (u.length < 3 || u.length > 20)
+    throw new ValidationError("Tournament username must be between 3 and 20 characters");
+  if (!/^[a-zA-Z0-9]+$/.test(u))
+    throw new ValidationError("Tournament username can only contain letters and numbers");
 }
 
 export function validateEmail(e: string) {
@@ -140,24 +152,28 @@ function createPrismaDB(): SecureDB {
     },
 
   async subscribe(input: SubscribeInput): Promise<PublicUser> {
-      const { username, email, password, avatar = null } = input;
+    const { username, email, password, avatar = null, usernameTournament } = input;
       const DEFAULT_AVATAR_REL = 'avatar/default_avatar/default_avatar.jpg';
       
-      validateUsername(username);
+  validateUsername(username);
       validateEmail(email);
       validatePassword(password);
 
-      const existingUser = await prisma.user.findUnique({
-        where: { username }
-      });
+  // tournament username handling: use provided or default to normal username
+  const tUsername = (typeof usernameTournament === 'string' && usernameTournament.trim() !== '') ? usernameTournament : username;
+  validateTournamentUsername(tUsername);
+
+      const existingUser = await prisma.user.findUnique({ where: { username } });
       if (existingUser) 
         throw new ValidationError("Username already exists");
 
-      const existingEmail = await prisma.user.findUnique({
-        where: { email }
-      });
+      const existingEmail = await prisma.user.findUnique({ where: { email } });
       if (existingEmail) 
         throw new ValidationError("Email already exists");
+
+      const existingTournament = await prisma.user.findUnique({ where: { usernameTournament: tUsername } });
+      if (existingTournament)
+        throw new ValidationError("Tournament username already exists");
 
       const hashedPassword = await hashPassword(password);
 
@@ -173,13 +189,15 @@ function createPrismaDB(): SecureDB {
                 username,
                 email,
                 password: hashedPassword,
-                avatar: (typeof avatar === 'string' && avatar.trim() !== '') ? avatar : DEFAULT_AVATAR_REL
+                avatar: (typeof avatar === 'string' && avatar.trim() !== '') ? avatar : DEFAULT_AVATAR_REL,
+                usernameTournament: tUsername,
               },
               select: {
                 id: true,
                 username: true,
                 email: true,
                 avatar: true,
+                usernameTournament: true,
                 created_at: true
               }
             });

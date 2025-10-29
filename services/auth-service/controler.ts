@@ -11,7 +11,7 @@ const DEFAULT_AVATAR_REL = 'avatar/default_avatar/default_avatar.jpg';
 // Instantiate Prisma client (singleton per module)
 // const prisma = new PrismaClient();
 
-interface RegisterBody { username: string; email: string; password: string; avatar?: string | null }
+interface RegisterBody { username: string; email: string; password: string; avatar?: string | null; usernameTournament?: string }
 interface LoginBody { username: string; email: string; password: string }
 
 
@@ -23,6 +23,16 @@ export function registerControllers(app: FastifyInstance)
     const { username, email, password, avatar = null } = request.body;
     try {
       validateUsername(username);
+      // tournament username: validate (use provided or default to username)
+      const tUsernameInput = (request.body as any).usernameTournament as string | undefined;
+      const tUsername = (typeof tUsernameInput === 'string' && tUsernameInput.trim() !== '') ? tUsernameInput : username;
+      // validate tournament username via loadSharedDb validator
+      try {
+        const { validateTournamentUsername } = await import('./loadSharedDb.js');
+        validateTournamentUsername(tUsername);
+      } catch (e) {
+        throw new ValidationError((e as any)?.message || 'Invalid tournament username');
+      }
       validateEmail(email);
       validatePassword(password);
 
@@ -33,6 +43,9 @@ export function registerControllers(app: FastifyInstance)
       const existingEmail = await prisma.user.findUnique({ where: { email } });
       if (existingEmail) 
         throw new ValidationError('Email already exists');
+      const existingTournament = await prisma.user.findUnique({ where: { usernameTournament: tUsername } });
+      if (existingTournament)
+        throw new ValidationError('Tournament username already exists');
 
       const hashedPassword = await hashPassword(password);
 
@@ -46,8 +59,8 @@ export function registerControllers(app: FastifyInstance)
         const id = randomUserId();
         try {
           user = await prisma.user.create({
-            data: { id, username, email, password: hashedPassword, avatar: avatarValue },
-            select: { id: true, username: true, email: true, avatar: true, created_at: true }
+            data: { id, username, email, password: hashedPassword, avatar: avatarValue, usernameTournament: tUsername },
+            select: { id: true, username: true, email: true, avatar: true, usernameTournament: true, created_at: true }
           }) as any;
           break;
         } catch (err: any) {
@@ -120,6 +133,7 @@ export function registerControllers(app: FastifyInstance)
         username: user.username,
         email: user.email,
         avatar: avatarValue,
+        usernameTournament: (user as any).usernameTournament ?? null,
         provider: 'local',
       }, { expiresIn: '7d' });
       reply.header('Authorization', `Bearer ${token}`);
@@ -131,6 +145,7 @@ export function registerControllers(app: FastifyInstance)
           username: user.username,
           email: user.email,
           avatar: avatarValue,
+          usernameTournament: (user as any).usernameTournament ?? null,
         },
       });
     } catch (err: any) {

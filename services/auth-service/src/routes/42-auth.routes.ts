@@ -81,7 +81,8 @@ export async function Auth42Routes(fastify: FastifyInstance) {
           username: user.username,
           email: user.email,
           provider: '42',
-          is_42_user: true
+          is_42_user: true,
+          usernameTournament: (user as any).usernameTournament ?? null
         },
         { 
           expiresIn: '7d'
@@ -99,6 +100,7 @@ export async function Auth42Routes(fastify: FastifyInstance) {
           username: user.username,
           email: user.email,
           avatar: user.avatar,
+          usernameTournament: (user as any).usernameTournament ?? null,
           is_42_user: user.is_42_user,
           provider: user.provider
         },
@@ -181,6 +183,7 @@ export async function Auth42Routes(fastify: FastifyInstance) {
           username: user.username,
           email: user.email,
           avatar: user.avatar,
+          usernameTournament: (user as any).usernameTournament ?? null,
           is_42_user: user.is_42_user,
           provider: user.provider,
           status: user.status,

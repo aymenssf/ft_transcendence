@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { PublicUser } from "./loadSharedDb.js";
-import {validateUsername, validateEmail, validatePassword, hashPassword, ValidationError } from "./loadSharedDb.js";
+import {validateUsername, validateEmail, validatePassword, hashPassword, ValidationError, validateTournamentUsername } from "./loadSharedDb.js";
 import { prisma } from '@ft/shared-database';
 
 export interface UpdateUserBody {
@@ -8,6 +8,7 @@ export interface UpdateUserBody {
 	email?: string;
 	password?: string;
 	avatar?: string | null;
+	usernameTournament?: string | null;
 }
 
 function optionalValidateUsername(u?: string) 
@@ -26,6 +27,10 @@ function optionalValidatePassword(p?: string)
 		validatePassword(p); 
 }
 
+function optionalValidateTournamentUsername(u?: string | null) {
+  if (u !== undefined && u !== null) validateTournamentUsername(u as string);
+}
+
 export async function updateUserHandler(
 	request: FastifyRequest<{ Body: UpdateUserBody }>,
 	reply: FastifyReply,
@@ -38,12 +43,13 @@ export async function updateUserHandler(
 		if (Number.isNaN(targetUserId)) 
 			return reply.status(400).send({ error: "Invalid authenticated user id" });
 
-	const { username, email, password, avatar } = request.body || {};
+	const { username, email, password, avatar, usernameTournament } = request.body || {};
 
 	try {
 		optionalValidateUsername(username);
 		optionalValidateEmail(email);
 		optionalValidatePassword(password);
+		optionalValidateTournamentUsername(usernameTournament);
 
 		const data: Record<string, any> = {};
 		if (username !== undefined) 
@@ -52,6 +58,8 @@ export async function updateUserHandler(
 			data.email = email;
 		if (avatar !== undefined) 
 			data.avatar = avatar; // can be null
+		if (usernameTournament !== undefined) 
+			data.usernameTournament = usernameTournament; // can be null or string
 		if (password !== undefined) 
 			data.password = await hashPassword(password);
 
@@ -68,13 +76,18 @@ export async function updateUserHandler(
 			if (existingEmail && existingEmail.id !== targetUserId)
 				return reply.status(400).send({ error: "Email already exists" });
 		}
+		if (data.usernameTournament !== undefined && data.usernameTournament !== null) {
+			const existingTournament = await prisma.user.findUnique({ where: { usernameTournament: data.usernameTournament } });
+			if (existingTournament && existingTournament.id !== targetUserId)
+				return reply.status(400).send({ error: "Tournament username already exists" });
+		}
 
 		let updated: PublicUser | null = null;
 		try {
 			updated = await prisma.user.update({
 				where: { id: targetUserId },
 				data,
-				select: { id: true, username: true, email: true, avatar: true, created_at: true }
+				select: { id: true, username: true, email: true, avatar: true, usernameTournament: true, created_at: true }
 			});
 		} catch (err: any) {
 			if (err.code === 'P2002') 

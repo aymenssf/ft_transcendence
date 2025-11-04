@@ -1,15 +1,16 @@
-import { waitingQueue, games, playersSockets } from '../utils/store.js'
+import { waitingQueue, games, playersSockets, tournaments } from '../utils/store.js'
 import { gameUpdate } from "./gameLoop.js";
 import randomGame from "./randomGame.js"
-import { findGameRoomByPlayer, handlePlayerDisconnect, handlePlayerReady, leaveTournament } from "../helpers/helpers.js"
+import { findGameRoomByPlayer, getTournamentByRoomId, handlePlayerDisconnect, handlePlayerReady, leaveTournament } from "../helpers/helpers.js"
 import { localGame } from "./localGame.js";
 import { aiOpponentGame } from './aiOpponent.js';
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { SocketStream } from "@fastify/websocket";
 import { GameRoom } from "../utils/types.js";
-import { GAME_ROOM_STATUS } from "../helpers/consts.js";
+import { GAME_ROOM_MODE, GAME_ROOM_STATUS, TOURNAMENT_STATUS } from "../helpers/consts.js";
 import "@fastify/websocket";
 import jwt from "@fastify/jwt"
+import { handleTournamentRoundWinner, notifyTournamentPlayers } from './tournament.js';
 
 interface SocketQuery {
     token: string;
@@ -50,8 +51,9 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
                         localGame(connection, playerId);
                     if (type === "join_ai-opponent")
                         aiOpponentGame(connection, playerId, payload.difficulty);
-                    if (type === "leave_game") {
+                    if (type === "player_leave") {
                         // TO ADD LATER : end gameRoom...
+                        handlePlayerLeave(playerId);
                     }
                     if (type === "player_ready")
                         handlePlayerReady(connection, playerId, payload.gameId);
@@ -79,6 +81,146 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
         }
 
     });
+}
+
+function handlePlayerLeave(playerId: string) {
+    // Remove player from waiting queue
+    waitingQueue.delete(playerId);
+    leavePlayerFromWaitingTournaments(playerId);
+
+    // Iterate over all game rooms
+    for (const [roomId, room] of games.entries()) {
+        const isPlayer1 = room.p1 === playerId;
+        const isPlayer2 = room.p2 === playerId;
+        if (!isPlayer1 && !isPlayer2) continue;
+
+        const opponentId = isPlayer1 ? room.p2 : room.p1;
+        // @ts-ignore
+        const opponentSocket = playersSockets.get(opponentId);
+
+
+        room.winner = opponentId;
+        room.state.paddles.left.score = (room.p1 === opponentId) ? 5 : 0;
+        room.state.paddles.right.score = (room.p2 === opponentId) ? 5 : 0;
+
+        // Handle different room types
+        switch (room.mode) {
+            // Local or AI games
+            case GAME_ROOM_MODE.LOCAL:
+            case GAME_ROOM_MODE.AI_OPPONENT:
+                if (room.status !== GAME_ROOM_STATUS.FINISHED) {
+                    room.status = GAME_ROOM_STATUS.FINISHED;
+                    room.winner = isPlayer1 ? room.p2 : room.p1;
+
+                    room.status = GAME_ROOM_STATUS.FINISHED;
+
+                    const endGameMsg = JSON.stringify({
+                        type: "game_finish",
+                        payload: { winner: room.winner }
+                    });
+
+                    room.sockets.forEach(sock => sock?.send(endGameMsg));
+                    if (room.mode === GAME_ROOM_MODE.AI_OPPONENT)
+                        Array.from(room.sockets)[1]?.close();
+                    games.delete(roomId);
+                }
+                break;
+
+            // Random game
+            case GAME_ROOM_MODE.RANDOM:
+                if (room.status === GAME_ROOM_STATUS.ONGOING) {
+
+                    room.status = GAME_ROOM_STATUS.FINISHED;
+
+                    const endGameMsg = JSON.stringify({
+                        type: "game_finish",
+                        payload: { winner: room.winner }
+                    });
+
+                    room.sockets.forEach(sock => sock?.send(endGameMsg));
+                }
+                games.delete(roomId);
+                break;
+
+            // Tournament game
+            case GAME_ROOM_MODE.TOURNAMENT:
+                if (room.status === GAME_ROOM_STATUS.ONGOING) {
+
+                    room.status = GAME_ROOM_STATUS.FINISHED;
+
+                    const endGameMsg = JSON.stringify({
+                        type: "game_finish",
+                        payload: { winner: room.winner }
+                    });
+
+                    room.sockets.forEach(sock => sock?.send(endGameMsg));
+
+                    handleTournamentRoundWinner(room);
+                }
+                games.delete(roomId);
+                break;
+
+            case GAME_ROOM_MODE.FRIEND:
+                if (room.status === GAME_ROOM_STATUS.WAITING) {
+
+                    room.status = GAME_ROOM_STATUS.FINISHED;
+                    games.delete(roomId);
+                } else if (room.status === GAME_ROOM_STATUS.ONGOING) {
+
+                    room.status = GAME_ROOM_STATUS.FINISHED;
+
+                    
+                    const endGameMsg = JSON.stringify({
+                        type: "game_finish",
+                        payload: { winner: room.winner }
+                    });
+                    
+                    room.sockets.forEach(sock => sock?.send(endGameMsg));
+                    games.delete(roomId);
+                }
+                break;
+
+            default:
+                console.warn(`[WARN] Unknown game type for room ${roomId}`);
+        }
+
+        // Clean up references
+        games.delete(roomId);
+        // playersSockets.delete(playerId);
+
+        break;
+    }
+}
+
+
+function leavePlayerFromWaitingTournaments(playerId: string) {
+    for (const [tournamentId, tournament] of tournaments.entries()) {
+        if (tournament.status === TOURNAMENT_STATUS.WAITING) {
+            if (tournament.players.includes(playerId)) {
+                tournament.players = tournament.players.filter(p => p !== playerId);
+
+                if (tournament.players.length === 0) {
+                    tournaments.delete(tournamentId);
+
+                    playersSockets.forEach(sock => {
+                        if (sock.readyState === 1) {
+                            try {
+                                sock.send(JSON.stringify({
+                                    type: "tournament_deleted",
+                                    payload: {
+                                        tournamentId
+                                    }
+                                }));
+                            } catch (err) {
+                                console.error("WS send error:", err);
+                            }
+                        }
+                    });
+                }
+            }
+
+        }
+    }
 }
 
 function cleanupRoom(roomId: string) {

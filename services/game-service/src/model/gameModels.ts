@@ -9,7 +9,7 @@ export const GameModel = {
         return await prisma.match.findMany()
     },
 
-    async getMatchById(id: number) {
+    async getMatchById(id: string) {
         return await prisma.match.findUnique({ where: { id } })
     },
 
@@ -19,9 +19,61 @@ export const GameModel = {
         })
     },
 
-    async deleteMatch(id: number) {
+    async deleteMatch(id: string) {
         return await prisma.match.delete({ where: { id } })
     },
+
+    async getUserMatches(id: string) {
+        return await prisma.match.findMany({
+            where: {
+                OR: [
+                    { p1: id },
+                    { p2: id },
+                ],
+            },
+            orderBy: {
+                createdAt: 'desc'
+            },
+        });
+    },
+
+    async getUserStats(id: string) {
+        const matches = await prisma.match.findMany({
+            where: {
+                OR: [{ p1: id }, { p2: id }],
+            },
+        });
+
+        if (matches.length === 0) {
+            return { total: 0, wins: 0, losses: 0, winRate: 0, avgScore: 0 };
+        }
+
+        let wins = 0;
+        let totalScore = 0;
+        let gamesPlayed = matches.length;
+
+        for (const match of matches) {
+            const isPlayer1 = match.player1 === id;
+            const playerScore = isPlayer1 ? match.score1 : match.score2;
+            const opponentScore = isPlayer1 ? match.score2 : match.score1;
+
+            totalScore += playerScore;
+            if (match.winner === id) wins++;
+        }
+
+        const losses = gamesPlayed - wins;
+        const winRate = ((wins / gamesPlayed) * 100).toFixed(2);
+        const avgScore = (totalScore / gamesPlayed).toFixed(2);
+
+        return {
+            total: gamesPlayed,
+            wins,
+            losses,
+            winRate: Number(winRate),
+            avgScore: Number(avgScore),
+        };
+    }
+
 }
 
 

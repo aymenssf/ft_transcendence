@@ -41,7 +41,7 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
                     const { type, payload } = JSON.parse(data.toString());
 
                     if (type === "game_update")
-                        gameUpdate(payload);
+                        gameUpdate(playerId, payload);
                     if (type === "join_random")
                         randomGame(connection, playerId);
                     if (type === "leave_random")
@@ -52,10 +52,6 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
                         aiOpponentGame(connection, playerId, payload.difficulty);
                     if (type === "leave_game") {
                         // TO ADD LATER : end gameRoom...
-                    }
-                    if (type === "invite_friend") {
-                        // friend invitation .....
-                        console.log('Friend invitation');
                     }
                     if (type === "player_ready")
                         handlePlayerReady(connection, playerId, payload.gameId);

@@ -9,9 +9,18 @@ import cors from '@fastify/cors';
 // @ts-ignore
 import jwt from '@fastify/jwt';
 import { gameAPIs } from "./game/gameAPIs.js"
+import fs from 'fs'
 
 
-const app: FastifyInstance = Fastify({ logger: true });
+
+const app: FastifyInstance = Fastify({
+    logger: true,
+    https: {
+        key: fs.readFileSync('/keys/key.pem'),
+        cert: fs.readFileSync('/keys/cert.pem'),
+    },
+});
+
 await app.register(jwt, {
     secret: process.env.JWT_SECRET as string
 });
@@ -29,6 +38,6 @@ app.get('/', async (req: FastifyRequest, reply: FastifyReply) => {
 });
 
 
-app.listen({ port: 3012, host: '0.0.0.0' }, (err: any, addr: any) => {
+app.listen({ port: 3012, host: '127.0.0.1' }, (err: any, addr: any) => {
     console.log(`**************** Server listenning on ${addr} *****************`);
 });

@@ -207,8 +207,8 @@ function isLocalGameInput(input: any): input is LocalGameInput {
     return input && "left" in input && "right" in input;
 }
 
-export function gameUpdate(payload: GameUpdatePayload) {
-    const { gameId, playerId, input } = payload;
+export function gameUpdate(playerId: string, payload: GameUpdatePayload) {
+    const { gameId, input } = payload;
     const gameRoom = games.get(gameId);
     if (!gameRoom || gameRoom.status !== GAME_ROOM_STATUS.ONGOING) return;
 

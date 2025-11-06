@@ -73,6 +73,29 @@ services:
       - transcendence-network
     restart: unless-stopped
 
+  frontend-service:
+    build:
+      context: ./frontend
+      dockerfile: ./Dockerfile
+    container_name: ft_transcendence_frontend
+    ports:
+      - "${FRONTEND_SERVICE_PORT:-3000}:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html/dist:rw
+      - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
+      - ./frontend/images:/usr/share/nginx/html/images:ro
+    networks:
+      - transcendence-network
+    depends_on:
+      - auth-service
+      # - chat-service
+      # - game-service
+      # - ai-service
+    restart: unless-stopped
+
+
 networks:
   transcendence-network:
     driver: bridge

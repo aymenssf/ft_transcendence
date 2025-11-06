@@ -1,0 +1,10 @@
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.log
+npm-debug.log
+
+# Mac / Windows artifacts
+.DS_Store
+Thumbs.db

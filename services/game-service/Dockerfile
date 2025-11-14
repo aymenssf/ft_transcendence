@@ -29,6 +29,14 @@ ENV DATABASE_URL="file:/app/database/transcendence.db"
 
 RUN mkdir -p /app/database && chmod 755 /app/database
 
+RUN mkdir -p /keys
+
+RUN openssl req -x509 -newkey rsa:2048 -nodes \
+    -keyout /keys/key.pem \
+    -out /keys/cert.pem \
+    -subj "/C=MA/ST=None/L=None/O=transcendence_game/OU=Dev/CN=localhost" \
+    -days 365
+
 EXPOSE 3012
 
 CMD ["npm", "run", "dev"]

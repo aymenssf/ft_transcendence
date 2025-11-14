@@ -42,7 +42,7 @@ export function aiOpponentGame(connection:SocketStream, playerId: string, diffic
         const { type, payload } = JSON.parse(msg.toString());
 
         if (type === "game_update")
-            gameUpdate(payload);
+            gameUpdate(payload.playerId, payload);
     });
 
     aiSocket.on("error", (error) => {

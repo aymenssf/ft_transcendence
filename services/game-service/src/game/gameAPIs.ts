@@ -105,7 +105,7 @@ export async function gameAPIs(fastify: FastifyInstance, options: any) {
             return reply.code(403).send({ message: "Player not in this game!" });
         }
 
-        gameUpdate(req.body);
+        gameUpdate(playerId, req.body);
 
         return reply.code(200).send({ message: "Input received" });
     });

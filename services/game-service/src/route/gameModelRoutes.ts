@@ -10,7 +10,20 @@ export async function gameModelRoutes(fastify: FastifyInstance) {
 
     fastify.get('/matches/:id', { preHandler: [verifyJWT] }, async (req) => {
         const { id } = req.params as { id: string }
-        return await GameModel.getMatchById(Number(id))
+        return await GameModel.getMatchById(id)
     })
+
+    fastify.get('/matches/user/:id', { preHandler: [verifyJWT] }, async (req) => {
+        const { id } = req.params as { id: string };
+
+        return await GameModel.getUserMatches(id);
+    });
+
+    fastify.get('/matches/user/:id/stats', { preHandler: [verifyJWT] }, async (req) => {
+        const { id } = req.params as { id: string };
+        return await GameModel.getUserStats(id);
+    });
+
+
 
 }

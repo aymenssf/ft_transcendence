@@ -15,10 +15,10 @@ import fs from 'fs'
 
 const app: FastifyInstance = Fastify({
     logger: true,
-    https: {
-        key: fs.readFileSync('/keys/key.pem'),
-        cert: fs.readFileSync('/keys/cert.pem'),
-    },
+    // https: {
+    //     key: fs.readFileSync('/keys/key.pem'),
+    //     cert: fs.readFileSync('/keys/cert.pem'),
+    // },
 });
 
 await app.register(jwt, {

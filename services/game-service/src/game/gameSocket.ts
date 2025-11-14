@@ -19,6 +19,7 @@ interface SocketQuery {
 async function gameSocket(fastify: FastifyInstance, options: any) {
     // @ts-ignore
     fastify.get('/ws', { websocket: true }, (connection: SocketStream, req: FastifyRequest<{ Querystring: SocketQuery }>) => {
+        console.log("New ws Connections ...");
         const token: string = req.query.token;
         if (!token) {
             connection.socket.close(1008, 'Missing token');
@@ -64,6 +65,7 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
             });
 
             connection.socket.on('close', () => {
+                console.log("ws close error");
                 handleSocketClose(playerId);
                 leaveTournament(playerId);
                 handlePlayerDisconnect(playerId);

@@ -217,7 +217,8 @@ export function createGameRoom(player1: string | null, player2: string | null, p
         mode: mode,
         sockets,
         loop: null,
-        paused: true,
+        // paused: true,
+        paused: false,
         state: {
             canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
             paddles: {

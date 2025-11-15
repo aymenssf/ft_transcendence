@@ -56,6 +56,9 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
                         // TO ADD LATER : end gameRoom...
                         handlePlayerLeave(playerId);
                     }
+                    if (type === "player_leave_match") {
+                        handlePlayerLeaveMatch(playerId, payload);
+                    }
                     if (type === "player_ready")
                         handlePlayerReady(connection, playerId, payload.gameId);
 
@@ -84,6 +87,31 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
 
     });
 }
+
+function handlePlayerLeaveMatch(playerId: string, payload: any) {
+    const gameRoom = games.get(payload.gameId);
+
+    if (!gameRoom) return;
+
+    if (gameRoom.p1 !== playerId && gameRoom.p2 !== playerId) return;
+
+    const opponentId = gameRoom.p1 === playerId ? gameRoom.p2 : gameRoom.p1;
+    gameRoom.winner = opponentId;
+    if (gameRoom.status === GAME_ROOM_STATUS.ONGOING) {
+
+        gameRoom.status = GAME_ROOM_STATUS.FINISHED;
+
+        const endGameMsg = JSON.stringify({
+            type: "game_finish",
+            payload: { winner: opponentId }
+        });
+
+        gameRoom.sockets.forEach(sock => sock?.send(endGameMsg));
+    }
+    games.delete(payload.gameId);
+
+}
+
 
 function handlePlayerLeave(playerId: string) {
     // Remove player from waiting queue
@@ -171,12 +199,12 @@ function handlePlayerLeave(playerId: string) {
 
                     room.status = GAME_ROOM_STATUS.FINISHED;
 
-                    
+
                     const endGameMsg = JSON.stringify({
                         type: "game_finish",
                         payload: { winner: room.winner }
                     });
-                    
+
                     room.sockets.forEach(sock => sock?.send(endGameMsg));
                     games.delete(roomId);
                 }

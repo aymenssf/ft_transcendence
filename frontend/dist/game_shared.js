@@ -430,7 +430,6 @@ export function createRemoteGameListener(userId) {
             const backBtn = document.getElementById("back-button-remote");
             if (backBtn)
                 backBtn.classList.add("disabled-link");
-            // Show searching animation
             const opponentImg = document.getElementById("opponent-avatar");
             if (opponentImg) {
                 opponentImg.style.opacity = "0.5";
@@ -439,7 +438,6 @@ export function createRemoteGameListener(userId) {
         else if (msg.type === "match_found") {
             console.log("🎮 Match found!", msg.payload);
             const opponentInfo = msg.payload.opponent;
-            // Update opponent UI
             const opponentImg = document.getElementById("opponent-avatar");
             const opponentName = document.getElementById("opponent-name");
             if (opponentImg && opponentInfo?.avatar) {
@@ -454,14 +452,13 @@ export function createRemoteGameListener(userId) {
             const startBtn = document.getElementById("start-remote-game");
             if (startBtn)
                 startBtn.innerHTML = "Match found! Starting...";
-            // Hide matchmaking status
             const matchmakingStatus = document.getElementById("matchmaking-status");
             if (matchmakingStatus)
                 matchmakingStatus.style.display = "none";
         }
         else if (msg.type === "game_config") {
             console.log("🎮 Remote game config received");
-            handleGameConfig(msg, userId, "start-remote-game", false, true); // isAI=false, isRemote=true
+            handleGameConfig(msg, userId, "start-remote-game", false, true);
         }
         else if (msg.type === "game_start") {
             console.log("🚀 Remote game started!");

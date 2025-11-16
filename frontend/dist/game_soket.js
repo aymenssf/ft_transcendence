@@ -2,12 +2,11 @@ let socket = null;
 const listeners = [];
 export function initgameSocket() {
     if (socket)
-        return socket; // prevent re-init
+        return socket;
     socket = new WebSocket(`ws://localhost:3012/ws?token=${localStorage.getItem('jwt_token')}`);
     socket.onopen = () => console.log("✅ Connected to server");
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        // notify all listeners
         listeners.forEach((fn) => fn(data));
     };
     socket.onclose = (ev) => console.log("⚠️ Connection closed");
@@ -22,7 +21,6 @@ export function sendMessage(type, payload = {}) {
         console.warn("⚠️ WebSocket not ready");
     }
 }
-// Views can subscribe to server events
 export function addMessageListener(fn) {
     listeners.push(fn);
 }

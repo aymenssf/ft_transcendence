@@ -369,6 +369,7 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
   gameid = msg.payload.gameId;
   console.log(`🎮 Game ID: ${msg.payload.gameId}${isAI ? ' (AI Mode)' : isRemote ? ' (Remote Mode)' : ''}`);
 
+  // Create canvas (with duplicate check)
   const container = document.getElementById("game-container")!;
   let canvas = document.getElementById("game-id") as HTMLCanvasElement;
 
@@ -387,41 +388,60 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
     const startBtn = document.getElementById(startButtonId);
     if (startBtn) startBtn.innerHTML = "";
 
-    startCanvasCountdown(ctx, canvas).then(() => {
-      if (ctx) game_start(gameConfig, gameState, ctx);
-      setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+    game_start(gameConfig, gameState, ctx);
+
+    const spaceHandler = (event: KeyboardEvent) => {
+      if (event.key === ' ' || event.code === 'Space') {
+        event.preventDefault();
+
+        console.log("🚀 Spacebar pressed - Starting game!");
+
+        sendMessage("game_start", { gameId: gameid, playerId: userId.toString() });
+
+        setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+
+        document.removeEventListener('keydown', spaceHandler);
+
+        console.log("⌨️ Game started - W/S controls active");
+      }
+    };
+
+    document.addEventListener('keydown', spaceHandler);
+
+    addCleanupListener(() => {
+      document.removeEventListener('keydown', spaceHandler);
     });
 
-    setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+    console.log("💡 Press SPACE to start the game!");
   }
 }
 
-function startCanvasCountdown(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement
-): Promise<void> {
-  return new Promise((resolve) => {
+// function startCanvasCountdown(
+//   ctx: CanvasRenderingContext2D,
+//   canvas: HTMLCanvasElement
+// ): Promise<void> {
+//   return new Promise((resolve) => {
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "white";
-    ctx.font = "bold 80px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("READY", canvas.width / 2, canvas.height / 2);
+//     ctx.clearRect(0, 0, canvas.width, canvas.height);
+//     ctx.fillStyle = "white";
+//     ctx.font = "bold 80px Arial";
+//     ctx.textAlign = "center";
+//     ctx.fillText("READY", canvas.width / 2, canvas.height / 2);
 
-    setTimeout(() => {
+//     setTimeout(() => {
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
+//       ctx.clearRect(0, 0, canvas.width, canvas.height);
+//       ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
 
-      setTimeout(() => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        resolve();
-      }, 2000);
+//       setTimeout(() => {
+//         ctx.clearRect(0, 0, canvas.width, canvas.height);
+//         resolve();
+//       }, 2000);
 
-    }, 1000);
+//     }, 1000);
 
-  });
-}
+//   });
+// }
 
 
 export function createLocalGameListener(userId: number): (msg: any) => void {
@@ -490,7 +510,7 @@ export function createRemoteGameListener(userId: number): (msg: any) => void {
       console.log("🎮 Match found!", msg.payload);
       const opponentInfo = msg.payload.opponent;
 
-    
+
       const opponentImg = document.getElementById("opponent-avatar") as HTMLImageElement;
       const opponentName = document.getElementById("opponent-name");
 

@@ -90,9 +90,9 @@ services:
       - transcendence-network
     depends_on:
       - auth-service
-      # - chat-service
-      # - game-service
-      # - ai-service
+      - chat-service
+      - game-service
+      - ai-service
     restart: unless-stopped
 
 

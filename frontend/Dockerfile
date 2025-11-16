@@ -22,7 +22,7 @@ FROM nginx:alpine
 
 # Copy everything from builder's dist
 COPY --from=builder /app/dist /usr/share/nginx/html/dist
-COPY --from=builder /app/dist/styles/tailwind.css /usr/share/nginx/html/dist/styles/tailwind.css
+# COPY --from=builder /app/dist/styles/tailwind.css /usr/share/nginx/html/dist/styles/tailwind.css
 
 # Ensure fonts and images are copied
 COPY index.html /usr/share/nginx/html/index.html

@@ -444,16 +444,58 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
     const startBtn = document.getElementById(startButtonId);
     if (startBtn) startBtn.innerHTML = "";
 
-    game_start(gameConfig, gameState, ctx);
+      startCanvasCountdown(ctx, canvas).then(() => {
+        if (ctx)
+          game_start(gameConfig, gameState, ctx);
+
+        // Enable keyboard after countdown
+        setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+      });
+
 
     // Attach keyboard listeners (pass isAI and isRemote flags)
     setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
   }
 }
 
-// ============================================
-// SPECIFIC GAME LISTENERS
-// ============================================
+
+function startCanvasCountdown(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement): Promise<void> {
+  return new Promise((resolve) => {
+    let count = 3;
+
+    const interval = setInterval(() => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Countdown style
+      ctx.fillStyle = "white";
+      ctx.font = "bold 80px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(count.toString(), canvas.width / 2, canvas.height / 2);
+
+      if (count === 1) {
+        // Show GO! then start game
+        setTimeout(() => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
+        }, 800);
+      }
+
+      if (count === 0) {
+        clearInterval(interval);
+
+        // Clear countdown and resolve
+        setTimeout(() => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          resolve();
+        }, 500);
+      }
+
+      count--;
+    }, 1000);
+  });
+}
+
+
 export function createLocalGameListener(userId: number): (msg: any) => void {
   return (msg: any) => {
     if (!msg) return;

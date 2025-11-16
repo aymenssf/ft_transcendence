@@ -32,7 +32,7 @@ function localGame(connection: SocketStream, playerId: string) {
             type: "game_start"
         }));
         startGameLoop(gameRoom);
-    }, 3000);
+    }, 500);
 
 }
 

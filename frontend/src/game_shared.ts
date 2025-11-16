@@ -1,23 +1,15 @@
-// src/game_shared.ts
 import { game_start } from "./game.js";
 import { sendMessage, addMessageListener, removeMessageListener } from "./game_soket.js";
 
-// ============================================
-// SHARED STATE
-// ============================================
 export let ctx: CanvasRenderingContext2D | null = null;
 export let gameConfig: any = null;
 export let gameState: any = null;
 export let gameid: string = "";
 
-// Cleanup listeners array
 let cleanupListeners: (() => void)[] = [];
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 let keyupHandler: ((e: KeyboardEvent) => void) | null = null;
 
-// ============================================
-// CLEANUP FUNCTIONS
-// ============================================
 export function addCleanupListener(fn: () => void): void {
   cleanupListeners.push(fn);
 }
@@ -25,11 +17,9 @@ export function addCleanupListener(fn: () => void): void {
 export function cleanupGame(userId?: number, b: boolean = true): void {
   console.log("🧹 Cleaning up game...");
 
-  // Execute all cleanup listeners
   cleanupListeners.forEach(cleanup => cleanup());
   cleanupListeners = [];
 
-  // Remove keyboard handlers
   if (keydownHandler) {
     document.removeEventListener("keydown", keydownHandler);
     keydownHandler = null;
@@ -39,25 +29,17 @@ export function cleanupGame(userId?: number, b: boolean = true): void {
     keyupHandler = null;
   }
 
-  // Clear canvas
   const container = document.getElementById("game-container");
   if (container) container.innerHTML = '';
 
-  // Reset context
   ctx = null;
 
-  // Notify server if needed
   if (gameid && userId && b) {
     sendMessage("player_leave_match", { playerId: userId, gameId: gameid });
   }
 }
 
-// ============================================
-// KEYBOARD SETUP
-// ============================================
 export function setupKeyboardListeners(gameId: string, playerId: string, isAI: boolean = false, isRemote: boolean = false): void {
-  // For AI/Remote mode: only send player's paddle input as { up, down }
-  // For local mode: send both paddles as { left: {...}, right: {...} }
   const moves = (isAI || isRemote)
     ? { up: false, down: false }
     : { left: { up: false, down: false }, right: { up: false, down: false } };
@@ -68,7 +50,6 @@ export function setupKeyboardListeners(gameId: string, playerId: string, isAI: b
     let changed = false;
 
     if (isAI || isRemote) {
-      // AI/Remote mode: only control player paddle with simple up/down
       if (event.key === "w" || event.key === "W") {
         (moves as any).up = true;
         changed = true;
@@ -77,7 +58,6 @@ export function setupKeyboardListeners(gameId: string, playerId: string, isAI: b
         changed = true;
       }
     } else {
-      // Local mode: control both paddles
       if (event.key === "ArrowUp") {
         (moves as any).right.up = true;
         changed = true;
@@ -103,7 +83,6 @@ export function setupKeyboardListeners(gameId: string, playerId: string, isAI: b
     let changed = false;
 
     if (isAI || isRemote) {
-      // AI/Remote mode: only control player paddle
       if (event.key === "w" || event.key === "W") {
         (moves as any).up = false;
         changed = true;
@@ -112,7 +91,6 @@ export function setupKeyboardListeners(gameId: string, playerId: string, isAI: b
         changed = true;
       }
     } else {
-      // Local mode: control both paddles
       if (event.key === "ArrowUp") {
         (moves as any).right.up = false;
         changed = true;
@@ -138,9 +116,6 @@ export function setupKeyboardListeners(gameId: string, playerId: string, isAI: b
   document.addEventListener("keyup", keyupHandler);
 }
 
-// ============================================
-// SHARED MESSAGE HANDLERS
-// ============================================
 export function handleGameUpdate(msg: any, scoreElementId: string = 'local-score'): void {
   if (msg.type !== "game_update" || !gameConfig || !ctx) return;
 
@@ -167,28 +142,23 @@ export function handleGameFinish(
 
   console.log("🏁 Game finished!", msg.payload);
 
-  // Determine if player won based on game type and winner value
   const winner = msg.payload?.winner;
   let isPlayerWinner = false;
-  let gameType: "local" | "ai" | "remote" = "local";  // ✅ Change this line - add type annotation
+  let gameType: "local" | "ai" | "remote" = "local";
 
   if (isAI) {
-    // AI game: winner is "player" or userId means player won
     isPlayerWinner = winner === "player" || winner === userId || winner === userId.toString();
     gameType = "ai";
   } else if (isRemote) {
-    // Remote game: winner is userId means player won
     isPlayerWinner = winner === userId || winner === userId.toString();
     gameType = "remote";
   } else {
-    // Local game: winner is userId means player 1 won, "local" means player 2 won
     isPlayerWinner = winner === userId || winner === userId.toString();
     gameType = "local";
   }
 
   console.log(`Winner: ${winner}, Is Player Winner: ${isPlayerWinner}, User ID: ${userId}, Game Type: ${gameType}`);
 
-  // Clean up keyboard listeners
   if (keydownHandler) {
     document.removeEventListener("keydown", keydownHandler);
     keydownHandler = null;
@@ -198,25 +168,19 @@ export function handleGameFinish(
     keyupHandler = null;
   }
 
-  // Clear the canvas
   if (ctx && gameConfig) {
     ctx.clearRect(0, 0, gameConfig.canvas.width, gameConfig.canvas.height);
   }
 
-  // Show game over overlay with game type for proper redirect
   showGameOverOverlay(isPlayerWinner, gameType, navigateCallback, winner === "local");
 }
 
-// ============================================
-// GAME OVER OVERLAY
-// ============================================
 function showGameOverOverlay(
   isWinner: boolean,
   gameType: "local" | "ai" | "remote",
   navigateCallback: (path: string) => void,
   isPlayer2Winner: boolean = false
 ): void {
-  // Create overlay
   const overlay = document.createElement('div');
   overlay.id = 'game-over-overlay';
   overlay.style.cssText = `
@@ -234,7 +198,6 @@ function showGameOverOverlay(
     animation: fadeIn 0.5s ease-in;
   `;
 
-  // Add CSS animation
   const style = document.createElement('style');
   style.textContent = `
     @keyframes fadeIn {
@@ -259,11 +222,7 @@ function showGameOverOverlay(
   let content = '';
 
   if (gameType === "ai") {
-    // ============================================
-    // AI GAME - WIN/LOSE
-    // ============================================
     if (isWinner) {
-      // Player won against AI
       content = `
         <div style="text-align: center; animation: slideDown 0.8s ease-out;">
           <div style="font-size: 80px; margin-bottom: 20px; animation: pulse 2s infinite;">
@@ -281,7 +240,6 @@ function showGameOverOverlay(
         </div>
       `;
     } else {
-      // Player lost against AI
       content = `
         <div style="text-align: center; animation: slideDown 0.8s ease-out;">
           <div style="font-size: 80px; margin-bottom: 20px;">
@@ -300,11 +258,7 @@ function showGameOverOverlay(
       `;
     }
   } else if (gameType === "remote") {
-    // ============================================
-    // REMOTE GAME - WIN/LOSE
-    // ============================================
     if (isWinner) {
-      // Player won remote match
       content = `
         <div style="text-align: center; animation: slideDown 0.8s ease-out;">
           <div style="font-size: 80px; margin-bottom: 20px; animation: pulse 2s infinite;">
@@ -322,7 +276,6 @@ function showGameOverOverlay(
         </div>
       `;
     } else {
-      // Player lost remote match
       content = `
         <div style="text-align: center; animation: slideDown 0.8s ease-out;">
           <div style="font-size: 80px; margin-bottom: 20px;">
@@ -341,9 +294,6 @@ function showGameOverOverlay(
       `;
     }
   } else {
-    // ============================================
-    // LOCAL GAME - PLAYER 1 or PLAYER 2 WINS
-    // ============================================
     const winnerText = isPlayer2Winner ? "PLAYER 2 WINS!" : "PLAYER 1 WINS!";
     const winnerColor = isPlayer2Winner ? "#ef4444" : "#3b82f6";
     content = `
@@ -363,7 +313,6 @@ function showGameOverOverlay(
 
   overlay.innerHTML = content;
 
-  // Add confetti effect for winners
   if (isWinner || gameType === "local") {
     for (let i = 0; i < 50; i++) {
       const confetti = document.createElement('div');
@@ -383,23 +332,18 @@ function showGameOverOverlay(
 
   document.body.appendChild(overlay);
 
-  // Auto-redirect after 3 seconds
   setTimeout(() => {
     overlay.remove();
     style.remove();
     cleanupGame(undefined, false);
 
-    // Redirect based on game type
     const redirectPath = `dashboard/game/${gameType}`;
     console.log(`🔄 Redirecting to: ${redirectPath}`);
     history.pushState({}, "", `/${redirectPath}`);
     navigateCallback(redirectPath);
-  }, 3000); // 3 seconds
+  }, 3000);
 }
 
-// ============================================
-// GAME CONFIG HANDLER (shared by local & AI)
-// ============================================
 function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI: boolean = false, isRemote: boolean = false): void {
   gameConfig = {
     gameId: msg.payload.gameId,
@@ -425,7 +369,6 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
   gameid = msg.payload.gameId;
   console.log(`🎮 Game ID: ${msg.payload.gameId}${isAI ? ' (AI Mode)' : isRemote ? ' (Remote Mode)' : ''}`);
 
-  // Create canvas (with duplicate check)
   const container = document.getElementById("game-container")!;
   let canvas = document.getElementById("game-id") as HTMLCanvasElement;
 
@@ -444,54 +387,39 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
     const startBtn = document.getElementById(startButtonId);
     if (startBtn) startBtn.innerHTML = "";
 
-      startCanvasCountdown(ctx, canvas).then(() => {
-        if (ctx)
-          game_start(gameConfig, gameState, ctx);
+    startCanvasCountdown(ctx, canvas).then(() => {
+      if (ctx) game_start(gameConfig, gameState, ctx);
+      setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+    });
 
-        // Enable keyboard after countdown
-        setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
-      });
-
-
-    // Attach keyboard listeners (pass isAI and isRemote flags)
     setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
   }
 }
 
-
-function startCanvasCountdown(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement): Promise<void> {
+function startCanvasCountdown(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement
+): Promise<void> {
   return new Promise((resolve) => {
-    let count = 3;
 
-    const interval = setInterval(() => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "white";
+    ctx.font = "bold 80px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("READY", canvas.width / 2, canvas.height / 2);
+
+    setTimeout(() => {
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
 
-      // Countdown style
-      ctx.fillStyle = "white";
-      ctx.font = "bold 80px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(count.toString(), canvas.width / 2, canvas.height / 2);
+      setTimeout(() => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        resolve();
+      }, 2000);
 
-      if (count === 1) {
-        // Show GO! then start game
-        setTimeout(() => {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
-        }, 800);
-      }
-
-      if (count === 0) {
-        clearInterval(interval);
-
-        // Clear countdown and resolve
-        setTimeout(() => {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          resolve();
-        }, 500);
-      }
-
-      count--;
     }, 1000);
+
   });
 }
 
@@ -510,7 +438,7 @@ export function createLocalGameListener(userId: number): (msg: any) => void {
       if (backBtn) backBtn.classList.add("disabled-link");
     }
     else if (msg.type === "game_config") {
-      handleGameConfig(msg, userId, "start-local-game", false); // false = not AI mode
+      handleGameConfig(msg, userId, "start-local-game", false);
     }
   };
 }
@@ -529,11 +457,10 @@ export function createAIGameListener(userId: number): (msg: any) => void {
       if (backBtn) backBtn.classList.add("disabled-link");
     }
     else if (msg.type === "game_config") {
-      handleGameConfig(msg, userId, "start-ai-game", true); // true = AI mode
+      handleGameConfig(msg, userId, "start-ai-game", true);
     }
     else if (msg.type === "game_start") {
       console.log("🚀 AI Game started!");
-      // Keyboard already setup in handleGameConfig
     }
   };
 }
@@ -541,6 +468,8 @@ export function createAIGameListener(userId: number): (msg: any) => void {
 export function createRemoteGameListener(userId: number): (msg: any) => void {
   return (msg: any) => {
     if (!msg) return;
+
+    console.log("🌐 Remote game message:", msg.type, msg.payload);
 
     if (msg.type === "join_random_ack") {
       const startBtn = document.getElementById("start-remote-game") as HTMLButtonElement;
@@ -551,32 +480,39 @@ export function createRemoteGameListener(userId: number): (msg: any) => void {
       const backBtn = document.getElementById("back-button-remote");
       if (backBtn) backBtn.classList.add("disabled-link");
 
-      // Show searching animation
-      const opponentImg = document.getElementById("opponent-avatar");
+
+      const opponentImg = document.getElementById("opponent-avatar") as HTMLImageElement;
       if (opponentImg) {
-        (opponentImg as HTMLImageElement).src = "../images/searching.gif"; // You'll need this GIF
+        opponentImg.style.opacity = "0.5";
       }
     }
     else if (msg.type === "match_found") {
       console.log("🎮 Match found!", msg.payload);
       const opponentInfo = msg.payload.opponent;
 
-      // Update opponent UI
+    
       const opponentImg = document.getElementById("opponent-avatar") as HTMLImageElement;
       const opponentName = document.getElementById("opponent-name");
 
       if (opponentImg && opponentInfo?.avatar) {
         opponentImg.src = opponentInfo.avatar;
+        opponentImg.style.opacity = "1";
+        opponentImg.style.borderColor = "#10b981";
       }
       if (opponentName && opponentInfo?.username) {
         opponentName.textContent = opponentInfo.username;
+        opponentName.style.color = "#e5e7eb";
       }
 
       const startBtn = document.getElementById("start-remote-game");
       if (startBtn) startBtn.innerHTML = "Match found! Starting...";
+
+      const matchmakingStatus = document.getElementById("matchmaking-status");
+      if (matchmakingStatus) matchmakingStatus.style.display = "none";
     }
     else if (msg.type === "game_config") {
-      handleGameConfig(msg, userId, "start-remote-game", false, true); // Remote game - isAI=false, isRemote=true
+      console.log("🎮 Remote game config received");
+      handleGameConfig(msg, userId, "start-remote-game", false, true);
     }
     else if (msg.type === "game_start") {
       console.log("🚀 Remote game started!");
@@ -588,7 +524,6 @@ export function setupNavigationHandlers(
   backButtonId: string,
   loadPageCallback: (path: string) => void
 ): void {
-  // Back button
   const backBtn = document.getElementById(backButtonId);
   if (backBtn) {
     const backHandler = (e: Event) => {
@@ -601,7 +536,6 @@ export function setupNavigationHandlers(
     addCleanupListener(() => backBtn.removeEventListener("click", backHandler));
   }
 
-  // Browser back/forward button
   const popstateHandler = () => {
     cleanupGame(userId);
     loadPageCallback(window.location.pathname.replace(/^\//, "") || "home");
@@ -609,7 +543,6 @@ export function setupNavigationHandlers(
   window.addEventListener("popstate", popstateHandler);
   addCleanupListener(() => window.removeEventListener("popstate", popstateHandler));
 
-  // Page refresh/close
   const beforeUnloadHandler = () => {
     if (gameid && userId) {
       sendMessage("player_leave_match", { playerId: userId, gameId: gameid });
@@ -619,31 +552,24 @@ export function setupNavigationHandlers(
   addCleanupListener(() => window.removeEventListener("beforeunload", beforeUnloadHandler));
 }
 
-// ============================================
-// SETUP MESSAGE LISTENERS
-// ============================================
 export function setupGameListeners(
   gameListener: (msg: any) => void,
   scoreElementId: string,
   userId: number,
   loadPageCallback: (path: string) => void,
   isAI: boolean = false,
-  isRemote: boolean = false  // ✅ Add this parameter
+  isRemote: boolean = false
 ): void {
-  // Create update handler
   const updateHandler = (msg: any): void => handleGameUpdate(msg, scoreElementId);
 
-  // Create finish handler with proper typing
   const finishHandler = (msg: any): void => {
-    handleGameFinish(msg, scoreElementId, userId, loadPageCallback, isAI, isRemote);  // ✅ Pass isRemote
+    handleGameFinish(msg, scoreElementId, userId, loadPageCallback, isAI, isRemote);
   };
 
-  // Add all listeners
   addMessageListener(gameListener);
   addMessageListener(updateHandler);
   addMessageListener(finishHandler);
 
-  // Register cleanup
   addCleanupListener(() => {
     removeMessageListener(gameListener);
     removeMessageListener(updateHandler);

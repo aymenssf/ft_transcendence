@@ -2,14 +2,13 @@ let socket: WebSocket | null = null;
 const listeners: ((msg: any) => void)[] = [];
 
 export function initgameSocket() {
-    if (socket) return socket; // prevent re-init
+    if (socket) return socket;
 
     socket = new WebSocket(`ws://localhost:3012/ws?token=${localStorage.getItem('jwt_token')}`);
 
     socket.onopen = () => console.log("✅ Connected to server");
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        // notify all listeners
         listeners.forEach((fn) => fn(data));
     };
     socket.onclose = (ev) => console.log("⚠️ Connection closed");
@@ -26,7 +25,6 @@ export function sendMessage(type: string, payload: any = {}) {
     }
 }
 
-// Views can subscribe to server events
 export function addMessageListener(fn: (msg: any) => void) {
     listeners.push(fn);
 }

@@ -86,7 +86,6 @@ constructor(containerId: string) {
     try {
       await this.checkAuth();
     } catch (e) {
-      // ignore
     }
     const initialPath = window.location.pathname || "/";
     await this.navigateTo(initialPath, false);
@@ -120,7 +119,7 @@ private async performLogin(username: string, password: string): Promise<boolean>
     this.setLoggedIn(true);
      initgameSocket();
     //  initchatSocket();
-    // Populate local user object from backend response
+
     const respUser = data.user ?? data;
     if (respUser && typeof respUser === "object") {
       this.user = {
@@ -133,12 +132,10 @@ private async performLogin(username: string, password: string): Promise<boolean>
       };
       this.currentUser = (respUser.username ?? this.user.username) as string;
 
-      // Fix default avatar
       if (this.user.avatar === "avatar/default_avatar/default_avatar.jpg") {
         this.user.avatar = "../images/avatre/1.jpg";
       }
 
-      // NEW: Store user data in localStorage for persistence
       localStorage.setItem('user_data', JSON.stringify(this.user));
     }
 
@@ -175,7 +172,6 @@ private async fetchUserDetails(userId: number): Promise<void> {
 
     const userData = await response.json();
 
-    // Update user object with backend data
     if (userData) {
       this.user = {
         username: userData.username || this.currentUser || '',
@@ -186,7 +182,6 @@ private async fetchUserDetails(userId: number): Promise<void> {
         id: userData.id || 0
       };
 
-      // Fix default avatar path
       if (this.user.avatar === 'avatar/default_avatar/default_avatar.jpg') {
         this.user.avatar = '../images/avatars/1.jpg';
       }
@@ -198,7 +193,6 @@ private async fetchUserDetails(userId: number): Promise<void> {
   }
 }
 
-// Update checkAuth to load from localStorage
 private async checkAuth(): Promise<void> {
   try {
     const token = localStorage.getItem('jwt_token');
@@ -212,7 +206,7 @@ private async checkAuth(): Promise<void> {
 
     if (!payload || this.isTokenExpired(payload)) {
       localStorage.removeItem('jwt_token');
-      localStorage.removeItem('user_data'); // Clean up user data too
+      localStorage.removeItem('user_data');
       this.setLoggedIn(false);
       return;
     }
@@ -220,8 +214,6 @@ private async checkAuth(): Promise<void> {
     this.currentUser = payload.username || null;
     this.setLoggedIn(true);
     initgameSocket();
-    // initchatSocket();
-    // NEW: Load user data from localStorage
     const storedUserData = localStorage.getItem('user_data');
     if (storedUserData) {
       try {
@@ -231,7 +223,6 @@ private async checkAuth(): Promise<void> {
         console.warn('Failed to parse stored user data');
       }
     } else if (payload.userId) {
-      // Fallback: fetch from backend if not in localStorage
       await this.fetchUserDetails(payload.userId);
     }
   } catch (err) {
@@ -242,14 +233,12 @@ private async checkAuth(): Promise<void> {
   }
 }
 
-// Update logout to clear user data
 public async performLogout(): Promise<void> {
   localStorage.removeItem('jwt_token');
-  localStorage.removeItem('user_data'); // NEW: Clear user data
+  localStorage.removeItem('user_data');
   console.log("logout");
   this.setLoggedIn(false);
   this.currentUser = null;
-  // Reset user object
   this.user = {username:"",passworde: "",  email:"", avatar:"../images/avatars/1.jpg", usernametournament: "",id:0};
   this.navigateTo('home');
 }
@@ -281,7 +270,6 @@ private isTokenExpired(payload: any): boolean {
 private async navigateTo(path: string, pushState: boolean = true): Promise<void> {
   let normalizedPath = path.replace(/^\/|\/$/g, "");
   console.log(this.isLoggedIn);
-  // Handle root path "/" - redirect to home or dashboard based on login status
   if (normalizedPath === "") {
     if (!this.isLoggedIn) {
       console.warn(`⚠️ Not logged in, redirecting to home.`);
@@ -298,7 +286,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     }
   }
 
-  // Check if the path exists in the list of all available pages
   if (!this.allpages.includes(`${normalizedPath}`)) {
     console.warn(`⚠️ Page not found: ${path}`);
     this.currentPage = "404";
@@ -308,7 +295,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
 
   const isPublic = this.publicPages.includes(`/${normalizedPath}`);
 
-  // Check for protected pages and handle login if necessary
   console.log(`page: ${normalizedPath} is logdin : ${this.isLoggedIn}`);
 
   if (this.protectedPages.includes(`${normalizedPath}`) && !this.isLoggedIn) {
@@ -372,7 +358,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
 
     const isDashboardPage = dashboardPages.includes(page);
 
-    // If switching between dashboard and non-dashboard layout, render full page
     if (isDashboardPage && !this.contentContainer) {
       this.renderDashboardLayout();
     } else if (!isDashboardPage && this.contentContainer) {
@@ -380,10 +365,8 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
       this.container.innerHTML = pageData.content;
     }
 
-    // Update only the content area if we have a content container
     if (this.contentContainer) {
       this.contentContainer.innerHTML = pageData.content;
-      // this.updateSidebarActive(page);
     } else {
       this.container.innerHTML = pageData.content;
     }
@@ -392,7 +375,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
       pageData.init();
     }
 
-    // Wire logout button
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async (e) => {
@@ -401,7 +383,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
       });
     }
 
-    // Setup sidebar toggle for mobile
     const sidebarToggle = document.getElementById('sidebar-toggle');
     const sidebar = document.getElementById('dashboard-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
@@ -1159,13 +1140,11 @@ private getaipage(): Page {
   }
 
 private async updateUserProfile(updates: User): Promise<boolean> {
-  // Ensure updates carry an id (fallback to current user id)
   const u = updates as any;
   if ((!u.id || u.id === 0) && this.user && this.user.id) {
     u.id = this.user.id;
   }
 
-  // If there's no JWT but we have stored credentials, try to re-login to obtain a token
   const existingToken = localStorage.getItem('jwt_token');
   const usernameForLogin = (u.name || u.username || this.currentUser || this.user.username) as string | undefined;
   const passwordForLogin = (this.user && this.user.passworde) ? this.user.passworde : undefined;
@@ -1176,7 +1155,6 @@ private async updateUserProfile(updates: User): Promise<boolean> {
       await this.performLogin(usernameForLogin, passwordForLogin);
     } catch (err) {
       console.warn('Re-login attempt failed', err);
-      // proceed; the request below will fail if there's truly no token
     }
   }
   try {
@@ -1203,17 +1181,13 @@ private async updateUserProfile(updates: User): Promise<boolean> {
 
     const data = await response.json();
 
-    // ✅ Store new token if backend sends it
     console.log("try to JWT updated")
     if (data.token) {
       localStorage.setItem('jwt_token', data.token);
     }
-
-    // ✅ Update user info in localStorage
     if (data.user) {
       localStorage.setItem('user_data', JSON.stringify(data.user));
 
-      // Update the current app state
       this.user = data.user;
       console.log(`updated user: `, this.user);
       this.currentUser = data.user.username;
@@ -1221,7 +1195,7 @@ private async updateUserProfile(updates: User): Promise<boolean> {
       alert('Profile updated successfully!');
     }
 
-    // ✅ Optionally refresh view to show changes
+
     await this.navigateTo(this.currentPage, false);
     return true;
   } catch (error) {
@@ -1232,7 +1206,6 @@ private async updateUserProfile(updates: User): Promise<boolean> {
 }
 
 
-// Updated Settings Page with functional form
 private getSettingsPage(): Page {
   return {
     title: "PONG Game - Settings",

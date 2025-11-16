@@ -133,7 +133,7 @@ private async performLogin(username: string, password: string): Promise<boolean>
       this.currentUser = (respUser.username ?? this.user.username) as string;
 
       if (this.user.avatar === "avatar/default_avatar/default_avatar.jpg") {
-        this.user.avatar = "../images/avatre/1.jpg";
+        this.user.avatar = "../images/avatrs/1.jpg";
       }
 
       localStorage.setItem('user_data', JSON.stringify(this.user));

@@ -82,6 +82,13 @@ export interface ChatDB {
   getUserTournamentNotifications(userId: number, unreadOnly?: boolean): Promise<TournamentNotification[]>;
   markNotificationAsRead(id: number): Promise<void>;
 
+  // Friends
+  sendFriendRequest(senderId: number, receiverId: number): Promise<any>;
+  respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any>;
+  getFriendRequests(userId: number): Promise<any[]>;
+  getFriends(userId: number): Promise<any[]>;
+  getFriendIds(userId: number): Promise<number[]>;
+
   close(): void;
 }
 
@@ -121,6 +128,13 @@ export interface ChatDB {
   createTournamentNotification(userId: number, tournamentId: number, title: string, message: string, type: string): Promise<TournamentNotification>;
   getUserTournamentNotifications(userId: number, unreadOnly?: boolean): Promise<TournamentNotification[]>;
   markNotificationAsRead(id: number): Promise<void>;
+
+  // Friends (duplicated interface block kept consistent)
+  sendFriendRequest(senderId: number, receiverId: number): Promise<any>;
+  respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any>;
+  getFriendRequests(userId: number): Promise<any[]>;
+  getFriends(userId: number): Promise<any[]>;
+  getFriendIds(userId: number): Promise<number[]>;
 
   close(): void;
 }
@@ -499,6 +513,93 @@ function createChatDB(): ChatDB {
         where: { id },
         data: { isRead: true }
       });
+    },
+
+    // Friends
+    async sendFriendRequest(senderId: number, receiverId: number): Promise<any> {
+      if (senderId === receiverId) 
+        throw new Error('Cannot add yourself');
+
+      // Check existing friendship
+      const existingFriend = await prisma.friend.findUnique({
+        where: { userId_friendId: { userId: senderId, friendId: receiverId } }
+      });
+      if (existingFriend) 
+        throw new Error('Already friends');
+      // Check existing request in either direction
+      const existingReq = await prisma.friendRequest.findFirst({
+        where: {
+          OR: [
+            { senderId, receiverId, status: 'pending' },
+            { senderId: receiverId, receiverId: senderId, status: 'pending' }
+          ]
+        }
+      });
+      if (existingReq) 
+        return existingReq;
+
+      return await prisma.friendRequest.create({
+        data: { senderId, receiverId, status: 'pending' }
+      });
+    },
+
+    async respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any> {
+      const req = await prisma.friendRequest.findUnique({ where: { id: requestId } });
+      if (!req) 
+        throw new Error('Request not found');
+      if (req.receiverId !== receiverId) 
+        throw new Error('Not authorized');
+      if (req.status !== 'pending') 
+        throw new Error('Request already handled');
+
+      const status = accept ? 'accepted' : 'declined';
+      const updated = await prisma.friendRequest.update({
+        where: { id: requestId },
+        data: { status }
+      });
+
+      if (accept) 
+      {
+        // create bidirectional friendship
+        await prisma.friend.create({ data: { userId: req.senderId, friendId: req.receiverId } });
+        await prisma.friend.create({ data: { userId: req.receiverId, friendId: req.senderId } });
+      }
+
+      return updated;
+    },
+
+    async getFriendRequests(userId: number): Promise<any[]> {
+      return await prisma.friendRequest.findMany({
+        where: {
+          receiverId: userId,
+          status: 'pending'
+        },
+        include: {
+          sender: { select: { id: true, username: true, avatar: true } }
+        },
+        orderBy: { created_at: 'desc' }
+      }) as any;
+    },
+
+    async getFriends(userId: number): Promise<any[]> {
+      const friends = await prisma.friend.findMany({
+        where: { userId },
+        include: {
+          friend: {
+            select: { id: true, username: true, avatar: true, status: true, lastSeen: true }
+          }
+        },
+        orderBy: { created_at: 'desc' }
+      });
+      return friends.map((f: any) => f.friend);
+    },
+
+    async getFriendIds(userId: number): Promise<number[]> {
+      const rows = await prisma.friend.findMany({
+        where: { userId },
+        select: { friendId: true }
+      });
+      return rows.map((r: any) => r.friendId);
     },
 
     close() {

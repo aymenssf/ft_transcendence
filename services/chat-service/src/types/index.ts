@@ -39,6 +39,13 @@ export interface Database {
   getUserTournamentNotifications(userId: number, unreadOnly?: boolean): Promise<any[]>;
   markNotificationAsRead(id: number): Promise<void>;
 
+  // Friends
+  sendFriendRequest(senderId: number, receiverId: number): Promise<any>;
+  respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any>;
+  getFriendRequests(userId: number): Promise<any[]>;
+  getFriends(userId: number): Promise<any[]>;
+  getFriendIds(userId: number): Promise<number[]>;
+
   close(): void;
 }
 

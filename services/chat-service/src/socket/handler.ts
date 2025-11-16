@@ -62,6 +62,19 @@ export function setupSocketConnection(app: FastifyInstance) {
           username: user?.username,
           avatar: user?.avatar
         });
+
+        // Notify friends specifically (if they are online)
+        try {
+          const friendIds = await app.db.getFriendIds(userId);
+          for (const fid of friendIds) 
+          {
+            const sid = onlineUsers.get(fid);
+            if (sid) 
+              app.io.to(sid).emit('friend-status-change', { userId, status: 'online' });
+          }
+        } catch (e: any) {
+          app.log.warn('Failed notifying friends about online status', e);
+        }
       } catch (error: any) {
         app.log.error(`Failed to get user info for user ${userId}:`, error);
       }
@@ -91,6 +104,17 @@ export function setupSocketConnection(app: FastifyInstance) {
           userId,
           status: 'offline'
         });
+
+        // Notify friends specifically (if they are online)
+        try {
+          const friendIds = await app.db.getFriendIds(userId);
+          for (const fid of friendIds) {
+            const sid = onlineUsers.get(fid);
+            if (sid) app.io.to(sid).emit('friend-status-change', { userId, status: 'offline' });
+          }
+        } catch (e: any) {
+          app.log.warn('Failed notifying friends about offline status', e);
+        }
       }
     });
   });

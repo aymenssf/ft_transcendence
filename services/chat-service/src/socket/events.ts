@@ -329,4 +329,82 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
       socket.emit('error', { message: error.message });
     }
   });
+
+  // Friend: send request via socket (supports receiverUsername or receiverId)
+  socket.on('send-friend-request', async (data: { receiverId?: number; receiverUsername?: string }) => {
+    try {
+      if (!userId) 
+        return socket.emit('error', { message: 'Not authenticated' });
+      const { receiverId: rawReceiverId, receiverUsername } = data;
+
+      // Resolve receiver by username if provided
+      let receiverId = rawReceiverId;
+      if (!receiverId && receiverUsername) 
+      {
+        const user = await app.db.findUserByUsername(receiverUsername);
+        if (!user) 
+          return socket.emit('error', { message: 'User not found' });
+        receiverId = user.id;
+      }
+
+      if (!receiverId) 
+        return socket.emit('error', { message: 'receiverUsername (preferred) or receiverId is required' });
+
+      const req = await app.db.sendFriendRequest(userId, receiverId);
+
+      // Notify receiver if online
+      const receiverSocketId = onlineUsers.get(receiverId);
+      if (receiverSocketId) 
+      {
+        app.io.to(receiverSocketId).emit('friend-request', {
+          id: req.id,
+          senderId: userId,
+          receiverId,
+          status: req.status,
+          created_at: req.created_at
+        });
+      }
+
+      socket.emit('friend-request-sent', { id: req.id, receiverId });
+    } catch (error: any) {
+      app.log.error('Error sending friend request:', error);
+      socket.emit('error', { message: error.message });
+    }
+  });
+
+  // Friend: respond to request via socket
+  socket.on('respond-friend-request', async (data: { requestId: number; accept: boolean }) => {
+    try {
+      if (!userId) 
+        return socket.emit('error', { message: 'Not authenticated' });
+      const { requestId, accept } = data;
+      const updated = await app.db.respondFriendRequest(requestId, userId, accept);
+
+      // Notify both parties
+      const req = updated; // includes senderId/receiverId
+      const notify = (uid: number, payload: any) => {
+        const sid = onlineUsers.get(uid);
+        if (sid) 
+          app.io.to(sid).emit('friend-request-updated', payload);
+      };
+
+      notify(req.senderId, { requestId: req.id, status: req.status, otherUserId: req.receiverId });
+      notify(req.receiverId, { requestId: req.id, status: req.status, otherUserId: req.senderId });
+
+      if (updated.status === 'accepted') 
+      {
+        const [sender, receiver] = await Promise.all([
+          app.db.findUserById(req.senderId),
+          app.db.findUserById(req.receiverId)
+        ]);
+        notify(req.senderId, { type: 'friend-added', friend: receiver });
+        notify(req.receiverId, { type: 'friend-added', friend: sender });
+      }
+
+      socket.emit('friend-responded', { requestId: updated.id, status: updated.status });
+    } catch (error: any) {
+      app.log.error('Error responding to friend request:', error);
+      socket.emit('error', { message: error.message });
+    }
+  });
 }

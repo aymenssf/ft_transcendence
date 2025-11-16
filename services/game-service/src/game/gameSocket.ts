@@ -108,6 +108,10 @@ function handlePlayerLeaveMatch(playerId: string, payload: any) {
 
         gameRoom.sockets.forEach(sock => sock?.send(endGameMsg));
     }
+    if (gameRoom.mode === GAME_ROOM_MODE.AI_OPPONENT) {
+        Array.from(gameRoom.sockets)[1]?.close();
+    }
+    if (gameRoom.loop) clearInterval(gameRoom.loop);
     games.delete(payload.gameId);
 
 }

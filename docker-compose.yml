@@ -83,7 +83,6 @@ services:
     env_file:
       - .env
     volumes:
-      - ./frontend/dist:/usr/share/nginx/html/dist:rw
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./frontend/images:/usr/share/nginx/html/images:ro
       - ./frontend/certs:/etc/nginx/certs

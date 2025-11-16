@@ -12,8 +12,8 @@ COPY . .
 # Build TypeScript
 RUN npx tsc
 
-# Build Tailwind CSS
-RUN npx tailwindcss -c tailwind.config.js -i ./dist/styles/input.css -o ./dist/styles/tailwind.css --minify
+# Build Tailwind CSS (use source file, not the one in dist)
+RUN npx tailwindcss -c tailwind.config.js -i ./src/styles/tailwind.css -o ./dist/styles/tailwind.css --minify
 
 
 # -------- NGINX Stage --------

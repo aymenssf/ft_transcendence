@@ -17,4 +17,5 @@ coverage
 .DS_Store
 *.log
 .vscode
+.env
 .idea

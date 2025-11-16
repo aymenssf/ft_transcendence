@@ -1,11 +1,19 @@
-"use strict";
+import "./game_soket.js";
+import { initgameSocket, sendMessage } from "./game_soket.js";
+import { initchatSocket, onChatMessage } from "./chat_soket.js";
+import { cleanupGame, addCleanupListener, setupNavigationHandlers, setupGameListeners, createLocalGameListener, createAIGameListener } from "./game_shared.js";
 console.log("start Pong game");
+let gameid = "";
+let ctx = null;
+let gameConfig;
+let gameState;
 class AppRouter {
     constructor(containerId) {
         this.contentContainer = null;
         this.isLoggedIn = false;
         this.currentUser = null;
         this.postLoginRedirect = null;
+        this.user = { username: "", passworde: "", email: "", avatar: "../images/avatre/1jpg", usernametournament: "", id: 0 };
         this.allpages = [
             "/",
             "home",
@@ -17,7 +25,11 @@ class AppRouter {
             "dashboard/status",
             "dashboard/stats",
             "dashboard/settings",
-            "dashboard/game"
+            "dashboard/game",
+            "dashboard/game/ai",
+            "dashboard/game/local",
+            "dashboard/game/remote",
+            "dashboard/game/Tournament"
         ];
         this.publicPages = ["/", "home", "login", "register"];
         this.protectedPages = [
@@ -29,6 +41,10 @@ class AppRouter {
             "dashboard/stats",
             "dashboard/settings",
             "dashboard/game",
+            "dashboard/game/ai",
+            "dashboard/game/local",
+            "dashboard/game/remote",
+            "dashboard/game/Tournament"
         ];
         this.currentPage = "home";
         const el = document.getElementById(containerId);
@@ -68,7 +84,29 @@ class AppRouter {
             if (usernameFromResp)
                 this.currentUser = usernameFromResp;
             this.setLoggedIn(true);
-            console.log(`is it logedin: ${this.isLoggedIn}, user ${this.currentUser}`);
+            initgameSocket();
+            //  initchatSocket();
+            // Populate local user object from backend response
+            const respUser = data.user ?? data;
+            if (respUser && typeof respUser === "object") {
+                this.user = {
+                    username: (respUser.username ?? respUser.name ?? ""),
+                    passworde: password,
+                    email: (respUser.email ?? ""),
+                    avatar: (respUser.avatar ?? "../images/avatre/1.jpg"),
+                    usernametournament: (respUser.usernametournament ?? name),
+                    id: Number(respUser.id ?? 0),
+                };
+                this.currentUser = (respUser.username ?? this.user.username);
+                // Fix default avatar
+                if (this.user.avatar === "avatar/default_avatar/default_avatar.jpg") {
+                    this.user.avatar = "../images/avatre/1.jpg";
+                }
+                // NEW: Store user data in localStorage for persistence
+                localStorage.setItem('user_data', JSON.stringify(this.user));
+            }
+            console.log(`User avatar: ${this.user.avatar}`);
+            console.log(`Is logged in: ${this.isLoggedIn}, user: ${this.currentUser}`);
             const redirect = this.postLoginRedirect || "/dashboard";
             this.postLoginRedirect = null;
             await this.navigateTo(redirect, true);
@@ -80,13 +118,44 @@ class AppRouter {
             return false;
         }
     }
-    async performLogout() {
-        localStorage.removeItem('jwt_token');
-        console.log("logout");
-        this.setLoggedIn(false);
-        this.currentUser = null;
-        this.navigateTo('home');
+    async fetchUserDetails(userId) {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            if (!token)
+                return;
+            const response = await fetch(`/api/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                console.warn('Failed to fetch user details');
+                return;
+            }
+            const userData = await response.json();
+            // Update user object with backend data
+            if (userData) {
+                this.user = {
+                    username: userData.username || this.currentUser || '',
+                    passworde: "",
+                    email: userData.email || '',
+                    avatar: userData.avatar || '../images/avatre/1.jpg',
+                    usernametournament: userData.usernametournament ?? name,
+                    id: userData.id || 0
+                };
+                // Fix default avatar path
+                if (this.user.avatar === 'avatar/default_avatar/default_avatar.jpg') {
+                    this.user.avatar = '../images/avatars/1.jpg';
+                }
+                console.log('User details fetched:', this.user);
+            }
+        }
+        catch (error) {
+            console.error('Error fetching user details:', error);
+        }
     }
+    // Update checkAuth to load from localStorage
     async checkAuth() {
         try {
             const token = localStorage.getItem('jwt_token');
@@ -97,17 +166,47 @@ class AppRouter {
             const payload = this.decodeJWT(token);
             if (!payload || this.isTokenExpired(payload)) {
                 localStorage.removeItem('jwt_token');
+                localStorage.removeItem('user_data'); // Clean up user data too
                 this.setLoggedIn(false);
                 return;
             }
             this.currentUser = payload.username || null;
             this.setLoggedIn(true);
+            initgameSocket();
+            // initchatSocket();
+            // NEW: Load user data from localStorage
+            const storedUserData = localStorage.getItem('user_data');
+            if (storedUserData) {
+                try {
+                    this.user = JSON.parse(storedUserData);
+                    console.log('Loaded user data from localStorage:', this.user);
+                }
+                catch (e) {
+                    console.warn('Failed to parse stored user data');
+                }
+            }
+            else if (payload.userId) {
+                // Fallback: fetch from backend if not in localStorage
+                await this.fetchUserDetails(payload.userId);
+            }
         }
         catch (err) {
             console.warn('checkAuth failed', err);
             localStorage.removeItem('jwt_token');
+            localStorage.removeItem('user_data');
             this.setLoggedIn(false);
         }
+    }
+    // Update logout to clear user data
+    async performLogout() {
+        localStorage.removeItem('jwt_token');
+        localStorage.removeItem('user_data'); // NEW: Clear user data
+        console.log("logout");
+        this.setLoggedIn(false);
+        this.currentUser = null;
+        // Reset user object
+        this.user = { username: "", passworde: "", email: "", avatar: "../images/avatars/1.jpg", usernametournament: "", id: 0 };
+        this.navigateTo('home');
     }
     decodeJWT(token) {
         try {
@@ -163,7 +262,6 @@ class AppRouter {
         console.log(`page: ${normalizedPath} is logdin : ${this.isLoggedIn}`);
         if (this.protectedPages.includes(`${normalizedPath}`) && !this.isLoggedIn) {
             await this.checkAuth();
-            console.log("here2");
             if (!this.isLoggedIn) {
                 this.postLoginRedirect = path;
                 if (pushState)
@@ -173,6 +271,8 @@ class AppRouter {
                 return;
             }
         }
+        if (this.publicPages.includes(`${normalizedPath}`) && this.isLoggedIn)
+            normalizedPath = "dashboard";
         if (pushState) {
             history.pushState(null, "", `/${normalizedPath}`);
         }
@@ -279,23 +379,28 @@ class AppRouter {
     }
     // Render the dashboard layout once, then only update content
     renderDashboardLayout() {
+        console.log(`user info :`, this.user);
         this.container.innerHTML = `
-
-
- <div class="dashboard-wrapper">
+<div class="dashboard-wrapper">
 
       <!-- Sidebar Overlay (Mobile) -->
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
       <!-- Sidebar Brand -->
-        <div class="sidebar-brand">
-          <img src="../images/logo.svg" alt="PONG Logo">
-          <h2>PONG Game</h2>
+      <div class="sidebar-brand">
+        <img src="../images/logo.svg" alt="PONG Logo">
+        <h2>PONG Game</h2>
+      </div>
+
+      <!-- User Avatar Section (Top Right) -->
+      <div class="sidebar-username">
+        <div class="user-avatar-container">
+          <img class="user-avatar" src="${this.user.avatar}">
+          <span class="header-username">${this.user.username || "Player"}</span>
         </div>
-        <div class="sidebar-username">
-          <span class="header-username">${this.currentUser || "Player"}</span>
-          <button id="logout-btn" class="logout-btn">🚪 Logout</button>
-        </div>
+        <button id="logout-btn" class="logout-btn">🚪 Logout</button>
+      </div>
+
       <!-- Sidebar (Fixed) -->
       <aside class="sidebar-card" id="dashboard-sidebar">
         <nav class="sidebar-nav">
@@ -335,7 +440,6 @@ class AppRouter {
         <div class="content-wrapper">
           <!-- Content will be injected here -->
         </div>
-
       </main>
     </div>
   `;
@@ -365,6 +469,7 @@ class AppRouter {
         console.log(`📄 Loaded dashboard layout`);
     }
     getPageData(page) {
+        console.log(`page is ${page}`);
         switch (page) {
             case "home":
                 return this.getHomePage();
@@ -386,6 +491,14 @@ class AppRouter {
                 return this.getFriendsPage();
             case "dashboard/status":
                 return this.getStatusPage();
+            case "dashboard/game/ai":
+                return this.getaipage();
+            case "dashboard/game/local":
+                return this.getlocalpage();
+            // case "dashboard/game/Tournament":
+            //   return this.gettournamentpage();
+            // case "dashboard/game/remote":
+            //   return this.getremotepage();
             default:
                 return this.get404Page();
         }
@@ -401,19 +514,17 @@ class AppRouter {
   <div class="navbar-container">
     <div class="navbar-content">
       <!-- Logo -->
-      <div class="logo-section nav-Links">
-        <img src="./images/logo.svg" alt="Pong Logo" class="logo-img">
+      <div class="nav-Links nav-link pong-logo">
+        <img src="./images/logo.svg" alt="Pong Logo">
         <span class="logo-text">PONG Game</span>
       </div>
-
-      <!-- Navigation Links -->
-      <div class="nav-links">
-        <a href="/login" class="login-link nav-links nav-link">
-          <img src="./images/login.svg" alt="Login Icon" class="login-icon">
+      <div class="nav-link">
+        <a href="/login" class="login-btn nav-link">
+          <img src="./images/login.svg" alt="Login Icon">
           <span class="login-text">Login</span>
         </a>
-        <a href="/register" class="register-btn nav-links nav-link">
-          Register
+        <a href="/register" class="reg-btn nav-link">
+          <span class="login-text">Register</span>
         </a>
       </div>
     </div>
@@ -455,39 +566,184 @@ class AppRouter {
     }
     getGamePage() {
         return {
-            title: "PONG Game - Play",
+            title: "PONG Game - Select Mode",
             content: `
-      <section class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-6 py-12 bg-gray-900 rounded-2xl shadow-lg max-w-3xl mx-auto">
-        <h1 class="text-3xl md:text-4xl font-bold text-greenLight mb-6">🏓 Pong Game</h1>
+      <section class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-6 py-12 bg-gray-900 rounded-2xl shadow-lg max-w-5xl mx-auto" style="margin-top: 5rem;">
+        <h1 class="text-3xl md:text-4xl font-bold text-greenLight mb-10 text-center">
+          🏓 Choose Your Game Mode
+        </h1>
 
-        <canvas
-          id="pong-canvas"
-          width="700"
-          height="420"
-          class="w-full max-w-xl border-4 border-greenLight rounded-xl shadow-2xl bg-gray-800 mb-6"
-        ></canvas>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 w-full">
+          <!-- AI Game -->
+          <div class="mode-card group">
+            <img src="./images/ai-game.svg" alt="AI Game" class="mode-icon" />
+            <h3 class="mode-title">Play vs AI</h3>
+            <p class="mode-desc">Challenge a smart AI opponent — great for quick solo fun.</p>
+            <a href="dashboard/game/ai" class="mode-btn nav-link">Play</a>
+          </div>
 
-        <div class="flex justify-center space-x-4 mb-6">
-          <button
-            id="start-btn"
-            class="bg-greenLight text-gray-900 px-6 py-2 rounded-lg hover:bg-greenDark font-semibold transition-colors duration-300"
-          >
-            Start
-          </button>
-          <button
-            id="reset-btn"
-            class="bg-gray-700 text-white px-6 py-2 rounded-lg hover:bg-gray-600 font-semibold transition-colors duration-300"
-          >
-            Reset
-          </button>
+          <!-- Local Game -->
+          <div class="mode-card group">
+            <img src="./images/local.svg" alt="Local Game" class="mode-icon" />
+            <h3 class="mode-title">Local Game</h3>
+            <p class="mode-desc">Two players on the same computer — perfect for friendly duels.</p>
+            <a href="dashboard/game/local" class="mode-btn nav-link">Play</a>
+          </div>
+
+          <!-- Remote Game -->
+          <div class="mode-card group">
+            <img src="./images/remote-game.svg" alt="Online Game" class="mode-icon" />
+            <h3 class="mode-title">Online Match</h3>
+            <p class="mode-desc">Compete with friends or random players around the world.</p>
+            <a href="dashboard/game/remote" class="mode-btn">Play</a>
+          </div>
+
+          <!-- Tournament -->
+          <div class="mode-card group">
+            <img src="./images/tournament.svg" alt="Tournament" class="mode-icon" />
+            <h3 class="mode-title">Tournament</h3>
+            <p class="mode-desc">Join tournaments and climb the ranks to prove your skill.</p>
+            <a href="dashboard/game/tournament" class="mode-btn">Play</a>
+          </div>
         </div>
-
-        <p class="text-gray-300 text-sm md:text-base text-center">
-          Use <b>W/S</b> or <b>↑/↓</b> to move your paddle. First to 5 wins!
-        </p>
       </section>
     `,
-            init: () => console.log("🎮 Game page loaded"),
+            init: () => console.log("🎮 Game mode selection loaded"),
+        };
+    }
+    getlocalpage() {
+        return {
+            title: "PONG Game - Local Match",
+            content: `
+      <div class="local-game-container" style="margin-top:5rem;">
+        <div class="game-header">
+          <a href="dashboard/game" id="back-button" class="back-button nav-link">← Back</a>
+          <h2 style="display:inline-block; margin-left:1rem;">Local Match (2 Players)</h2>
+        </div>
+
+        <div class="local-players" style="display:flex; align-items:center; gap:1.5rem; margin-top:1.5rem;">
+          <div style="text-align:center; width:160px;">
+            <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player 1" style="width:80px;height:80px;border-radius:50%;" onerror="this.src='../images/avatars/1.jpg'">
+            <div style="margin-top:0.5rem; font-weight:600;">${this.currentUser || 'Player 1'}</div>
+            <div style="font-size:0.875rem; color:#6b7280;">Use W / S</div>
+          </div>
+
+          <div style="flex:1;">
+            <div id="game-container"></div>
+            <div style="display:flex; justify-content:space-between; margin-top:0.75rem; color:#e5e7eb;">
+              <div>Score: <span id="local-score">0 - 0</span></div>
+            </div>
+            <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+              <button id="start-local-game" class="btn-primary">Start</button>
+            </div>
+            <div style="margin-top:0.5rem; color:#9ca3af; font-size:0.9rem;">
+              Controls — Player 1: W / S, Player 2: ↑ / ↓
+            </div>
+          </div>
+
+          <div style="text-align:center; width:160px;">
+            <img src="../images/avatars/2.jpg" alt="Player 2" style="width:80px;height:80px;border-radius:50%;" onerror="this.src='../images/avatars/2.jpg'">
+            <div style="margin-top:0.5rem; font-weight:600;">Local Opponent</div>
+            <div style="font-size:0.875rem; color:#6b7280;">Use ↑ / ↓</div>
+          </div>
+        </div>
+      </div>
+    `,
+            init: () => {
+                console.log("🎮 Local page loaded");
+                // Cleanup previous state
+                cleanupGame(this.user.id);
+                // Setup navigation handlers
+                setupNavigationHandlers(this.user.id, "back-button", (path) => this.loadPage(path));
+                // Start button handler
+                const startButton = document.getElementById('start-local-game');
+                if (startButton) {
+                    const startHandler = () => {
+                        sendMessage("join_local", {});
+                    };
+                    startButton.addEventListener('click', startHandler);
+                    addCleanupListener(() => startButton.removeEventListener('click', startHandler));
+                }
+                // Setup message listeners
+                const localListener = createLocalGameListener(this.user.id);
+                setupGameListeners(localListener, 'local-score', this.user.id, (path) => this.loadPage(path), false);
+            }
+        };
+    }
+    getaipage() {
+        return {
+            title: "PONG Game - AI Match",
+            content: `
+      <div class="local-game-container" style="margin-top:5rem;">
+        <div class="game-header">
+          <a href="/dashboard/game" id="back-button-ai" class="back-button nav-link">← Back</a>
+          <h2 style="display:inline-block; margin-left:1rem;">Play vs AI</h2>
+        </div>
+
+        <div class="local-players" style="display:flex; align-items:center; gap:1.5rem; margin-top:1.5rem;">
+          <div style="text-align:center; width:160px;">
+            <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:80px;height:80px;border-radius:50%;" onerror="this.src='../images/avatars/1.jpg'">
+            <div style="margin-top:0.5rem; font-weight:600;">${this.currentUser || 'Player'}</div>
+            <div style="font-size:0.875rem; color:#6b7280;">Use W / S</div>
+          </div>
+
+          <div style="flex:1;">
+            <div style="margin-bottom:0.75rem; display:flex; align-items:center; justify-content:space-between;">
+              <div>
+                <label for="ai-difficulty" style="color:#9ca3af; margin-right:0.5rem;">Difficulty</label>
+                <select id="ai-difficulty" style="padding:0.35rem; border-radius:6px; color:#111827;">
+                  <option value="easy">Easy</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+              <div style="color:#9ca3af;">Controls — Player: W / S</div>
+            </div>
+
+            <div id="game-container"></div>
+
+            <div style="display:flex; justify-content:space-between; margin-top:0.75rem; color:#e5e7eb;">
+              <div>Score: <span id="ai-score">0 - 0</span></div>
+            </div>
+
+            <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+              <button id="start-ai-game" class="btn-primary">Start vs AI</button>
+            </div>
+          </div>
+
+          <div style="text-align:center; width:160px;">
+            <div style="width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;background:#111827;color:#fff;margin:0 auto;">
+              🤖
+            </div>
+            <div style="margin-top:0.5rem; font-weight:600;">AI Opponent</div>
+            <div style="font-size:0.875rem; color:#6b7280;">Adaptive</div>
+          </div>
+        </div>
+      </div>
+    `,
+            init: () => {
+                console.log("🤖 AI Game page loaded");
+                // Cleanup previous state
+                cleanupGame(this.user.id);
+                // Setup navigation handlers
+                setupNavigationHandlers(this.user.id, "back-button-ai", (path) => this.loadPage(path));
+                // Start button handler
+                const startButton = document.getElementById('start-ai-game');
+                const difficultySelect = document.getElementById('ai-difficulty');
+                if (startButton) {
+                    const startHandler = () => {
+                        const difficulty = difficultySelect?.value || 'medium';
+                        startButton.innerText = 'Finding AI opponent...';
+                        startButton.disabled = true;
+                        sendMessage("join_ai-opponent", { difficulty });
+                    };
+                    startButton.addEventListener('click', startHandler);
+                    addCleanupListener(() => startButton.removeEventListener('click', startHandler));
+                }
+                // Setup message listeners
+                const aiListener = createAIGameListener(this.user.id);
+                setupGameListeners(aiListener, 'ai-score', this.user.id, (path) => this.loadPage(path), true);
+            }
         };
     }
     getLoginPage() {
@@ -498,26 +754,27 @@ class AppRouter {
   <div class="navbar-container">
     <div class="navbar-content">
       <!-- Logo -->
-      <div class="logo-section nav-links">
-        <img src="./images/logo.svg" alt="Pong Logo" class="logo-img">
+      <div class="nav-Links pong-logo">
+        <img src="./images/logo.svg" alt="Pong Logo">
         <span class="logo-text">PONG Game</span>
       </div>
 
       <!-- Navigation Links -->
-      <div class="nav-links">
-        <a href="/register" class="register-btn nav-link">
-          Register
+      <div class="nav-link pong-logo">
+        <a href="/register" class="login-btn nav-link">
+          <span class="login-text">Register</span>
         </a>
       </div>
     </div>
   </div>
 </nav>
+
 <section class="login-section">
   <div class="login-card">
     <h1>Welcome Back</h1>
     <p>Sign in to your account</p>
 
-    <form id="login-form">
+    <form id="login-form" class="input-form">
       <input type="text" id="username" placeholder="Username" class="input-field" />
       <input type="password" id="password" placeholder="Password" class="input-field" />
       <button type="submit" class="submit-btn">Sign In</button>
@@ -557,29 +814,30 @@ class AppRouter {
   <div class="navbar-container">
     <div class="navbar-content">
       <!-- Logo -->
-      <div class="logo-section nav-links">
-        <img src="./images/logo.svg" alt="Pong Logo" class="logo-img">
+      <div class="nav-Links nav-link pong-logo">
+        <img src="./images/logo.svg" alt="Pong Logo">
         <span class="logo-text">PONG Game</span>
       </div>
 
       <!-- Navigation Links -->
-      <div class="nav-links">
-        <a href="/login" class="login-link nav-link">
-          <img src="./images/login.svg" alt="Login Icon" class="login-icon">
+      <div class="nav-link">
+        <a href="/login" class="login-btn nav-link">
+          <img src="./images/login.svg" alt="Login Icon">
           <span class="login-text">Login</span>
         </a>
       </div>
     </div>
   </div>
 </nav>
+
 <section class="register-section">
   <div class="register-card">
     <h1>Create Account</h1>
-    <form id="register-form">
-      <input type="text" id="new-username" placeholder="Username" required>
-      <input type="email" id="email" placeholder="Email" required>
-      <input type="password" id="new-password" placeholder="Password" required>
-      <input type="usernameTournament" id="usernameTournament" placeholder="usernameTournament">
+    <form id="register-form" class="input-form">
+      <input type="text" id="new-username" placeholder="Username" required class="input-field">
+      <input type="email" id="email" placeholder="Email" required class="input-field">
+      <input type="password" id="new-password" placeholder="Password" required class="input-field">
+      <input type="usernameTournament" id="usernameTournament" placeholder="usernameTournament" class="input-field">
       <button type="submit" class="submit-btn">Register</button>
     </form>
     <p>
@@ -636,28 +894,245 @@ class AppRouter {
       `,
         };
     }
+    async updateUserProfile(updates) {
+        // Ensure updates carry an id (fallback to current user id)
+        const u = updates;
+        if ((!u.id || u.id === 0) && this.user && this.user.id) {
+            u.id = this.user.id;
+        }
+        // If there's no JWT but we have stored credentials, try to re-login to obtain a token
+        const existingToken = localStorage.getItem('jwt_token');
+        const usernameForLogin = (u.name || u.username || this.currentUser || this.user.username);
+        const passwordForLogin = (this.user && this.user.passworde) ? this.user.passworde : undefined;
+        if (!existingToken && usernameForLogin && passwordForLogin) {
+            console.log('No JWT found — attempting to re-login to obtain a fresh token');
+            try {
+                await this.performLogin(usernameForLogin, passwordForLogin);
+            }
+            catch (err) {
+                console.warn('Re-login attempt failed', err);
+                // proceed; the request below will fail if there's truly no token
+            }
+        }
+        try {
+            const token = localStorage.getItem('jwt_token');
+            if (!token) {
+                alert('Please log in first');
+                return false;
+            }
+            const response = await fetch('/api/auth/user/update', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updates)
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: 'Update failed' }));
+                alert(error.error || 'Failed to update profile');
+                return false;
+            }
+            const data = await response.json();
+            // ✅ Store new token if backend sends it
+            console.log("try to JWT updated");
+            if (data.token) {
+                localStorage.setItem('jwt_token', data.token);
+            }
+            // ✅ Update user info in localStorage
+            if (data.user) {
+                localStorage.setItem('user_data', JSON.stringify(data.user));
+                // Update the current app state
+                this.user = data.user;
+                console.log(`updated user: `, this.user);
+                this.currentUser = data.user.username;
+                alert('Profile updated successfully!');
+            }
+            // ✅ Optionally refresh view to show changes
+            await this.navigateTo(this.currentPage, false);
+            return true;
+        }
+        catch (error) {
+            console.error('Update profile error:', error);
+            alert('An error occurred while updating profile');
+            return false;
+        }
+    }
+    // Updated Settings Page with functional form
     getSettingsPage() {
         return {
             title: "PONG Game - Settings",
             content: `
-        <div class="content-card">
-          <h2>⚙️ Settings</h2>
-          <div style="margin-top: 1.5rem;">
-            <div style="margin-bottom: 1.5rem;">
-              <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Username</label>
-              <input type="text" value="${this.currentUser || 'Player'}" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;" />
-            </div>
-            <div style="margin-bottom: 1.5rem;">
-              <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Email</label>
-              <input type="email" placeholder="player@example.com" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;" />
-            </div>
-            <button style="padding: 0.75rem 1.5rem; background: #10b981; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer;">
-              Save Changes
-            </button>
+      <div class="content-card" style="margin-top: 5rem;">
+        <h2>⚙️ Settings</h2>
+        <form id="settings-form" style="margin-top: 1.5rem;">
+          <!-- Username -->
+          <div style="margin-bottom: 1.5rem;">
+            <label for="settings-username" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
+              Username
+            </label>
+            <input
+              type="text"
+              id="settings-username"
+              value="${this.user.username || ''}"
+              placeholder="Enter username"
+              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
+            />
           </div>
-        </div>
-      `,
-            init: () => console.log("⚙️ Settings page loaded"),
+
+          <!-- Email -->
+          <div style="margin-bottom: 1.5rem;">
+            <label for="settings-email" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
+              Email
+            </label>
+            <input
+              type="email"
+              id="settings-email"
+              value="${this.user.email || ''}"
+              placeholder="player@example.com"
+              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
+            />
+          </div>
+          <!-- Tournament Username (Optional) -->
+          <div style="margin-bottom: 1.5rem;">
+            <label for="settings-tournament" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
+              Tournament Username (Optional)
+            </label>
+            <input
+              type="text"
+              id="settings-tournament"
+              placeholder="Tournament display name"
+              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
+            />
+          </div>
+
+          <!-- Avatar URL (Optional) -->
+<div style="margin-bottom: 1.5rem;">
+  <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
+    Choose Your Avatar
+  </label>
+
+<div id="avatar-options">
+  <img src="../images/avatars/1.jpg" alt="Avatar 1" class="avatar-option" data-value="../images/avatars/1.jpg">
+  <img src="../images/avatars/2.jpg" alt="Avatar 2" class="avatar-option" data-value="../images/avatars/2.jpg">
+  <img src="../images/avatars/3.jpg" alt="Avatar 3" class="avatar-option" data-value="../images/avatars/3.jpg">
+  <img src="../images/avatars/4.jpg" alt="Avatar 4" class="avatar-option" data-value="../images/avatars/4.jpg">
+</div>
+
+  <!-- Hidden field to send selected avatar path -->
+  <input type="hidden" id="settings-avatar" name="avatar" value="${this.user.avatar || ''}" />
+
+  <small style="color: #6b7280; font-size: 0.875rem;">
+    Current:
+    <img src="${this.user.avatar || './images/avatars/avatar1.png'}"
+         alt="Current Avatar"
+         style="width: 40px; height: 40px; border-radius: 50%; vertical-align: middle; margin-left: 0.5rem;">
+  </small>
+</div>
+
+          <!-- Save Button -->
+          <button
+            type="submit"
+            style="padding: 0.75rem 1.5rem; background: #10b981; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.3s;"
+            onmouseover="this.style.background='#059669'"
+            onmouseout="this.style.background='#10b981'"
+          >
+            💾 Save Changes
+          </button>
+
+          <!-- Status Message -->
+          <div id="settings-status" style="margin-top: 1rem; padding: 0.75rem; border-radius: 0.5rem; display: none;"></div>
+        </form>
+      </div>
+    `,
+            init: () => {
+                console.log("⚙️ Settings page loaded");
+                const form = document.getElementById('settings-form');
+                const statusDiv = document.getElementById('settings-status');
+                const avatarOptions = document.querySelectorAll(".avatar-option");
+                const avatarInput = document.getElementById("settings-avatar");
+                const profileAvatar = document.querySelector('.user-avatar'); // main avatar in UI
+                // --- Avatar selection logic ---
+                if (avatarOptions && avatarInput) {
+                    avatarOptions.forEach(option => {
+                        option.addEventListener("click", () => {
+                            // Remove selection from others
+                            avatarOptions.forEach(o => o.classList.remove("selected"));
+                            // Mark clicked one as selected
+                            option.classList.add("selected");
+                            // Update hidden input value
+                            avatarInput.value = option.dataset.value || "";
+                            // Optionally update live avatar preview
+                            if (profileAvatar)
+                                profileAvatar.src = avatarInput.value;
+                        });
+                    });
+                    // Pre-select current avatar
+                    const currentAvatar = avatarInput.value;
+                    avatarOptions.forEach(o => {
+                        if (o.dataset.value === currentAvatar)
+                            o.classList.add("selected");
+                    });
+                }
+                // --- Form submission logic ---
+                if (form) {
+                    form.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        // Get form values
+                        const username = document.getElementById('settings-username').value.trim();
+                        const email = document.getElementById('settings-email').value.trim();
+                        const tournament = document.getElementById('settings-tournament').value.trim();
+                        const avatar = avatarInput?.value.trim() || "";
+                        // Build update object (only include changed fields)
+                        const updates = {};
+                        if (username && username !== this.currentUser)
+                            updates.username = username;
+                        if (email && email !== this.user.email)
+                            updates.email = email;
+                        if (tournament)
+                            updates.usernameTournament = tournament;
+                        if (avatar && avatar !== this.user.avatar)
+                            updates.avatar = avatar;
+                        // Check if any changes were made
+                        if (Object.keys(updates).length === 0) {
+                            statusDiv.style.display = 'block';
+                            statusDiv.style.background = '#fef3c7';
+                            statusDiv.style.color = '#92400e';
+                            statusDiv.textContent = '⚠️ No changes detected';
+                            return;
+                        }
+                        // Show loading state
+                        statusDiv.style.display = 'block';
+                        statusDiv.style.background = '#dbeafe';
+                        statusDiv.style.color = '#1e40af';
+                        statusDiv.textContent = '⏳ Updating profile...';
+                        // Call update method
+                        const success = await this.updateUserProfile(updates);
+                        if (success) {
+                            // Update local state
+                            if (updates.username)
+                                this.currentUser = updates.username;
+                            if (updates.email)
+                                this.user.email = updates.email;
+                            if (updates.usernameTournament)
+                                this.user.usernametournament = updates.usernameTournament;
+                            if (updates.avatar) {
+                                this.user.avatar = updates.avatar;
+                                if (profileAvatar)
+                                    profileAvatar.src = updates.avatar; // update avatar in UI
+                            }
+                            statusDiv.style.background = '#d1fae5';
+                            statusDiv.style.color = '#065f46';
+                            statusDiv.textContent = '✅ Profile updated successfully!';
+                        }
+                        else {
+                            statusDiv.style.background = '#fee2e2';
+                            statusDiv.style.color = '#991b1b';
+                            statusDiv.textContent = '❌ Failed to update profile. Please try again.';
+                        }
+                    });
+                }
+            }
         };
     }
     getDashboardPage() {
@@ -665,7 +1140,7 @@ class AppRouter {
             title: "PONG Game - Dashboard",
             content: `
         <div class="content-card">
-          <h2>Welcome back, ${this.currentUser || 'Player'}! 👋</h2>
+          <h2>Welcome back, ${this.user.username || 'Player'}! 👋</h2>
           <p>Ready to play some Pong? Check out your stats below.</p>
         </div>
 
@@ -729,14 +1204,203 @@ class AppRouter {
         return {
             title: "PONG Game - Chat",
             content: `
-      <div class="content-card">
-        <h2>💬 Chat</h2>
-        <div style="background: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
-          <p style="color: #6b7280;">Chat functionality coming soon! Connect with friends and send messages.</p>
+<div class="content-card flex h-[80vh] gap-4">
+
+  <!-- SIDEBAR: USER LIST -->
+  <div class="w-64 bg-gray-900 text-gray-100 rounded-xl p-4 flex flex-col">
+
+    <h2 class="text-xl font-bold mb-4">💬 Chats</h2>
+
+    <!-- Search Bar -->
+    <input
+      id="chat-search"
+      class="w-full p-2 rounded-md bg-gray-800 text-gray-200 mb-3"
+      placeholder="Search user..."
+    />
+
+    <!-- USER LIST -->
+    <div id="chat-user-list" class="flex-1 overflow-y-auto space-y-2">
+
+      <!-- Example user item (dynamic in JS) -->
+      <!--
+      <div class="p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700"
+           data-user-id="546479405">
+        <div class="flex items-center gap-2">
+          <img src="../images/avatars/1.jpg" class="w-10 h-10 rounded-full">
+          <div>
+            <div class="font-semibold">ybahij</div>
+            <div class="text-xs text-gray-400">Online</div>
+          </div>
         </div>
       </div>
+      -->
+
+    </div>
+
+  </div>
+
+  <!-- MAIN CHAT WINDOW -->
+  <div class="flex-1 bg-white rounded-xl p-4 flex flex-col">
+
+    <!-- Chat Header -->
+    <div id="chat-header" class="flex items-center justify-between mb-4 border-b pb-3 hidden">
+      <div class="flex items-center gap-3">
+        <img id="chat-user-avatar" class="w-12 h-12 rounded-full" src="">
+        <div>
+          <div id="chat-username" class="text-lg font-semibold"></div>
+          <button id="chat-view-profile" class="text-sm text-blue-600 hover:underline">
+            View Profile
+          </button>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button id="chat-block-btn" class="px-3 py-1 bg-red-500 text-white rounded-md text-sm">
+          Block
+        </button>
+
+        <button id="chat-invite-btn" class="px-3 py-1 bg-green-600 text-white rounded-md text-sm">
+          Invite to Game
+        </button>
+      </div>
+    </div>
+
+    <!-- Chat Messages Area -->
+    <div id="chat-messages"
+         class="flex-1 overflow-y-auto bg-gray-100 p-4 rounded-md space-y-3">
+    </div>
+
+    <!-- Message Input -->
+    <div id="chat-message-box" class="flex gap-2 mt-4 hidden">
+      <input id="chat-input"
+             class="flex-1 p-3 rounded-md border"
+             placeholder="Type your message..."/>
+      <button id="chat-send"
+              class="px-4 py-2 bg-blue-600 text-white rounded-md">
+        Send
+      </button>
+    </div>
+
+  </div>
+</div>
+
     `,
-            init: () => console.log("💬 Chat page loaded"),
+            init: () => {
+                console.log("💬 Chat page loaded");
+                // Initialize WebSocket only ONCE
+                const socket = initchatSocket();
+                // UI references
+                const userList = document.getElementById("chat-user-list");
+                const chatHeader = document.getElementById("chat-header");
+                const messageBox = document.getElementById("chat-messages");
+                const chatInput = document.getElementById("chat-input");
+                const sendBtn = document.getElementById("chat-send");
+                const messageSection = document.getElementById("chat-message-box");
+                const usernameLabel = document.getElementById("chat-username");
+                const avatarImg = document.getElementById("chat-user-avatar");
+                let currentChatUser = null; // Active DM target
+                // -------------------------------------------------------
+                // 1️⃣ FETCH USER LIST (from your backend /api/users/all)
+                // -------------------------------------------------------
+                fetch("/api/users/all", {
+                    headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
+                })
+                    .then(res => res.json())
+                    .then(users => {
+                    userList.innerHTML = "";
+                    console.log('users:', users);
+                    console.log('Is array?', Array.isArray(users));
+                    users.forEach((user) => {
+                        if (user.id === JSON.parse(localStorage.getItem("user")).id)
+                            return; // skip self
+                        const div = document.createElement("div");
+                        div.className = "p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700";
+                        div.dataset.userId = user.id;
+                        div.innerHTML = `
+          <div class="flex items-center gap-2">
+            <img src="${user.avatar}" class="w-10 h-10 rounded-full" />
+            <div>
+              <div class="font-semibold">${user.username}</div>
+              <div class="text-xs text-gray-400">Online</div>
+            </div>
+          </div>
+        `;
+                        // Click to open DM
+                        div.onclick = () => {
+                            currentChatUser = user;
+                            // update header UI
+                            chatHeader.classList.remove("hidden");
+                            messageSection.classList.remove("hidden");
+                            usernameLabel.textContent = user.username;
+                            avatarImg.src = user.avatar;
+                            // clear chat display & load conversation
+                            messageBox.innerHTML = "";
+                            loadConversation(user.id);
+                        };
+                        userList.appendChild(div);
+                    });
+                });
+                // -------------------------------------------------------
+                // 2️⃣ SEND MESSAGE
+                // -------------------------------------------------------
+                sendBtn.onclick = () => {
+                    if (!chatInput.value.trim() || !currentChatUser)
+                        return;
+                    const message = {
+                        type: "dm",
+                        to: currentChatUser.id,
+                        message: chatInput.value,
+                    };
+                    socket.send(JSON.stringify(message));
+                    // Add my own message to UI
+                    appendMessage("me", chatInput.value);
+                    chatInput.value = "";
+                };
+                // -------------------------------------------------------
+                // 3️⃣ RECEIVE MESSAGE
+                // -------------------------------------------------------
+                onChatMessage((msg) => {
+                    if (msg.type === "dm") {
+                        // only show messages from the currently opened chat
+                        if (!currentChatUser || msg.from !== currentChatUser.id)
+                            return;
+                        appendMessage("them", msg.message);
+                    }
+                });
+                // -------------------------------------------------------
+                // Helper: Append Message to UI
+                // -------------------------------------------------------
+                function appendMessage(sender, text) {
+                    const bubble = document.createElement("div");
+                    bubble.className =
+                        sender === "me"
+                            ? "text-right"
+                            : "text-left";
+                    bubble.innerHTML = `
+      <div class="inline-block px-3 py-2 rounded-lg mb-1 ${sender === 'me'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-300 text-black'}">
+        ${text}
+      </div>
+    `;
+                    messageBox.appendChild(bubble);
+                    messageBox.scrollTop = messageBox.scrollHeight;
+                }
+                // -------------------------------------------------------
+                // Load conversation history (optional)
+                // -------------------------------------------------------
+                function loadConversation(userId) {
+                    fetch(`/api/chat/history/${userId}`, {
+                        headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
+                    })
+                        .then(res => res.json())
+                        .then(messages => {
+                        messages.forEach((msg) => {
+                            appendMessage(msg.fromMe ? "me" : "them", msg.message);
+                        });
+                    });
+                }
+            }
         };
     }
     getFriendsPage() {

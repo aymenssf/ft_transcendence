@@ -131,7 +131,7 @@ export function startGame(room: GameRoom) {
             }));
         });
         startGameLoop(room);
-    }, 3000);
+    }, 500);
 }
 
 export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
@@ -139,7 +139,7 @@ export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
     gameRoom.loop = setInterval(() => {
         const { state, sockets } = gameRoom;
         const { ball, paddles, canvas } = state;
-        // if (gameRoom.paused) return;
+        if (gameRoom.paused) return;
         movePaddles(paddles, canvas);
         moveBall(ball, canvas);
         checkBallCollision(ball, paddles);

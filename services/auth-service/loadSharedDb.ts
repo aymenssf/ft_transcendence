@@ -116,7 +116,7 @@ function createPrismaDB(): SecureDB {
   return {
     async createUser(username: string, email: string, password: string) {
       let user: { id: number; username: string; email: string };
-      for (let attempt = 0; ; attempt++) 
+      for (let attempt = 0; ; attempt++)
       {
         const id = randomUserId();
         try {
@@ -126,9 +126,9 @@ function createPrismaDB(): SecureDB {
           });
           break;
         } catch (err: any) {
-          if (err?.code === 'P2002' && err?.meta?.target?.includes?.('id')) 
+          if (err?.code === 'P2002' && err?.meta?.target?.includes?.('id'))
           {
-            if (attempt < 5) 
+            if (attempt < 5)
               continue; // retry with a new id
           }
           throw err;
@@ -153,8 +153,8 @@ function createPrismaDB(): SecureDB {
 
   async subscribe(input: SubscribeInput): Promise<PublicUser> {
     const { username, email, password, avatar = null, usernameTournament } = input;
-      const DEFAULT_AVATAR_REL = 'avatar/default_avatar/default_avatar.jpg';
-      
+      const DEFAULT_AVATAR_REL = '../images/avatars/1.jpg';
+
   validateUsername(username);
       validateEmail(email);
       validatePassword(password);
@@ -164,11 +164,11 @@ function createPrismaDB(): SecureDB {
   validateTournamentUsername(tUsername);
 
       const existingUser = await prisma.user.findUnique({ where: { username } });
-      if (existingUser) 
+      if (existingUser)
         throw new ValidationError("Username already exists");
 
       const existingEmail = await prisma.user.findUnique({ where: { email } });
-      if (existingEmail) 
+      if (existingEmail)
         throw new ValidationError("Email already exists");
 
       const existingTournament = await prisma.user.findUnique({ where: { usernameTournament: tUsername } });
@@ -179,7 +179,7 @@ function createPrismaDB(): SecureDB {
 
       try {
         let created: PublicUser;
-        for (let attempt = 0; ; attempt++) 
+        for (let attempt = 0; ; attempt++)
         {
           const id = randomUserId();
           try {
@@ -203,9 +203,9 @@ function createPrismaDB(): SecureDB {
             });
             break;
           } catch (err: any) {
-            if (err?.code === 'P2002' && err?.meta?.target?.includes?.('id')) 
+            if (err?.code === 'P2002' && err?.meta?.target?.includes?.('id'))
             {
-              if (attempt < 5) 
+              if (attempt < 5)
                 continue;
             }
             throw err;

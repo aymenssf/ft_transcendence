@@ -557,3 +557,69 @@ body:not(.sidebar-open) {
   background-color: #10b981;
   color: black;
 }
+
+/* game page */
+
+.mode-card {
+  background: rgba(31, 41, 55, 0.7);
+  backdrop-filter: blur(12px);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  text-align: center;
+  color: #ffffff;
+  border: 1px solid #1f2937;
+  transition: all 0.3s ease-in-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.mode-card:hover {
+  transform: translateY(-6px);
+  border-color: #10b981;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
+}
+
+.mode-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 1rem;
+  opacity: 0.9;
+  transition: transform 0.3s ease-in-out;
+}
+
+.mode-card:hover .mode-icon {
+  transform: scale(1.1);
+}
+
+.mode-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #10b981;
+  margin-bottom: 0.5rem;
+}
+
+.mode-desc {
+  color: #d1d5db;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+/* Matches your .back-home-btn style */
+.mode-btn {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #10b981;
+  background-color: transparent;
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+  display: inline-block;
+}
+
+.mode-btn:hover {
+  background-color: #10b981;
+  color: #111827;
+  transform: scale(1.05);
+}

@@ -49,8 +49,8 @@ services:
       - ./database:/app/database:rw
       - ./Shared_dataBase:/app/Shared_dataBase:rw
       - /app/Shared_dataBase/node_modules
-    command: >
-      sh -c "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && npx tsx src/server.ts"
+    # command: >
+    #   sh -c "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && npx tsx src/server.ts"
     networks:
       - transcendence-network
     depends_on:
@@ -79,20 +79,21 @@ services:
       dockerfile: ./Dockerfile
     container_name: ft_transcendence_frontend
     ports:
-      - "${FRONTEND_SERVICE_PORT:-3000}:3000"
+      - "${FRONTEND_SERVICE_PORT:-443}:443"
     env_file:
       - .env
     volumes:
       - ./frontend/dist:/usr/share/nginx/html/dist:rw
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./frontend/images:/usr/share/nginx/html/images:ro
+      - ./frontend/certs:/etc/nginx/certs
     networks:
       - transcendence-network
     depends_on:
       - auth-service
-      # - chat-service
-      # - game-service
-      # - ai-service
+      - chat-service
+      - game-service
+      - ai-service
     restart: unless-stopped
 
 

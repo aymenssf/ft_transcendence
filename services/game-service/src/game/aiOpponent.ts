@@ -33,7 +33,7 @@ export function aiOpponentGame(connection:SocketStream, playerId: string, diffic
                 }));
             });
             startGameLoop(game_room);
-        }, 3000);
+        }, 500);
 
     });
 

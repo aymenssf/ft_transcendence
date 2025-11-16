@@ -61,7 +61,7 @@ function startRandomGame() {
     gameRoom.status = GAME_ROOM_STATUS.ONGOING;
     setTimeout(() => {
         gameRoom.sockets.forEach(sock => sock?.send(JSON.stringify(createInitialGameState(gameRoom.gameId, gameRoom.mode))));
-    }, 2000);
+    }, 500);
 
     setTimeout(() => {
         gameRoom.sockets.forEach(sock => {
@@ -70,7 +70,7 @@ function startRandomGame() {
             }));
         });
         startGameLoop(gameRoom);
-    }, 3000);
+    }, 500);
 
 }
 

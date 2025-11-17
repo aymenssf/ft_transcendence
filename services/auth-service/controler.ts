@@ -156,6 +156,54 @@ export function registerControllers(app: FastifyInstance)
     }
   });
 
+  // GET /me - Get current authenticated user profile
+  app.get("/me", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      // Verify JWT token
+      const decoded = await request.jwtVerify() as any;
+      
+      // Fetch user from database
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          avatar: true,
+          usernameTournament: true,
+          created_at: true,
+          is_42_user: true
+          // Don't include password!
+        }
+      });
+
+      if (!user) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      // Ensure avatar has a value
+      const avatarValue = (typeof user.avatar === 'string' && user.avatar.trim() !== '')
+        ? user.avatar
+        : DEFAULT_AVATAR_REL;
+
+      return reply.send({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        avatar: avatarValue,
+        usernameTournament: user.usernameTournament,
+        created_at: user.created_at,
+        is_42_user: user.is_42_user
+      });
+    } catch (err: any) {
+      if (err.name === 'UnauthorizedError' || err.message?.includes('token')) {
+        return reply.status(401).send({ error: 'Unauthorized - Invalid or expired token' });
+      }
+      request.log.error({ err }, 'Get user profile error');
+      return reply.status(500).send({ error: 'Failed to fetch user profile' });
+    }
+  });
+
   // Update current authenticated user (depends on user_update.ts logic)
   app.put("/user/update", async (request: FastifyRequest<{ Body: UpdateUserBody }>, reply: FastifyReply) => {
     try {

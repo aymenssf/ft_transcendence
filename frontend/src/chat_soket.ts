@@ -4,7 +4,7 @@ const listeners: ((msg: any) => void)[] = [];
 export function initchatSocket() {
     if (socket) return socket;
 
-    socket = new WebSocket(`ws://localhost:3000/chat/ws?token=${localStorage.getItem('jwt_token')}`);
+    socket = new WebSocket(`ws://0.0.0.0:3011/socket.io?token=${localStorage.getItem('jwt_token')}`);
 
     socket.onopen = () => console.log("✅ Connected to chat server");
     socket.onmessage = (event) => {

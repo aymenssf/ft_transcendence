@@ -169,8 +169,8 @@ interface GameConfig {
             color?: string;
         }
         paddles: {
-            left: { x: number, y: number };
-            right: { x: number, y: number };
+            left: { playerId: string,  x: number, y: number };
+            right: { playerId: string, x: number, y: number };
         }
         ball: {
             radius: number;
@@ -181,6 +181,7 @@ interface GameConfig {
     }
 }
 export function createInitialGameState(gameId: string, mode: GameMode, difficulty = "easy"): GameConfig {
+    const room = games.get(gameId);
     return {
         type: "game_config",
         payload: {
@@ -190,8 +191,8 @@ export function createInitialGameState(gameId: string, mode: GameMode, difficult
             canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, color: "#38D8FD" },
             paddle: { width: PADDLE_WIDTH, height: PADDLE_HEIGHT, color: "#0F28CA" },
             paddles: {
-                left: { x: 15, y: CANVAS_HEIGHT / 2 - 75 },
-                right: { x: 875, y: CANVAS_HEIGHT / 2 - 75 }
+                left: { playerId: room?.p1 ?? "" , x: 15, y: CANVAS_HEIGHT / 2 - 75 },
+                right: { playerId: room?.p2 ?? "", x: 875, y: CANVAS_HEIGHT / 2 - 75 }
             },
             ball: { radius: 10, x: BALL_START.x, y: BALL_START.y, color: "yellow" }
         }

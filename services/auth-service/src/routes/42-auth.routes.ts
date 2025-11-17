@@ -240,6 +240,7 @@ export async function Auth42Routes(fastify: FastifyInstance) {
         status: 'healthy',
         service: '42-oauth',
         config: hasConfig ? 'valid' : 'missing',
+        redirectUri: auth42Service.getRedirectUri(),
         stateStore: stateStats,
         timestamp: new Date().toISOString()
       });

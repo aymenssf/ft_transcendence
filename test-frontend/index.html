@@ -263,6 +263,42 @@
             display: block;
             border: 3px solid #667eea;
         }
+
+        /* Friends UI */
+        .friends-section {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        .friends-flex {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #eaeaea;
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .card h4 { margin-bottom: 10px; color: #333; }
+        .friend-item, .request-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed #eee;
+        }
+        .friend-item:last-child, .request-item:last-child { border-bottom: none; }
+        .friend-info { display: flex; align-items: center; gap: 10px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .dot.online { background: #28a745; }
+        .dot.offline { background: #6c757d; }
+        .small-btn { padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .btn-accept { background: #28a745; color: white; }
+        .btn-decline { background: #dc3545; color: white; }
+        .btn-send { background: #667eea; color: white; }
+        .muted { color: #6c757d; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -370,6 +406,33 @@
                 </form>
             </div>
             <button class="logout-btn" onclick="logout()">Logout</button>
+
+            <!-- Friends management -->
+            <div class="friends-section">
+                <h3 style="margin-bottom:10px;">Friends</h3>
+                <div class="friends-flex">
+                    <div class="card">
+                        <h4>Send Friend Request</h4>
+                        <div class="form-group" style="display:flex; gap:8px; align-items:center;">
+                            <input type="text" id="friend-receiver-username" placeholder="Friend's username" style="flex:1;">
+                            <button class="small-btn btn-send" onclick="sendFriendRequestUI()">Send</button>
+                        </div>
+                        <div class="muted">Tip: enter the recipient's username</div>
+                    </div>
+
+                    <div class="card">
+                        <h4>Incoming Requests</h4>
+                        <div id="incoming-requests"></div>
+                        <div class="muted" id="incoming-requests-empty">No pending requests</div>
+                    </div>
+
+                    <div class="card">
+                        <h4>Your Friends</h4>
+                        <div id="friends-list"></div>
+                        <div class="muted" id="friends-empty">No friends yet</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="loading" class="loading" style="display: none;">
@@ -377,9 +440,12 @@
         </div>
     </div>
 
+    <script src="http://localhost:3011/socket.io/socket.io.js"></script>
     <script>
         // Configuration
         const AUTH_SERVICE_URL = 'http://localhost:3010';
+        const CHAT_SERVICE_URL = 'http://localhost:3011';
+        let socket = null;
         
         // Check service status
         async function checkServiceStatus() {
@@ -571,6 +637,9 @@
                 localStorage.setItem('user_info', JSON.stringify(userFromArgs));
                 displayUserInfo(userFromArgs, token);
                 showSuccess('Successfully logged in!');
+                // Initialize friends data and socket
+                initFriendsUI();
+                setupSocket();
                 return;
             }
             // Decode JWT to get user info (simple base64 decode - NOT SECURE FOR PRODUCTION)
@@ -580,6 +649,8 @@
                 localStorage.setItem('user_info', JSON.stringify(payload));
                 displayUserInfo(payload, token);
                 showSuccess('Successfully logged in!');
+                initFriendsUI();
+                setupSocket();
             } catch (error) {
                 showError('Invalid token received');
             }
@@ -611,6 +682,9 @@
                 avatarImg.src = url;
                 avatarImg.style.display = 'block';
             }
+
+            // Refresh friends panels
+            initFriendsUI();
         }
 
         function checkAuthStatus() {
@@ -649,6 +723,8 @@
             
             showSuccess('Logged out successfully!');
             setTimeout(() => hideMessages(), 3000);
+            // Disconnect socket
+            if (socket) { try { socket.disconnect(); } catch(e){} socket = null; }
         }
 
         function showError(message) {
@@ -670,6 +746,144 @@
 
         function showLoading(show) {
             document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // ============ Friends logic ============
+        async function authFetch(url, options = {}) {
+            const token = localStorage.getItem('jwt_token');
+            const headers = Object.assign({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, options.headers || {});
+            const res = await fetch(url, Object.assign({}, options, { headers }));
+            if (!res.ok) throw new Error((await res.json()).message || `HTTP ${res.status}`);
+            return res.json();
+        }
+
+        async function loadFriends() {
+            try {
+                const data = await authFetch(`${CHAT_SERVICE_URL}/api/friends`);
+                const list = document.getElementById('friends-list');
+                const empty = document.getElementById('friends-empty');
+                list.innerHTML = '';
+                if (!data.friends || data.friends.length === 0) {
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+                data.friends.forEach((f) => {
+                    const div = document.createElement('div');
+                    const status = (f.status === 'online' || f.status === 'in-game') ? 'online' : 'offline';
+                    div.className = 'friend-item';
+                    div.id = `friend-${f.id}`;
+                    div.innerHTML = `
+                        <div class="friend-info">
+                            <span class="dot ${status}" id="friend-dot-${f.id}"></span>
+                            <span><strong>${f.username}</strong> <span class="muted">#${f.id}</span></span>
+                        </div>
+                        <span class="muted" id="friend-status-${f.id}">${f.status || 'offline'}</span>
+                    `;
+                    list.appendChild(div);
+                });
+            } catch (e) {
+                console.error('loadFriends error', e);
+            }
+        }
+
+        async function loadFriendRequests() {
+            try {
+                const data = await authFetch(`${CHAT_SERVICE_URL}/api/friends/requests`);
+                const list = document.getElementById('incoming-requests');
+                const empty = document.getElementById('incoming-requests-empty');
+                list.innerHTML = '';
+                if (!data.requests || data.requests.length === 0) {
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+                data.requests.forEach((r) => {
+                    const div = document.createElement('div');
+                    div.className = 'request-item';
+                    div.id = `req-${r.id}`;
+                    div.innerHTML = `
+                        <div class="friend-info">
+                            <span><strong>${r.sender.username}</strong> <span class="muted">#${r.sender.id}</span></span>
+                        </div>
+                        <div>
+                            <button class="small-btn btn-accept" onclick="respondFriendRequest(${r.id}, true)">Accept</button>
+                            <button class="small-btn btn-decline" onclick="respondFriendRequest(${r.id}, false)">Decline</button>
+                        </div>
+                    `;
+                    list.appendChild(div);
+                });
+            } catch (e) {
+                console.error('loadFriendRequests error', e);
+            }
+        }
+
+        async function sendFriendRequestUI() {
+            const receiverUsername = document.getElementById('friend-receiver-username').value.trim();
+            if (!receiverUsername) { showError('Enter a valid username'); return; }
+            try {
+                await authFetch(`${CHAT_SERVICE_URL}/api/friends/request`, { method: 'POST', body: JSON.stringify({ receiverUsername }) });
+                showSuccess('Friend request sent');
+            } catch (e) {
+                showError('Failed to send request: ' + e.message);
+            }
+        }
+
+        async function respondFriendRequest(requestId, accept) {
+            try {
+                await authFetch(`${CHAT_SERVICE_URL}/api/friends/respond`, { method: 'POST', body: JSON.stringify({ requestId, accept }) });
+                // Update UI
+                const el = document.getElementById(`req-${requestId}`);
+                if (el) el.remove();
+                // reload friends in case accepted
+                loadFriends();
+            } catch (e) {
+                showError('Failed to respond: ' + e.message);
+            }
+        }
+
+        function setupSocket() {
+            const token = localStorage.getItem('jwt_token');
+            if (!token || typeof io === 'undefined') return;
+            try {
+                socket = io(CHAT_SERVICE_URL, { auth: { token } });
+                // Online user count (optional)
+                socket.on('online-users-count', (count) => {
+                    // console.log('online users:', count);
+                });
+                // Global user status change -> update friend if in list
+                const applyStatus = ({ userId, status }) => {
+                    const dot = document.getElementById(`friend-dot-${userId}`);
+                    const label = document.getElementById(`friend-status-${userId}`);
+                    if (dot) {
+                        dot.classList.remove('online', 'offline');
+                        dot.classList.add((status === 'online' || status === 'in-game') ? 'online' : 'offline');
+                    }
+                    if (label) label.textContent = status;
+                };
+                socket.on('user-status-change', applyStatus);
+                socket.on('friend-status-change', applyStatus);
+
+                // Friend request events
+                socket.on('friend-request', (_payload) => {
+                    loadFriendRequests();
+                });
+                socket.on('friend-request-updated', (payload) => {
+                    // If accepted and otherUserId became friend, refresh
+                    if (payload.status === 'accepted') loadFriends();
+                    loadFriendRequests();
+                });
+                socket.on('friend-added', () => loadFriends());
+            } catch (e) {
+                console.warn('Socket connect failed', e);
+            }
+        }
+
+        function initFriendsUI() {
+            const token = localStorage.getItem('jwt_token');
+            if (!token) return;
+            loadFriends();
+            loadFriendRequests();
         }
     </script>
 </body>

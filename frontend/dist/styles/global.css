@@ -1,0 +1,422 @@
+/* styles/global.css */
+
+body {
+  background-color: #000; /* solid black background */
+  color: rgb(255, 255, 255);
+}
+
+/* Add this to your global.css file */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+#app-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.flex-grow {
+  flex-grow: 1;
+}
+
+/* Green shadow hover effect for cards */
+.card-hover-green {
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.card-hover-green:hover {
+  box-shadow: 0 10px 30px rgba(16, 185, 129, 0.4),
+              0 6px 20px rgba(16, 185, 129, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Glowing green animated background */
+.bg-animated {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(16,185,129,0.15), transparent 40%),
+              radial-gradient(circle at 80% 40%, rgba(16,185,129,0.10), transparent 40%),
+              radial-gradient(circle at 50% 80%, rgba(16,185,129,0.20), transparent 50%);
+  background-color: #000;
+  animation: moveGlow 20s ease-in-out infinite alternate;
+  z-index: -1;
+  padding-top: 80px;
+}
+
+@keyframes moveGlow {
+  0% { background-position: 20% 20%, 80% 40%, 50% 80%; }
+  100% { background-position: 25% 25%, 75% 45%, 55% 75%; }
+}
+
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 1000;
+  background: rgba(7, 75, 52, 0.15);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 1rem 2rem;
+}
+
+/* ========== RESPONSIVE ADJUSTMENTS ========== */
+@media (max-width: 1024px) {
+  nav {
+    padding: 1rem 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  nav {
+    padding: 0.8rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  nav {
+    padding: 0.6rem 0.8rem;
+  }
+}
+
+/* global.css or home.css */
+
+.cards-container {
+  @apply max-w-7xl mx-auto px-6 py-12 grid gap-6 md:grid-cols-3;
+}
+
+.card {
+  @apply bg-greenDark/80 text-white rounded-lg p-6 shadow-lg flex flex-col items-center text-center transition transform hover:scale-105 hover:bg-greenDark;
+}
+
+.card h3 {
+  @apply text-xl font-bold mb-2;
+}
+
+.card p {
+  @apply text-gray-200;
+}
+
+/* styles/global.css */
+.login-icon {
+  @apply inline-flex items-center justify-center p-2 rounded-full transition
+         hover:scale-110 hover:bg-greenLight/20;
+}
+
+.login-img {
+  @apply w-8 h-8 transition;
+}
+
+/* Optional: glow effect */
+.login-icon:hover .login-img {
+  filter: drop-shadow(0 0 6px #10b981);
+}
+
+/* ========== HOME PAGE DASHBOARD STYLE ========== */
+
+.home-dashboard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 1rem;
+  padding: 5rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+.intro-section {
+  max-width: 800px;
+  margin: 0 auto 5rem auto;
+  text-align: center;
+  padding: 0 1rem;
+}
+
+.home-title {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.highlight {
+  color: #10b981;
+}
+
+.home-subtitle {
+  color: #d1d5db;
+  margin-bottom: 2rem;
+  font-size: clamp(1rem, 2vw, 1.1rem);
+  text-align: center;
+}
+
+.home-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn-primary {
+  background-color: #10b981;
+  color: #000;
+  padding: 0.8rem 1.8rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: #064e3b;
+  color: white;
+}
+
+.btn-secondary {
+  background-color: #1f2937;
+  color: #e5e7eb;
+  padding: 0.8rem 1.8rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #374151;
+  color: #fff;
+}
+
+/* ========== FEATURE CARDS ========== */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 2rem;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.feature-card {
+  background-color: rgba(6, 78, 59, 0.7);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2rem;
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.feature-card h3 {
+  font-size: clamp(1.2rem, 3vw, 1.5rem);
+  color: #10b981;
+  margin-bottom: 0.8rem;
+  text-align: center;
+}
+
+.feature-card p {
+  color: #d1d5db;
+  font-size: clamp(0.9rem, 2vw, 1rem);
+  text-align: center;
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 1rem auto;
+  display: block;
+  opacity: 0.9;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.feature-card:hover .card-icon {
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+/* ========== RESPONSIVE ADJUSTMENTS ========== */
+@media (max-width: 768px) {
+  .home-dashboard {
+    padding: 1.5rem 1rem;
+  }
+
+  .intro-section {
+    margin-bottom: 3rem;
+  }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-dashboard {
+    padding: 1rem 0.5rem;
+  }
+
+  .feature-card {
+    padding: 1.5rem;
+  }
+
+  .home-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    max-width: 250px;
+  }
+}
+
+/* Login Page Styles */
+
+/* Navbar Base */
+.pong-navbar {
+  background: rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Container */
+.navbar-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .navbar-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .navbar-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Navbar Content */
+.navbar-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 4rem;
+}
+
+/* Logo Section */
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.logo-img {
+  width: 2rem;
+  height: 2rem;
+  transition: transform 0.2s ease;
+}
+
+.logo-section:hover .logo-img {
+  transform: scale(1.1);
+}
+
+.logo-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #34d399;
+  transition: color 0.2s ease;
+}
+
+.logo-section:hover .logo-text {
+  color: #6ee7b7;
+}
+
+/* Navigation Links */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Login Link */
+.login-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  color: #d1d5db;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.login-link:hover {
+  color: #34d399;
+}
+
+.login-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.login-link:hover .login-icon {
+  opacity: 1;
+}
+
+.login-text {
+  font-weight: 500;
+}
+
+/* Register Button */
+.register-btn {
+  padding: 0.5rem 1.5rem;
+  background: #10b981;
+  color: white;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.2);
+}
+
+.register-btn:hover {
+  background: #059669;
+  box-shadow: 0 10px 35px -5px rgba(16, 185, 129, 0.4);
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .nav-links {
+    gap: 0.5rem;
+  }
+
+  .login-text {
+    display: none;
+  }
+
+  .register-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+}

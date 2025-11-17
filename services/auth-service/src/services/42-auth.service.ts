@@ -37,10 +37,15 @@ export class Auth42Service {
   {
     this.clientId = process.env['FORTYTWO_UID'] as string;
     this.clientSecret = process.env['FORTYTWO_SECRET'] as string;
-    this.redirectUri = `${process.env.AUTH_SERVICE_URL}auth/42/callback`;
+    const baseUrl = process.env['AUTH_SERVICE_URL'];
 
     if (!this.clientId || !this.clientSecret) 
       throw new Error('42 OAuth credentials not found in environment variables');
+    if (!baseUrl)
+      throw new Error('AUTH_SERVICE_URL not found in environment variables');
+
+    // Ensure we have exactly one slash between base URL and path
+    this.redirectUri = `${baseUrl.replace(/\/+$/, '')}/auth/42/callback`;
 
     setInterval(() => this.cleanupExpiredStates(), 10 * 60 * 1000);
   }
@@ -203,6 +208,10 @@ export class Auth42Service {
     return {
       total: this.stateStore.size,
       expired };
+  }
+
+  getRedirectUri(): string {
+    return this.redirectUri;
   }
 }
 

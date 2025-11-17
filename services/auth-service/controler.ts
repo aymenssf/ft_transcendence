@@ -156,7 +156,96 @@ export function registerControllers(app: FastifyInstance)
     }
   });
 
-  // Update current authenticated user (depends on user_update.ts logic)
+  // GET /me - Get current authenticated user profile
+  app.get("/me", async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      // Verify JWT token
+      const decoded = await request.jwtVerify() as any;
+      
+      // Fetch user from database
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          avatar: true,
+          usernameTournament: true,
+          created_at: true,
+          is_42_user: true
+          // Don't include password!
+        }
+      });
+
+      if (!user) 
+        return reply.status(404).send({ error: 'User not found' });
+
+      // Ensure avatar has a value
+      const avatarValue = (typeof user.avatar === 'string' && user.avatar.trim() !== '')
+        ? user.avatar
+        : DEFAULT_AVATAR_REL;
+
+      return reply.send({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        avatar: avatarValue,
+        usernameTournament: user.usernameTournament,
+        created_at: user.created_at,
+        is_42_user: user.is_42_user
+      });
+    } catch (err: any) {
+      if (err.name === 'UnauthorizedError' || err.message?.includes('token')) {
+        return reply.status(401).send({ error: 'Unauthorized - Invalid or expired token' });
+      }
+      request.log.error({ err }, 'Get user profile error');
+      return reply.status(500).send({ error: 'Failed to fetch user profile' });
+    }
+  });
+
+  // GET /user/:id - Get public user profile by ID (no authentication required)
+  app.get("/user/:id", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    try {
+      const userId = parseInt(request.params.id, 10);
+      
+      // Validate ID
+      if (isNaN(userId) || userId <= 0) 
+        return reply.status(400).send({ error: 'Invalid user ID' });
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          username: true,
+          avatar: true,
+          usernameTournament: true,
+          created_at: true,
+          is_42_user: true
+        }
+      });
+
+      if (!user) 
+        return reply.status(404).send({ error: 'User not found' });
+
+      // Ensure avatar has a value
+      const avatarValue = (typeof user.avatar === 'string' && user.avatar.trim() !== '')
+        ? user.avatar
+        : DEFAULT_AVATAR_REL;
+
+      return reply.send({
+        id: user.id,
+        username: user.username,
+        avatar: avatarValue,
+        usernameTournament: user.usernameTournament,
+        created_at: user.created_at,
+        is_42_user: user.is_42_user
+      });
+    } catch (err: any) {
+      request.log.error({ err }, 'Get user by ID error');
+      return reply.status(500).send({ error: 'Failed to fetch user profile' });
+    }
+  });
+
   app.put("/user/update", async (request: FastifyRequest<{ Body: UpdateUserBody }>, reply: FastifyReply) => {
     try {
       await (request as any).jwtVerify();

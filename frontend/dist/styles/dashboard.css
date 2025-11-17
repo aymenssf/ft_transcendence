@@ -1,0 +1,625 @@
+/* sidebar.css - Dedicated styles for dashboard sidebar navigation
+   Include this file after your main CSS/Tailwind for dashboard pages.
+*/
+
+:root {
+  --green-light: #10b981;
+  --green-dark: #064e3b;
+  --sidebar-bg: rgba(31, 41, 55, 0.95);
+  --sidebar-border: rgba(55, 65, 81, 0.6);
+  --card-bg: rgba(55, 65, 81, 0.4);
+  --card-border: rgba(75, 85, 99, 0.4);
+  --hover-bg: rgba(16, 185, 129, 0.15);
+  --hover-border: rgba(16, 185, 129, 0.4);
+}
+
+/* Main dashboard wrapper */
+.dashboard-wrapper {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  justify-content: center; /* horizontal centering */
+  align-items: center;     /* vertical centering */
+  padding: clamp(1rem, 3vw, 2rem);
+  box-sizing: border-box;
+  background: transparent;
+}
+
+/* Sidebar brand */
+.sidebar-brand {
+  position: fixed;
+  top: 2%;
+  left: max(10px, 2vw); /* FIX: Better zoom handling */
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 60;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  max-width: min(300px, 25vw); /* FIX: Prevent overflow on zoom */
+}
+
+.sidebar-username {
+  position: fixed;
+  top: 1.2rem;
+  right: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(30, 41, 59, 0.6);
+  color: white;
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  backdrop-filter: blur(10px);
+  z-index: 100; /* ensure it stays on top */
+}
+
+.logout-btn {
+  background: #ef4444;
+  border: none;
+  color: white;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.logout-btn:hover {
+  background: #dc2626;
+}
+
+
+.sidebar-brand:hover {
+  background: rgba(55, 65, 81, 0.8);
+  border-color: var(--hover-border);
+}
+
+.sidebar-brand img {
+  width: 32px;
+  height: 32px;
+  border-radius: 0.5rem;
+}
+
+.sidebar-brand h2 {
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+
+/* Sidebar card */
+.sidebar-card {
+  width: min(250px, 20vw);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(10px);
+  padding: min(1.5rem, 3vw);
+  position: fixed;
+  left: max(10px, 1.5vw);
+  top: 60%;
+  transform: translateY(-50%) translateX(0); /* Sidebar stays visible */
+  z-index: 50;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+  height: 80vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* When sidebar is OPEN, prevent body scroll */
+body.sidebar-open {
+  overflow: hidden;
+}
+
+/* When sidebar is CLOSED, allow body scroll */
+body:not(.sidebar-open) {
+  overflow: auto;
+}
+
+.sidebar-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-card::-webkit-scrollbar-track {
+  background: rgba(55, 65, 81, 0.3);
+  border-radius: 3px;
+}
+
+.sidebar-card::-webkit-scrollbar-thumb {
+  background: var(--green-light);
+  border-radius: 3px;
+}
+
+.sidebar-card::-webkit-scrollbar-thumb:hover {
+  background: var(--green-dark);
+}
+
+/* Sidebar navigation */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1; /* Take all available space */
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  min-height: 0;
+  height: 50%;
+  overflow-y: auto;
+}
+
+/* Navigation links */
+.nav-links {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  color: #e2e8f0;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  background: rgba(55, 65, 81, 0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.nav-links img {
+  height: 1.5rem; /* 24px */
+  width: 1.5rem;
+  object-fit: contain;
+}
+
+.nav-links:hover {
+  background: var(--hover-bg);
+  color: var(--green-light);
+  border-color: var(--hover-border);
+}
+
+.nav-links.active {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--green-light);
+  font-weight: 600;
+  border-color: var(--hover-border);
+}
+
+/* Main content area */
+.dashboard-content {
+  max-width: 100%;
+  width: 100%;
+  margin-left: min(300px, 23vw);
+  max-height: 100%;
+  overflow-y: auto; /* scroll only if content overflows vertically */
+}
+
+/* Dashboard content styles */
+.content-card {
+  background: rgba(55, 65, 81, 0.3);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  backdrop-filter: blur(8px);
+}
+
+.content-card h2 {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.content-card p {
+  color: #d1d5db;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  background: rgba(55, 65, 81, 0.3);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.stat-card h3 {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  color: white;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+/* User dropdown menu */
+.user-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  transition: background 0.2s ease;
+}
+
+.user-info:hover {
+  background: rgba(55, 65, 81, 0.3);
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--green-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.user-details h3 {
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.user-details p {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.user-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  min-width: 150px;
+  backdrop-filter: blur(10px);
+  z-index: 100;
+  margin-top: 0.5rem;
+}
+
+.user-dropdown.show {
+  display: block;
+}
+
+.user-dropdown button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  color: #fca5a5;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.user-dropdown button:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fecaca;
+}
+
+/* Dashboard header */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+/* login page */
+
+.login-section {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  color: white;
+  padding-top: 6rem;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 26rem; /* a bit narrower for focus */
+  backdrop-filter: blur(12px);
+  border: 1px solid #374151; /* gray-700 */
+  border-radius: 1rem;
+  padding: 2.5rem;
+  box-shadow: 0 20px 30px rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+
+.login-card h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.login-card p {
+  color: #d1d5db; /* gray-300 */
+  margin-bottom: 1.5rem;
+}
+
+/* Add consistent spacing between all form elements */
+.login-card form > *:not(:last-child) {
+  margin-bottom: 1rem;
+}
+
+/* Inputs */
+.input-field {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(55, 65, 81, 0.6);
+  border: 1px solid #4b5563; /* gray-600 */
+  color: white;
+  transition: all 0.2s ease-in-out;
+  font-size: 1rem;
+}
+
+.input-field::placeholder {
+  color: #9ca3af; /* gray-400 */
+}
+
+.input-field:hover {
+  border-color: #6b7280; /* gray-500 */
+  background: rgba(55, 65, 81, 0.8);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #10b981; /* greenLight */
+  box-shadow: 0 0 0 2px #10b981;
+  background: rgba(31, 41, 55, 0.85);
+}
+
+/* Sign In button — slightly smaller and perfectly aligned */
+.submit-btn {
+  width: 40%;
+  padding: 0.65rem 0; /* slightly smaller height */
+  background: #10b981;
+  color: black;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.submit-btn:hover {
+  background: #064e3b;
+  color: white;
+}
+
+/* “Create One” link button */
+.link-btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border: 1px solid #10b981;
+  color: #10b981;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.link-btn:hover {
+  background: #10b981;
+  color: black;
+}
+
+/* Back button below the card */
+.back-btn {
+  display: inline-block;
+  margin-top: 1.25rem;
+  color: #9ca3af;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+}
+
+.back-btn:hover {
+  color: #10b981;
+}
+
+/* register page */
+
+.register-section {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column; /* allow card + button stacking */
+  justify-content: flex-start;
+  align-items: center; /* center horizontally */
+  color: white;
+  padding-top: 6rem; /* push the card down */
+}
+
+.register-card {
+  width: 100%;
+  max-width: 26rem;
+  backdrop-filter: blur(12px);
+  border: 1px solid #374151; /* gray-700 */
+  border-radius: 1rem;
+  padding: 2.5rem;
+  box-shadow: 0 20px 30px rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+
+.register-card h1 {
+  font-family: 'Merriweather', serif;
+  font-size: 1.875rem; /* 3xl */
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.register-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* space between inputs */
+}
+
+.register-card input {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #4b5563; /* gray-600 */
+  background-color: rgba(55, 65, 81, 0.6);
+  color: white;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.register-card input:focus {
+  border-color: #10b981; /* greenLight */
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.5);
+  background-color: rgba(31, 41, 55, 0.8);
+}
+
+.register-card button {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background-color: #10b981; /* greenLight */
+  color: black;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.register-card button:hover {
+  background-color: #064e3b; /* greenDark */
+  color: white;
+}
+
+.register-card p {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.register-card a {
+  /* color: #10b981; */
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease-in-out;
+}
+
+.register-card a:hover {
+  color: #064e3b;
+}
+
+/* Back to home button */
+.back-home-btn {
+  margin-top: 2rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #10b981;
+  background-color: transparent;
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.back-home-btn:hover {
+  background-color: #10b981;
+  color: black;
+}
+
+/* game page */
+
+.mode-card {
+  background: rgba(31, 41, 55, 0.7);
+  backdrop-filter: blur(12px);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  text-align: center;
+  color: #ffffff;
+  border: 1px solid #1f2937;
+  transition: all 0.3s ease-in-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.mode-card:hover {
+  transform: translateY(-6px);
+  border-color: #10b981;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
+}
+
+.mode-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 1rem;
+  opacity: 0.9;
+  transition: transform 0.3s ease-in-out;
+}
+
+.mode-card:hover .mode-icon {
+  transform: scale(1.1);
+}
+
+.mode-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #10b981;
+  margin-bottom: 0.5rem;
+}
+
+.mode-desc {
+  color: #d1d5db;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+/* Matches your .back-home-btn style */
+.mode-btn {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #10b981;
+  background-color: transparent;
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+  display: inline-block;
+}
+
+.mode-btn:hover {
+  background-color: #10b981;
+  color: #111827;
+  transform: scale(1.05);
+}

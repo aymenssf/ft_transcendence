@@ -57,7 +57,6 @@ class AppRouter {
                 await this.checkAuth();
             }
             catch (e) {
-                // ignore
             }
             const initialPath = window.location.pathname || "/";
             await this.navigateTo(initialPath, false);
@@ -86,7 +85,6 @@ class AppRouter {
             this.setLoggedIn(true);
             initgameSocket();
             //  initchatSocket();
-            // Populate local user object from backend response
             const respUser = data.user ?? data;
             if (respUser && typeof respUser === "object") {
                 this.user = {
@@ -98,11 +96,9 @@ class AppRouter {
                     id: Number(respUser.id ?? 0),
                 };
                 this.currentUser = (respUser.username ?? this.user.username);
-                // Fix default avatar
                 if (this.user.avatar === "avatar/default_avatar/default_avatar.jpg") {
-                    this.user.avatar = "../images/avatre/1.jpg";
+                    this.user.avatar = "../images/avatrs/1.jpg";
                 }
-                // NEW: Store user data in localStorage for persistence
                 localStorage.setItem('user_data', JSON.stringify(this.user));
             }
             console.log(`User avatar: ${this.user.avatar}`);
@@ -134,7 +130,6 @@ class AppRouter {
                 return;
             }
             const userData = await response.json();
-            // Update user object with backend data
             if (userData) {
                 this.user = {
                     username: userData.username || this.currentUser || '',
@@ -144,7 +139,6 @@ class AppRouter {
                     usernametournament: userData.usernametournament ?? name,
                     id: userData.id || 0
                 };
-                // Fix default avatar path
                 if (this.user.avatar === 'avatar/default_avatar/default_avatar.jpg') {
                     this.user.avatar = '../images/avatars/1.jpg';
                 }
@@ -155,7 +149,6 @@ class AppRouter {
             console.error('Error fetching user details:', error);
         }
     }
-    // Update checkAuth to load from localStorage
     async checkAuth() {
         try {
             const token = localStorage.getItem('jwt_token');
@@ -166,15 +159,13 @@ class AppRouter {
             const payload = this.decodeJWT(token);
             if (!payload || this.isTokenExpired(payload)) {
                 localStorage.removeItem('jwt_token');
-                localStorage.removeItem('user_data'); // Clean up user data too
+                localStorage.removeItem('user_data');
                 this.setLoggedIn(false);
                 return;
             }
             this.currentUser = payload.username || null;
             this.setLoggedIn(true);
             initgameSocket();
-            // initchatSocket();
-            // NEW: Load user data from localStorage
             const storedUserData = localStorage.getItem('user_data');
             if (storedUserData) {
                 try {
@@ -186,7 +177,6 @@ class AppRouter {
                 }
             }
             else if (payload.userId) {
-                // Fallback: fetch from backend if not in localStorage
                 await this.fetchUserDetails(payload.userId);
             }
         }
@@ -197,14 +187,12 @@ class AppRouter {
             this.setLoggedIn(false);
         }
     }
-    // Update logout to clear user data
     async performLogout() {
         localStorage.removeItem('jwt_token');
-        localStorage.removeItem('user_data'); // NEW: Clear user data
+        localStorage.removeItem('user_data');
         console.log("logout");
         this.setLoggedIn(false);
         this.currentUser = null;
-        // Reset user object
         this.user = { username: "", passworde: "", email: "", avatar: "../images/avatars/1.jpg", usernametournament: "", id: 0 };
         this.navigateTo('home');
     }
@@ -231,7 +219,6 @@ class AppRouter {
     async navigateTo(path, pushState = true) {
         let normalizedPath = path.replace(/^\/|\/$/g, "");
         console.log(this.isLoggedIn);
-        // Handle root path "/" - redirect to home or dashboard based on login status
         if (normalizedPath === "") {
             if (!this.isLoggedIn) {
                 console.warn(`⚠️ Not logged in, redirecting to home.`);
@@ -250,7 +237,6 @@ class AppRouter {
                 return;
             }
         }
-        // Check if the path exists in the list of all available pages
         if (!this.allpages.includes(`${normalizedPath}`)) {
             console.warn(`⚠️ Page not found: ${path}`);
             this.currentPage = "404";
@@ -258,7 +244,6 @@ class AppRouter {
             return;
         }
         const isPublic = this.publicPages.includes(`/${normalizedPath}`);
-        // Check for protected pages and handle login if necessary
         console.log(`page: ${normalizedPath} is logdin : ${this.isLoggedIn}`);
         if (this.protectedPages.includes(`${normalizedPath}`) && !this.isLoggedIn) {
             await this.checkAuth();
@@ -312,7 +297,6 @@ class AppRouter {
             "dashboard/settings",
         ];
         const isDashboardPage = dashboardPages.includes(page);
-        // If switching between dashboard and non-dashboard layout, render full page
         if (isDashboardPage && !this.contentContainer) {
             this.renderDashboardLayout();
         }
@@ -320,10 +304,8 @@ class AppRouter {
             this.contentContainer = null;
             this.container.innerHTML = pageData.content;
         }
-        // Update only the content area if we have a content container
         if (this.contentContainer) {
             this.contentContainer.innerHTML = pageData.content;
-            // this.updateSidebarActive(page);
         }
         else {
             this.container.innerHTML = pageData.content;
@@ -331,7 +313,6 @@ class AppRouter {
         if (pageData.init) {
             pageData.init();
         }
-        // Wire logout button
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async (e) => {
@@ -339,7 +320,6 @@ class AppRouter {
                 await this.performLogout();
             });
         }
-        // Setup sidebar toggle for mobile
         const sidebarToggle = document.getElementById('sidebar-toggle');
         const sidebar = document.getElementById('dashboard-sidebar');
         const overlay = document.getElementById('sidebar-overlay');
@@ -1027,12 +1007,10 @@ class AppRouter {
         };
     }
     async updateUserProfile(updates) {
-        // Ensure updates carry an id (fallback to current user id)
         const u = updates;
         if ((!u.id || u.id === 0) && this.user && this.user.id) {
             u.id = this.user.id;
         }
-        // If there's no JWT but we have stored credentials, try to re-login to obtain a token
         const existingToken = localStorage.getItem('jwt_token');
         const usernameForLogin = (u.name || u.username || this.currentUser || this.user.username);
         const passwordForLogin = (this.user && this.user.passworde) ? this.user.passworde : undefined;
@@ -1043,7 +1021,6 @@ class AppRouter {
             }
             catch (err) {
                 console.warn('Re-login attempt failed', err);
-                // proceed; the request below will fail if there's truly no token
             }
         }
         try {
@@ -1066,21 +1043,17 @@ class AppRouter {
                 return false;
             }
             const data = await response.json();
-            // ✅ Store new token if backend sends it
             console.log("try to JWT updated");
             if (data.token) {
                 localStorage.setItem('jwt_token', data.token);
             }
-            // ✅ Update user info in localStorage
             if (data.user) {
                 localStorage.setItem('user_data', JSON.stringify(data.user));
-                // Update the current app state
                 this.user = data.user;
                 console.log(`updated user: `, this.user);
                 this.currentUser = data.user.username;
                 alert('Profile updated successfully!');
             }
-            // ✅ Optionally refresh view to show changes
             await this.navigateTo(this.currentPage, false);
             return true;
         }
@@ -1090,7 +1063,6 @@ class AppRouter {
             return false;
         }
     }
-    // Updated Settings Page with functional form
     getSettingsPage() {
         return {
             title: "PONG Game - Settings",

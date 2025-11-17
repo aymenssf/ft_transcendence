@@ -133,7 +133,7 @@ private async performLogin(username: string, password: string): Promise<boolean>
       this.currentUser = (respUser.username ?? this.user.username) as string;
 
       if (this.user.avatar === "avatar/default_avatar/default_avatar.jpg") {
-        this.user.avatar = "../images/avatre/1.jpg";
+        this.user.avatar = "../images/avatrs/1.jpg";
       }
 
       localStorage.setItem('user_data', JSON.stringify(this.user));
@@ -553,8 +553,8 @@ private renderDashboardLayout(): void {
         return this.getaipage();
       case "dashboard/game/local":
         return this.getlocalpage();
-      // case "dashboard/game/Tournament":
-      //   return this.gettournamentpage();
+      case "dashboard/game/Tournament":
+        return this.gettournamentpage();
       case "dashboard/game/remote":
         return this.getremotepage();
       default:
@@ -622,6 +622,162 @@ private getHomePage(): Page {
       </section>
     `,
     init: () => console.log("🏠 Home page loaded"),
+  };
+}
+
+private gettournamentpage(): Page {
+  return {
+    title: "PONG Game - Tournament",
+    content: `
+      <div class="tournament-container" style="margin-top:5rem;">
+        <!-- Header -->
+        <div class="game-header">
+          <a href="/dashboard/game" id="back-button-tournament" class="back-button nav-link">← Back</a>
+          <h2 style="display:inline-block; margin-left:1rem;">🏆 Tournament Mode</h2>
+        </div>
+
+        <!-- Tournament Lobby (Initial State) -->
+        <div id="tournament-lobby" style="margin-top:2rem;">
+          <div style="text-align:center; max-width:600px; margin:0 auto;">
+            <h3 style="color:#fbbf24; font-size:1.5rem; margin-bottom:1rem;">Join Tournament</h3>
+            <p style="color:#9ca3af; margin-bottom:2rem;">
+              Enter a tournament to compete against multiple players!<br>
+              Win all matches to become the champion.
+            </p>
+
+            <!-- Tournament Name Input -->
+            <div style="margin-bottom:1.5rem;">
+              <label style="display:block; color:#e5e7eb; margin-bottom:0.5rem; font-weight:600;">Your Tournament Name</label>
+              <input
+                id="tournament-name-input"
+                type="text"
+                placeholder="Enter your display name"
+                value="${this.user.usernametournament || this.currentUser || 'Player'}"
+                style="width:100%; padding:0.75rem; border-radius:0.5rem; border:2px solid #3b82f6; background:#1f2937; color:#e5e7eb; font-size:1rem;"
+              />
+            </div>
+
+            <!-- Join Tournament Button -->
+            <button
+              id="join-tournament-btn"
+              class="btn-primary"
+              style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
+              🏆 Join Tournament
+            </button>
+          </div>
+        </div>
+
+        <!-- Waiting Room (Hidden initially) -->
+        <div id="tournament-waiting" style="display:none; margin-top:2rem;">
+          <div style="text-align:center; max-width:800px; margin:0 auto;">
+            <h3 style="color:#10b981; font-size:1.5rem; margin-bottom:1rem;">
+              ⏳ Waiting for Players...
+            </h3>
+            <p style="color:#9ca3af; margin-bottom:1rem;">
+              Tournament starts when all players are ready
+            </p>
+
+            <!-- Player Count -->
+            <div style="margin-bottom:2rem; font-size:1.2rem; color:#fbbf24;">
+              <span id="player-count">1</span> / 4 Players Joined
+            </div>
+
+            <!-- Registered Players List -->
+            <div style="background:#1f2937; border-radius:0.75rem; padding:1.5rem;">
+              <h4 style="color:#e5e7eb; margin-bottom:1rem;">Registered Players</h4>
+              <div id="players-list" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:1rem;">
+                <!-- Players will be added here dynamically -->
+              </div>
+            </div>
+
+            <!-- Leave Button -->
+            <button
+              id="leave-tournament-btn"
+              style="margin-top:1.5rem; padding:0.75rem 2rem; background:#ef4444; color:white; border:none; border-radius:0.5rem; cursor:pointer; font-weight:600;">
+              ❌ Leave Tournament
+            </button>
+          </div>
+        </div>
+
+        <!-- Tournament Bracket (Hidden initially) -->
+        <div id="tournament-bracket" style="display:none; margin-top:2rem;">
+          <div style="text-align:center; margin-bottom:2rem;">
+            <h3 style="color:#fbbf24; font-size:1.5rem; margin-bottom:0.5rem;">Tournament Bracket</h3>
+            <p style="color:#9ca3af;">Current Round: <span id="current-round" style="color:#10b981; font-weight:600;">Semi-Finals</span></p>
+          </div>
+
+          <!-- Bracket Display -->
+          <div id="bracket-display" style="max-width:1000px; margin:0 auto;">
+            <!-- Bracket will be generated here -->
+          </div>
+        </div>
+
+        <!-- Game Canvas (Hidden initially) -->
+        <div id="tournament-game" style="display:none; margin-top:2rem;">
+          <div style="text-align:center; margin-bottom:1rem;">
+            <h3 style="color:#fbbf24; font-size:1.3rem;">
+              <span id="match-players">Player 1 vs Player 2</span>
+            </h3>
+            <p style="color:#9ca3af;">Round: <span id="match-round">Semi-Final</span></p>
+          </div>
+
+          <!-- Score Display -->
+          <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
+            <div>Score: <span id="tournament-score" style="color:#fbbf24;">0 - 0</span></div>
+          </div>
+
+          <!-- Canvas Container -->
+          <div style="display:flex; justify-content:center;">
+            <div id="game-container"></div>
+          </div>
+
+          <!-- Controls Info -->
+          <div style="text-align:center; margin-top:1rem; color:#9ca3af;">
+            Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> /
+            <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
+          </div>
+        </div>
+
+        <!-- Tournament Results (Hidden initially) -->
+        <div id="tournament-results" style="display:none; margin-top:2rem;">
+          <div style="text-align:center; max-width:600px; margin:0 auto;">
+            <div style="font-size:80px; margin-bottom:1rem;">🏆</div>
+            <h3 style="color:#fbbf24; font-size:2rem; margin-bottom:1rem;">Tournament Complete!</h3>
+            <div id="tournament-winner" style="font-size:1.5rem; color:#10b981; margin-bottom:2rem;">
+              <!-- Winner name will be shown here -->
+            </div>
+
+            <!-- Final Standings -->
+            <div style="background:#1f2937; border-radius:0.75rem; padding:1.5rem; margin-bottom:2rem;">
+              <h4 style="color:#e5e7eb; margin-bottom:1rem;">Final Standings</h4>
+              <div id="final-standings">
+                <!-- Rankings will be shown here -->
+              </div>
+            </div>
+
+            <button
+              id="back-to-games-btn"
+              class="btn-primary"
+              style="padding:1rem 2.5rem; font-size:1.1rem;">
+              🎮 Back to Games
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        kbd {
+          font-family: monospace;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .disabled-link {
+          pointer-events: none;
+          opacity: 0.5;
+        }
+      </style>
+    `,
+    init: () => {
+    }
   };
 }
 
@@ -745,7 +901,11 @@ private getremotepage(): Page {
     init: () => {
       console.log("🌐 Remote game page loaded");
       cleanupGame(this.user.id, false);
-
+    //   const res = fetch("/api/auth/me", {
+    //   method: "POST",
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify({ username, password }),
+    // });
       setupNavigationHandlers(
         this.user.id,
         "back-button-remote",

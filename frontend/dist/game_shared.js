@@ -334,6 +334,7 @@ function handleGameConfig(msg, userId, startButtonId, isAI = false, isRemote = f
     };
     gameid = msg.payload.gameId;
     console.log(`🎮 Game ID: ${msg.payload.gameId}${isAI ? ' (AI Mode)' : isRemote ? ' (Remote Mode)' : ''}`);
+    // Create canvas (with duplicate check)
     const container = document.getElementById("game-container");
     let canvas = document.getElementById("game-id");
     if (!canvas) {
@@ -348,33 +349,50 @@ function handleGameConfig(msg, userId, startButtonId, isAI = false, isRemote = f
     if (ctx) {
         console.log("🎮 Starting game canvas");
         const startBtn = document.getElementById(startButtonId);
-        if (startBtn)
-            startBtn.innerHTML = "";
-        startCanvasCountdown(ctx, canvas).then(() => {
-            if (ctx)
-                game_start(gameConfig, gameState, ctx);
-            setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
-        });
-        setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+        if (startBtn) {
+            const newBtn = startBtn.cloneNode(true);
+            startBtn.parentNode?.replaceChild(newBtn, startBtn);
+            newBtn.innerHTML = "✅ Ready - Click to Start!";
+            newBtn.disabled = false;
+            newBtn.style.background = "#10b981";
+            newBtn.style.cursor = "pointer";
+            const readyHandler = () => {
+                console.log("🚀 Ready button clicked!");
+                sendMessage("player_ready", { gameId: gameid, playerId: userId.toString() });
+                setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+                newBtn.innerHTML = "🎮 Playing...";
+                newBtn.disabled = true;
+                newBtn.style.opacity = "0.5";
+                console.log("⌨️ Game controls active - Use W/S keys");
+            };
+            newBtn.addEventListener('click', readyHandler);
+            addCleanupListener(() => {
+                newBtn.removeEventListener('click', readyHandler);
+            });
+        }
+        console.log("💡 Canvas ready! Click the button to start!");
     }
 }
-function startCanvasCountdown(ctx, canvas) {
-    return new Promise((resolve) => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "white";
-        ctx.font = "bold 80px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("READY", canvas.width / 2, canvas.height / 2);
-        setTimeout(() => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
-            setTimeout(() => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                resolve();
-            }, 2000);
-        }, 1000);
-    });
-}
+// function startCanvasCountdown(
+//   ctx: CanvasRenderingContext2D,
+//   canvas: HTMLCanvasElement
+// ): Promise<void> {
+//   return new Promise((resolve) => {
+//     ctx.clearRect(0, 0, canvas.width, canvas.height);
+//     ctx.fillStyle = "white";
+//     ctx.font = "bold 80px Arial";
+//     ctx.textAlign = "center";
+//     ctx.fillText("READY", canvas.width / 2, canvas.height / 2);
+//     setTimeout(() => {
+//       ctx.clearRect(0, 0, canvas.width, canvas.height);
+//       ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
+//       setTimeout(() => {
+//         ctx.clearRect(0, 0, canvas.width, canvas.height);
+//         resolve();
+//       }, 2000);
+//     }, 1000);
+//   });
+// }
 export function createLocalGameListener(userId) {
     return (msg) => {
         if (!msg)

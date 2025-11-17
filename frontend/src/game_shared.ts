@@ -369,7 +369,6 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
   gameid = msg.payload.gameId;
   console.log(`🎮 Game ID: ${msg.payload.gameId}${isAI ? ' (AI Mode)' : isRemote ? ' (Remote Mode)' : ''}`);
 
-  // Create canvas (with duplicate check)
   const container = document.getElementById("game-container")!;
   let canvas = document.getElementById("game-id") as HTMLCanvasElement;
 
@@ -385,34 +384,31 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
   ctx = canvas.getContext("2d");
   if (ctx) {
     console.log("🎮 Starting game canvas");
-    const startBtn = document.getElementById(startButtonId);
-    if (startBtn) startBtn.innerHTML = "";
 
-    game_start(gameConfig, gameState, ctx);
+    const startBtn = document.getElementById(startButtonId) as HTMLButtonElement;
+    if (startBtn) {
+      const newBtn = startBtn.cloneNode(true) as HTMLButtonElement;
+      startBtn.parentNode?.replaceChild(newBtn, startBtn);
+      newBtn.innerHTML = "✅ Ready - Click to Start!";
+      newBtn.disabled = false;
+      newBtn.style.background = "#10b981";
+      newBtn.style.cursor = "pointer";
+      const readyHandler = () => {
+      console.log("🚀 Ready button clicked!");
+      sendMessage("player_ready", { gameId: gameid, playerId: userId.toString() });
+      setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+              newBtn.innerHTML = "🎮 Playing...";
+        newBtn.disabled = true;
+        newBtn.style.opacity = "0.5";
 
-    const spaceHandler = (event: KeyboardEvent) => {
-      if (event.key === ' ' || event.code === 'Space') {
-        event.preventDefault();
-
-        console.log("🚀 Spacebar pressed - Starting game!");
-
-        sendMessage("game_start", { gameId: gameid, playerId: userId.toString() });
-
-        setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
-
-        document.removeEventListener('keydown', spaceHandler);
-
-        console.log("⌨️ Game started - W/S controls active");
-      }
-    };
-
-    document.addEventListener('keydown', spaceHandler);
-
-    addCleanupListener(() => {
-      document.removeEventListener('keydown', spaceHandler);
-    });
-
-    console.log("💡 Press SPACE to start the game!");
+        console.log("⌨️ Game controls active - Use W/S keys");
+      };
+      newBtn.addEventListener('click', readyHandler);
+      addCleanupListener(() => {
+        newBtn.removeEventListener('click', readyHandler);
+      });
+    }
+    console.log("💡 Canvas ready! Click the button to start!");
   }
 }
 

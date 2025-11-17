@@ -1,12 +1,14 @@
 import "./game_soket.js";
 import { initgameSocket, sendMessage } from "./game_soket.js";
-import { initchatSocket, onChatMessage } from "./chat_soket.js";
+// import {initchatSocket, onChatMessage} from "./chat_soket.js"
 import { cleanupGame, addCleanupListener, setupNavigationHandlers, setupGameListeners, createLocalGameListener, createAIGameListener, createRemoteGameListener } from "./game_shared.js";
+// import { getAllUsers } from "../loadSharedDb.ts";
 console.log("start Pong game");
 let gameid = "";
 let ctx = null;
 let gameConfig;
 let gameState;
+let user_list;
 class AppRouter {
     constructor(containerId) {
         this.contentContainer = null;
@@ -29,7 +31,7 @@ class AppRouter {
             "dashboard/game/ai",
             "dashboard/game/local",
             "dashboard/game/remote",
-            "dashboard/game/Tournament"
+            "dashboard/game/tournament"
         ];
         this.publicPages = ["/", "home", "login", "register"];
         this.protectedPages = [
@@ -44,7 +46,7 @@ class AppRouter {
             "dashboard/game/ai",
             "dashboard/game/local",
             "dashboard/game/remote",
-            "dashboard/game/Tournament"
+            "dashboard/game/tournament"
         ];
         this.currentPage = "home";
         const el = document.getElementById(containerId);
@@ -85,11 +87,23 @@ class AppRouter {
             this.setLoggedIn(true);
             initgameSocket();
             //  initchatSocket();
+            let token = localStorage.getItem('jwt_token');
+            const use = await fetch("chat/test/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token }),
+            });
+            if (use.ok) {
+                console.log("user liste: ", use);
+            }
+            if (!use.ok) {
+                console.log("fale to get chat data");
+            }
             const respUser = data.user ?? data;
             if (respUser && typeof respUser === "object") {
                 this.user = {
                     username: (respUser.username ?? respUser.name ?? ""),
-                    passworde: password,
+                    passworde: "password",
                     email: (respUser.email ?? ""),
                     avatar: (respUser.avatar ?? "../images/avatre/1.jpg"),
                     usernametournament: (respUser.usernametournament ?? name),
@@ -166,6 +180,7 @@ class AppRouter {
             this.currentUser = payload.username || null;
             this.setLoggedIn(true);
             initgameSocket();
+            // initchatSocket();
             const storedUserData = localStorage.getItem('user_data');
             if (storedUserData) {
                 try {
@@ -475,17 +490,14 @@ class AppRouter {
                 return this.getaipage();
             case "dashboard/game/local":
                 return this.getlocalpage();
-            // case "dashboard/game/Tournament":
-            //   return this.gettournamentpage();
+            case "dashboard/game/tournament":
+                return this.gettournamentpage();
             case "dashboard/game/remote":
                 return this.getremotepage();
             default:
                 return this.get404Page();
         }
     }
-    // ==============================
-    // PAGES - Now return only content, not full layout
-    // ==============================
     getHomePage() {
         return {
             title: "PONG Game - Home",
@@ -544,6 +556,161 @@ class AppRouter {
             init: () => console.log("🏠 Home page loaded"),
         };
     }
+    gettournamentpage() {
+        return {
+            title: "PONG Game - Tournament",
+            content: `
+      <div class="tournament-container" style="margin-top:5rem;">
+        <!-- Header -->
+        <div class="game-header">
+          <a href="/dashboard/game" id="back-button-tournament" class="back-button nav-link">← Back</a>
+          <h2 style="display:inline-block; margin-left:1rem;">🏆 Tournament Mode</h2>
+        </div>
+
+        <!-- Tournament Lobby (Initial State) -->
+        <div id="tournament-lobby" style="margin-top:2rem;">
+          <div style="text-align:center; max-width:600px; margin:0 auto;">
+            <h3 style="color:#fbbf24; font-size:1.5rem; margin-bottom:1rem;">Join Tournament</h3>
+            <p style="color:#9ca3af; margin-bottom:2rem;">
+              Enter a tournament to compete against multiple players!<br>
+              Win all matches to become the champion.
+            </p>
+
+            <!-- Tournament Name Input -->
+            <div style="margin-bottom:1.5rem;">
+              <label style="display:block; color:#e5e7eb; margin-bottom:0.5rem; font-weight:600;">Your Tournament Name</label>
+              <input
+                id="tournament-name-input"
+                type="text"
+                placeholder="Enter your display name"
+                value="${this.user.usernametournament || this.currentUser || 'Player'}"
+                style="width:100%; padding:0.75rem; border-radius:0.5rem; border:2px solid #3b82f6; background:#1f2937; color:#e5e7eb; font-size:1rem;"
+              />
+            </div>
+
+            <!-- Join Tournament Button -->
+            <button
+              id="join-tournament-btn"
+              class="btn-primary"
+              style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
+              🏆 Join Tournament
+            </button>
+          </div>
+        </div>
+
+        <!-- Waiting Room (Hidden initially) -->
+        <div id="tournament-waiting" style="display:none; margin-top:2rem;">
+          <div style="text-align:center; max-width:800px; margin:0 auto;">
+            <h3 style="color:#10b981; font-size:1.5rem; margin-bottom:1rem;">
+              ⏳ Waiting for Players...
+            </h3>
+            <p style="color:#9ca3af; margin-bottom:1rem;">
+              Tournament starts when all players are ready
+            </p>
+
+            <!-- Player Count -->
+            <div style="margin-bottom:2rem; font-size:1.2rem; color:#fbbf24;">
+              <span id="player-count">1</span> / 4 Players Joined
+            </div>
+
+            <!-- Registered Players List -->
+            <div style="background:#1f2937; border-radius:0.75rem; padding:1.5rem;">
+              <h4 style="color:#e5e7eb; margin-bottom:1rem;">Registered Players</h4>
+              <div id="players-list" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:1rem;">
+                <!-- Players will be added here dynamically -->
+              </div>
+            </div>
+
+            <!-- Leave Button -->
+            <button
+              id="leave-tournament-btn"
+              style="margin-top:1.5rem; padding:0.75rem 2rem; background:#ef4444; color:white; border:none; border-radius:0.5rem; cursor:pointer; font-weight:600;">
+              ❌ Leave Tournament
+            </button>
+          </div>
+        </div>
+
+        <!-- Tournament Bracket (Hidden initially) -->
+        <div id="tournament-bracket" style="display:none; margin-top:2rem;">
+          <div style="text-align:center; margin-bottom:2rem;">
+            <h3 style="color:#fbbf24; font-size:1.5rem; margin-bottom:0.5rem;">Tournament Bracket</h3>
+            <p style="color:#9ca3af;">Current Round: <span id="current-round" style="color:#10b981; font-weight:600;">Semi-Finals</span></p>
+          </div>
+
+          <!-- Bracket Display -->
+          <div id="bracket-display" style="max-width:1000px; margin:0 auto;">
+            <!-- Bracket will be generated here -->
+          </div>
+        </div>
+
+        <!-- Game Canvas (Hidden initially) -->
+        <div id="tournament-game" style="display:none; margin-top:2rem;">
+          <div style="text-align:center; margin-bottom:1rem;">
+            <h3 style="color:#fbbf24; font-size:1.3rem;">
+              <span id="match-players">Player 1 vs Player 2</span>
+            </h3>
+            <p style="color:#9ca3af;">Round: <span id="match-round">Semi-Final</span></p>
+          </div>
+
+          <!-- Score Display -->
+          <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
+            <div>Score: <span id="tournament-score" style="color:#fbbf24;">0 - 0</span></div>
+          </div>
+
+          <!-- Canvas Container -->
+          <div style="display:flex; justify-content:center;">
+            <div id="game-container"></div>
+          </div>
+
+          <!-- Controls Info -->
+          <div style="text-align:center; margin-top:1rem; color:#9ca3af;">
+            Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> /
+            <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
+          </div>
+        </div>
+
+        <!-- Tournament Results (Hidden initially) -->
+        <div id="tournament-results" style="display:none; margin-top:2rem;">
+          <div style="text-align:center; max-width:600px; margin:0 auto;">
+            <div style="font-size:80px; margin-bottom:1rem;">🏆</div>
+            <h3 style="color:#fbbf24; font-size:2rem; margin-bottom:1rem;">Tournament Complete!</h3>
+            <div id="tournament-winner" style="font-size:1.5rem; color:#10b981; margin-bottom:2rem;">
+              <!-- Winner name will be shown here -->
+            </div>
+
+            <!-- Final Standings -->
+            <div style="background:#1f2937; border-radius:0.75rem; padding:1.5rem; margin-bottom:2rem;">
+              <h4 style="color:#e5e7eb; margin-bottom:1rem;">Final Standings</h4>
+              <div id="final-standings">
+                <!-- Rankings will be shown here -->
+              </div>
+            </div>
+
+            <button
+              id="back-to-games-btn"
+              class="btn-primary"
+              style="padding:1rem 2.5rem; font-size:1.1rem;">
+              🎮 Back to Games
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        kbd {
+          font-family: monospace;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .disabled-link {
+          pointer-events: none;
+          opacity: 0.5;
+        }
+      </style>
+    `,
+            init: () => {
+            }
+        };
+    }
     getGamePage() {
         return {
             title: "PONG Game - Select Mode",
@@ -583,7 +750,7 @@ class AppRouter {
             <img src="./images/tournament.svg" alt="Tournament" class="mode-icon" />
             <h3 class="mode-title">Tournament</h3>
             <p class="mode-desc">Join tournaments and climb the ranks to prove your skill.</p>
-            <a href="dashboard/game/tournament" class="mode-btn">Play</a>
+            <a href="dashboard/game/tournament" class="mode-btn nav-link">Play</a>
           </div>
         </div>
       </section>
@@ -663,6 +830,11 @@ class AppRouter {
             init: () => {
                 console.log("🌐 Remote game page loaded");
                 cleanupGame(this.user.id, false);
+                //   const res = fetch("/api/auth/me", {
+                //   method: "POST",
+                //   headers: { "Content-Type": "application/json" },
+                //   body: JSON.stringify({ username, password }),
+                // });
                 setupNavigationHandlers(this.user.id, "back-button-remote", (path) => this.loadPage(path));
                 const startButton = document.getElementById('start-remote-game');
                 const matchmakingStatus = document.getElementById('matchmaking-status');
@@ -1390,120 +1562,119 @@ class AppRouter {
 
     `,
             init: () => {
-                console.log("💬 Chat page loaded");
-                // Initialize WebSocket only ONCE
-                const socket = initchatSocket();
-                // UI references
-                const userList = document.getElementById("chat-user-list");
-                const chatHeader = document.getElementById("chat-header");
-                const messageBox = document.getElementById("chat-messages");
-                const chatInput = document.getElementById("chat-input");
-                const sendBtn = document.getElementById("chat-send");
-                const messageSection = document.getElementById("chat-message-box");
-                const usernameLabel = document.getElementById("chat-username");
-                const avatarImg = document.getElementById("chat-user-avatar");
-                let currentChatUser = null; // Active DM target
-                // -------------------------------------------------------
-                // 1️⃣ FETCH USER LIST (from your backend /api/users/all)
-                // -------------------------------------------------------
-                fetch("/api/users/all", {
-                    headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
-                })
-                    .then(res => res.json())
-                    .then(users => {
-                    userList.innerHTML = "";
-                    console.log('users:', users);
-                    console.log('Is array?', Array.isArray(users));
-                    users.forEach((user) => {
-                        if (user.id === JSON.parse(localStorage.getItem("user")).id)
-                            return; // skip self
-                        const div = document.createElement("div");
-                        div.className = "p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700";
-                        div.dataset.userId = user.id;
-                        div.innerHTML = `
-          <div class="flex items-center gap-2">
-            <img src="${user.avatar}" class="w-10 h-10 rounded-full" />
-            <div>
-              <div class="font-semibold">${user.username}</div>
-              <div class="text-xs text-gray-400">Online</div>
-            </div>
-          </div>
-        `;
-                        // Click to open DM
-                        div.onclick = () => {
-                            currentChatUser = user;
-                            // update header UI
-                            chatHeader.classList.remove("hidden");
-                            messageSection.classList.remove("hidden");
-                            usernameLabel.textContent = user.username;
-                            avatarImg.src = user.avatar;
-                            // clear chat display & load conversation
-                            messageBox.innerHTML = "";
-                            loadConversation(user.id);
-                        };
-                        userList.appendChild(div);
-                    });
-                });
-                // -------------------------------------------------------
-                // 2️⃣ SEND MESSAGE
-                // -------------------------------------------------------
-                sendBtn.onclick = () => {
-                    if (!chatInput.value.trim() || !currentChatUser)
-                        return;
-                    const message = {
-                        type: "dm",
-                        to: currentChatUser.id,
-                        message: chatInput.value,
-                    };
-                    socket.send(JSON.stringify(message));
-                    // Add my own message to UI
-                    appendMessage("me", chatInput.value);
-                    chatInput.value = "";
-                };
-                // -------------------------------------------------------
-                // 3️⃣ RECEIVE MESSAGE
-                // -------------------------------------------------------
-                onChatMessage((msg) => {
-                    if (msg.type === "dm") {
-                        // only show messages from the currently opened chat
-                        if (!currentChatUser || msg.from !== currentChatUser.id)
-                            return;
-                        appendMessage("them", msg.message);
-                    }
-                });
-                // -------------------------------------------------------
-                // Helper: Append Message to UI
-                // -------------------------------------------------------
-                function appendMessage(sender, text) {
-                    const bubble = document.createElement("div");
-                    bubble.className =
-                        sender === "me"
-                            ? "text-right"
-                            : "text-left";
-                    bubble.innerHTML = `
-      <div class="inline-block px-3 py-2 rounded-lg mb-1 ${sender === 'me'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-300 text-black'}">
-        ${text}
-      </div>
-    `;
-                    messageBox.appendChild(bubble);
-                    messageBox.scrollTop = messageBox.scrollHeight;
-                }
-                // -------------------------------------------------------
-                // Load conversation history (optional)
-                // -------------------------------------------------------
-                function loadConversation(userId) {
-                    fetch(`/api/chat/history/${userId}`, {
-                        headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
-                    })
-                        .then(res => res.json())
-                        .then(messages => {
-                        messages.forEach((msg) => {
-                            appendMessage(msg.fromMe ? "me" : "them", msg.message);
-                        });
-                    });
-                }
+                //   console.log("💬 Chat page loaded");
+                //   // Initialize WebSocket only ONCE
+                //   const socket = initchatSocket();
+                //   // UI references
+                //   const userList = document.getElementById("chat-user-list")!;
+                //   const chatHeader = document.getElementById("chat-header")!;
+                //   const messageBox = document.getElementById("chat-messages")!;
+                //   const chatInput = document.getElementById("chat-input")! as HTMLInputElement;
+                //   const sendBtn = document.getElementById("chat-send")!;
+                //   const messageSection = document.getElementById("chat-message-box")!;
+                //   const usernameLabel = document.getElementById("chat-username")!;
+                //   const avatarImg = document.getElementById("chat-user-avatar")! as HTMLImageElement;
+                //   let currentChatUser: any = null; // Active DM target
+                //   // -------------------------------------------------------
+                //   // 1️⃣ FETCH USER LIST (from your backend /api/users/all)
+                //   // -------------------------------------------------------
+                //   fetch("/api/users/all", {
+                //     headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
+                //   })
+                //     .then(res => res.json())
+                //     .then(users => {
+                //       userList.innerHTML = "";
+                //       console.log('users:', users);
+                //       console.log('Is array?', Array.isArray(users));
+                //       users.forEach((user: any) => {
+                //         if (user.id === JSON.parse(localStorage.getItem("user")!).id) return; // skip self
+                //         const div = document.createElement("div");
+                //         div.className = "p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700";
+                //         div.dataset.userId = user.id;
+                //         div.innerHTML = `
+                //           <div class="flex items-center gap-2">
+                //             <img src="${user.avatar}" class="w-10 h-10 rounded-full" />
+                //             <div>
+                //               <div class="font-semibold">${user.username}</div>
+                //               <div class="text-xs text-gray-400">Online</div>
+                //             </div>
+                //           </div>
+                //         `;
+                //         // Click to open DM
+                //         div.onclick = () => {
+                //           currentChatUser = user;
+                //           // update header UI
+                //           chatHeader.classList.remove("hidden");
+                //           messageSection.classList.remove("hidden");
+                //           usernameLabel.textContent = user.username;
+                //           avatarImg.src = user.avatar;
+                //           // clear chat display & load conversation
+                //           messageBox.innerHTML = "";
+                //           loadConversation(user.id);
+                //         };
+                //         userList.appendChild(div);
+                //       });
+                //     });
+                //   // -------------------------------------------------------
+                //   // 2️⃣ SEND MESSAGE
+                //   // -------------------------------------------------------
+                //   sendBtn.onclick = () => {
+                //     if (!chatInput.value.trim() || !currentChatUser) return;
+                //     const message = {
+                //       type: "dm",
+                //       to: currentChatUser.id,
+                //       message: chatInput.value,
+                //     };
+                //     socket.send(JSON.stringify(message));
+                //     // Add my own message to UI
+                //     appendMessage("me", chatInput.value);
+                //     chatInput.value = "";
+                //   };
+                //   // -------------------------------------------------------
+                //   // 3️⃣ RECEIVE MESSAGE
+                //   // -------------------------------------------------------
+                //   onChatMessage((msg) => {
+                //     if (msg.type === "dm") {
+                //       // only show messages from the currently opened chat
+                //       if (!currentChatUser || msg.from !== currentChatUser.id) return;
+                //       appendMessage("them", msg.message);
+                //     }
+                //   });
+                //   // -------------------------------------------------------
+                //   // Helper: Append Message to UI
+                //   // -------------------------------------------------------
+                //   function appendMessage(sender: "me" | "them", text: string) {
+                //     const bubble = document.createElement("div");
+                //     bubble.className =
+                //       sender === "me"
+                //         ? "text-right"
+                //         : "text-left";
+                //     bubble.innerHTML = `
+                //       <div class="inline-block px-3 py-2 rounded-lg mb-1 ${
+                //         sender === 'me'
+                //           ? 'bg-blue-600 text-white'
+                //           : 'bg-gray-300 text-black'
+                //       }">
+                //         ${text}
+                //       </div>
+                //     `;
+                //     messageBox.appendChild(bubble);
+                //     messageBox.scrollTop = messageBox.scrollHeight;
+                //   }
+                //   // -------------------------------------------------------
+                //   // Load conversation history (optional)
+                //   // -------------------------------------------------------
+                //   function loadConversation(userId: number) {
+                //     fetch(`/api/chat/history/${userId}`, {
+                //       headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
+                //     })
+                //       .then(res => res.json())
+                //       .then(messages => {
+                //         messages.forEach((msg: any) => {
+                //           appendMessage(msg.fromMe ? "me" : "them", msg.message);
+                //         });
+                //       });
+                //   }
             }
         };
     }

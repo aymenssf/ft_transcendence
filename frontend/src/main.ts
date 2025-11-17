@@ -11,6 +11,7 @@ import {
   createAIGameListener,
   createRemoteGameListener
 } from "./game_shared.js";
+// import { getAllUsers } from "../loadSharedDb.ts";
 
 console.log("start Pong game");
 
@@ -24,6 +25,7 @@ interface Page {
 let ctx : CanvasRenderingContext2D | null = null;
 let gameConfig : any;
 let gameState: any;
+let user_list: any;
 
 interface User {
   username: string;
@@ -57,7 +59,7 @@ class AppRouter {
     "dashboard/game/ai",
     "dashboard/game/local",
     "dashboard/game/remote",
-    "dashboard/game/Tournament"
+    "dashboard/game/tournament"
   ]
   private publicPages = ["/","home", "login", "register"];
   private protectedPages = [
@@ -72,7 +74,7 @@ class AppRouter {
     "dashboard/game/ai",
     "dashboard/game/local",
     "dashboard/game/remote",
-    "dashboard/game/Tournament"
+    "dashboard/game/tournament"
   ];
 
 constructor(containerId: string) {
@@ -124,7 +126,7 @@ private async performLogin(username: string, password: string): Promise<boolean>
     if (respUser && typeof respUser === "object") {
       this.user = {
         username: (respUser.username ?? respUser.name ?? "") as string,
-        passworde : password,
+        passworde : "password",
         email: (respUser.email ?? "") as string,
         avatar: (respUser.avatar ?? "../images/avatre/1.jpg") as string,
         usernametournament : (respUser.usernametournament ?? name),
@@ -214,6 +216,7 @@ private async checkAuth(): Promise<void> {
     this.currentUser = payload.username || null;
     this.setLoggedIn(true);
     initgameSocket();
+    // initchatSocket();
     const storedUserData = localStorage.getItem('user_data');
     if (storedUserData) {
       try {
@@ -553,7 +556,7 @@ private renderDashboardLayout(): void {
         return this.getaipage();
       case "dashboard/game/local":
         return this.getlocalpage();
-      case "dashboard/game/Tournament":
+      case "dashboard/game/tournament":
         return this.gettournamentpage();
       case "dashboard/game/remote":
         return this.getremotepage();
@@ -562,9 +565,8 @@ private renderDashboardLayout(): void {
     }
   }
 
-  // ==============================
-  // PAGES - Now return only content, not full layout
-  // ==============================
+
+
 
 private getHomePage(): Page {
   return {
@@ -777,6 +779,7 @@ private gettournamentpage(): Page {
       </style>
     `,
     init: () => {
+      cleanupGame(this.user.id, false);
     }
   };
 }
@@ -820,7 +823,7 @@ private getGamePage(): Page {
             <img src="./images/tournament.svg" alt="Tournament" class="mode-icon" />
             <h3 class="mode-title">Tournament</h3>
             <p class="mode-desc">Join tournaments and climb the ranks to prove your skill.</p>
-            <a href="dashboard/game/tournament" class="mode-btn">Play</a>
+            <a href="dashboard/game/tournament" class="mode-btn nav-link">Play</a>
           </div>
         </div>
       </section>
@@ -1699,142 +1702,142 @@ private getChatPage(): Page {
     `,
 
 init: () => {
-  console.log("💬 Chat page loaded");
+//   console.log("💬 Chat page loaded");
 
-  // Initialize WebSocket only ONCE
-  const socket = initchatSocket();
+//   // Initialize WebSocket only ONCE
+//   const socket = initchatSocket();
 
-  // UI references
-  const userList = document.getElementById("chat-user-list")!;
-  const chatHeader = document.getElementById("chat-header")!;
-  const messageBox = document.getElementById("chat-messages")!;
-  const chatInput = document.getElementById("chat-input")! as HTMLInputElement;
-  const sendBtn = document.getElementById("chat-send")!;
-  const messageSection = document.getElementById("chat-message-box")!;
-  const usernameLabel = document.getElementById("chat-username")!;
-  const avatarImg = document.getElementById("chat-user-avatar")! as HTMLImageElement;
+//   // UI references
+//   const userList = document.getElementById("chat-user-list")!;
+//   const chatHeader = document.getElementById("chat-header")!;
+//   const messageBox = document.getElementById("chat-messages")!;
+//   const chatInput = document.getElementById("chat-input")! as HTMLInputElement;
+//   const sendBtn = document.getElementById("chat-send")!;
+//   const messageSection = document.getElementById("chat-message-box")!;
+//   const usernameLabel = document.getElementById("chat-username")!;
+//   const avatarImg = document.getElementById("chat-user-avatar")! as HTMLImageElement;
 
-  let currentChatUser: any = null; // Active DM target
+//   let currentChatUser: any = null; // Active DM target
 
-  // -------------------------------------------------------
-  // 1️⃣ FETCH USER LIST (from your backend /api/users/all)
-  // -------------------------------------------------------
-  fetch("/api/users/all", {
-    headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
-  })
-    .then(res => res.json())
-    .then(users => {
-      userList.innerHTML = "";
-      console.log('users:', users);
-      console.log('Is array?', Array.isArray(users));
+//   // -------------------------------------------------------
+//   // 1️⃣ FETCH USER LIST (from your backend /api/users/all)
+//   // -------------------------------------------------------
+//   fetch("/api/users/all", {
+//     headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
+//   })
+//     .then(res => res.json())
+//     .then(users => {
+//       userList.innerHTML = "";
+//       console.log('users:', users);
+//       console.log('Is array?', Array.isArray(users));
 
-      users.forEach((user: any) => {
-        if (user.id === JSON.parse(localStorage.getItem("user")!).id) return; // skip self
+//       users.forEach((user: any) => {
+//         if (user.id === JSON.parse(localStorage.getItem("user")!).id) return; // skip self
 
-        const div = document.createElement("div");
-        div.className = "p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700";
-        div.dataset.userId = user.id;
+//         const div = document.createElement("div");
+//         div.className = "p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700";
+//         div.dataset.userId = user.id;
 
-        div.innerHTML = `
-          <div class="flex items-center gap-2">
-            <img src="${user.avatar}" class="w-10 h-10 rounded-full" />
-            <div>
-              <div class="font-semibold">${user.username}</div>
-              <div class="text-xs text-gray-400">Online</div>
-            </div>
-          </div>
-        `;
+//         div.innerHTML = `
+//           <div class="flex items-center gap-2">
+//             <img src="${user.avatar}" class="w-10 h-10 rounded-full" />
+//             <div>
+//               <div class="font-semibold">${user.username}</div>
+//               <div class="text-xs text-gray-400">Online</div>
+//             </div>
+//           </div>
+//         `;
 
-        // Click to open DM
-        div.onclick = () => {
-          currentChatUser = user;
+//         // Click to open DM
+//         div.onclick = () => {
+//           currentChatUser = user;
 
-          // update header UI
-          chatHeader.classList.remove("hidden");
-          messageSection.classList.remove("hidden");
+//           // update header UI
+//           chatHeader.classList.remove("hidden");
+//           messageSection.classList.remove("hidden");
 
-          usernameLabel.textContent = user.username;
-          avatarImg.src = user.avatar;
+//           usernameLabel.textContent = user.username;
+//           avatarImg.src = user.avatar;
 
-          // clear chat display & load conversation
-          messageBox.innerHTML = "";
-          loadConversation(user.id);
-        };
+//           // clear chat display & load conversation
+//           messageBox.innerHTML = "";
+//           loadConversation(user.id);
+//         };
 
-        userList.appendChild(div);
-      });
-    });
+//         userList.appendChild(div);
+//       });
+//     });
 
-  // -------------------------------------------------------
-  // 2️⃣ SEND MESSAGE
-  // -------------------------------------------------------
-  sendBtn.onclick = () => {
-    if (!chatInput.value.trim() || !currentChatUser) return;
+//   // -------------------------------------------------------
+//   // 2️⃣ SEND MESSAGE
+//   // -------------------------------------------------------
+//   sendBtn.onclick = () => {
+//     if (!chatInput.value.trim() || !currentChatUser) return;
 
-    const message = {
-      type: "dm",
-      to: currentChatUser.id,
-      message: chatInput.value,
-    };
+//     const message = {
+//       type: "dm",
+//       to: currentChatUser.id,
+//       message: chatInput.value,
+//     };
 
-    socket.send(JSON.stringify(message));
+//     socket.send(JSON.stringify(message));
 
-    // Add my own message to UI
-    appendMessage("me", chatInput.value);
-    chatInput.value = "";
-  };
+//     // Add my own message to UI
+//     appendMessage("me", chatInput.value);
+//     chatInput.value = "";
+//   };
 
-  // -------------------------------------------------------
-  // 3️⃣ RECEIVE MESSAGE
-  // -------------------------------------------------------
-  onChatMessage((msg) => {
-    if (msg.type === "dm") {
-      // only show messages from the currently opened chat
-      if (!currentChatUser || msg.from !== currentChatUser.id) return;
+//   // -------------------------------------------------------
+//   // 3️⃣ RECEIVE MESSAGE
+//   // -------------------------------------------------------
+//   onChatMessage((msg) => {
+//     if (msg.type === "dm") {
+//       // only show messages from the currently opened chat
+//       if (!currentChatUser || msg.from !== currentChatUser.id) return;
 
-      appendMessage("them", msg.message);
-    }
-  });
+//       appendMessage("them", msg.message);
+//     }
+//   });
 
-  // -------------------------------------------------------
-  // Helper: Append Message to UI
-  // -------------------------------------------------------
-  function appendMessage(sender: "me" | "them", text: string) {
-    const bubble = document.createElement("div");
+//   // -------------------------------------------------------
+//   // Helper: Append Message to UI
+//   // -------------------------------------------------------
+//   function appendMessage(sender: "me" | "them", text: string) {
+//     const bubble = document.createElement("div");
 
-    bubble.className =
-      sender === "me"
-        ? "text-right"
-        : "text-left";
+//     bubble.className =
+//       sender === "me"
+//         ? "text-right"
+//         : "text-left";
 
-    bubble.innerHTML = `
-      <div class="inline-block px-3 py-2 rounded-lg mb-1 ${
-        sender === 'me'
-          ? 'bg-blue-600 text-white'
-          : 'bg-gray-300 text-black'
-      }">
-        ${text}
-      </div>
-    `;
+//     bubble.innerHTML = `
+//       <div class="inline-block px-3 py-2 rounded-lg mb-1 ${
+//         sender === 'me'
+//           ? 'bg-blue-600 text-white'
+//           : 'bg-gray-300 text-black'
+//       }">
+//         ${text}
+//       </div>
+//     `;
 
-    messageBox.appendChild(bubble);
-    messageBox.scrollTop = messageBox.scrollHeight;
-  }
+//     messageBox.appendChild(bubble);
+//     messageBox.scrollTop = messageBox.scrollHeight;
+//   }
 
-  // -------------------------------------------------------
-  // Load conversation history (optional)
-  // -------------------------------------------------------
-  function loadConversation(userId: number) {
-    fetch(`/api/chat/history/${userId}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
-    })
-      .then(res => res.json())
-      .then(messages => {
-        messages.forEach((msg: any) => {
-          appendMessage(msg.fromMe ? "me" : "them", msg.message);
-        });
-      });
-  }
+//   // -------------------------------------------------------
+//   // Load conversation history (optional)
+//   // -------------------------------------------------------
+//   function loadConversation(userId: number) {
+//     fetch(`/api/chat/history/${userId}`, {
+//       headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
+//     })
+//       .then(res => res.json())
+//       .then(messages => {
+//         messages.forEach((msg: any) => {
+//           appendMessage(msg.fromMe ? "me" : "them", msg.message);
+//         });
+//       });
+//   }
 }
 
   };

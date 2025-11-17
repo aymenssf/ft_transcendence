@@ -334,7 +334,6 @@ function handleGameConfig(msg, userId, startButtonId, isAI = false, isRemote = f
     };
     gameid = msg.payload.gameId;
     console.log(`🎮 Game ID: ${msg.payload.gameId}${isAI ? ' (AI Mode)' : isRemote ? ' (Remote Mode)' : ''}`);
-    // Create canvas (with duplicate check)
     const container = document.getElementById("game-container");
     let canvas = document.getElementById("game-id");
     if (!canvas) {

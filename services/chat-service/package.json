@@ -1,0 +1,47 @@
+{
+  "name": "chat-service",
+  "version": "1.0.0",
+  "description": "Chat service for ft_transcendence",
+  "type": "module",
+  "main": "dist/src/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/src/server.js",
+    "dev": "tsx watch src/server.ts",
+    "clean": "rm -rf dist",
+    "prisma:generate": "prisma generate --schema=../../Shared_dataBase/prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema=../../Shared_dataBase/prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema=../../Shared_dataBase/prisma/schema.prisma",
+    "test": "npm run test:build && npm run test:health",
+    "test:build": "npm run clean && npm run build",
+    "test:health": "curl -f http://localhost:3011/health || exit 1",
+    "test:db": "curl -f http://localhost:3011/db-test || exit 1",
+    "docker:build": "docker build -t chat-service -f Dockerfile ../..",
+    "docker:run": "docker run -p 3011:3011 -v $(pwd)/../../database:/app/database chat-service",
+    "lint": "echo 'Linting...' && exit 0",
+    "format": "echo 'Formatting...' && exit 0"
+  },
+  "keywords": [
+    "chat",
+    "transcendence"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/jwt": "^7.2.4",
+    "@ft/shared-database": "file:../../Shared_dataBase",
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
+    "fastify-socket.io": "^5.1.0",
+    "socket.io": "^4.8.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^20.14.10",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}

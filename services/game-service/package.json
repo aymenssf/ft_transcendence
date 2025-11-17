@@ -1,0 +1,34 @@
+{
+    "name": "server",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "dev": "tsx watch src/server.ts",
+        "build": "tsc",
+        "start": "node dist/src/server.js"
+    },
+    "type": "module",
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "dependencies": {
+        "@fastify/jwt": "^8.0.0",
+        "@fastify/websocket": "8.3.1",
+        "@ft/shared-database": "file:../../Shared_dataBase",
+        "@prisma/client": "^5.22.0",
+        "cors": "^2.8.5",
+        "fastify": "4.29.1",
+        "sqlite3": "^5.1.6",
+        "tsx": "^4.20.6",
+        "uuid": "^11.1.0",
+        "ws": "^8.18.3"
+    },
+    "devDependencies": {
+        "@types/node": "^24.7.2",
+        "@types/ws": "^8.18.1",
+        "nodemon": "^3.1.10",
+        "prisma": "^5.22.0",
+        "typescript": "^5.5.0"
+    }
+}

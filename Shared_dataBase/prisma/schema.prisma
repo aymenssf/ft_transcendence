@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int      @id
+  username    String   @unique
+  email       String   @unique
+  password    String?
+  avatar      String?
+  is_42_user  Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  // User status: online, offline, in-game
+  status      String   @default("offline")
+  lastSeen    DateTime @default(now())
+
+  provider    String?
+  googleId    String? @unique // for i can store my google id
+
+  // Chat relationships
+  ownedRooms      ChatRoom[]        @relation("RoomOwner")
+  roomMemberships chatRoomMember[]
+  sentMessages    message[]         @relation("MessageSender")
+  unreadMessages  UnreadMessage[]
+
+  // Blocking relationships
+  blockedUsers    block[]           @relation("Blocker")
+  blockedBy       block[]           @relation("Blocked")
+
+  // Game invitation relationships
+  sentGameInvites     GameInvitation[] @relation("GameInviteSender")
+  receivedGameInvites GameInvitation[] @relation("GameInviteReceiver")
+
+  // Tournament notifications
+  tournamentNotifications TournamentNotification[]
+
+  /// Tournament username (optional). Enforced unique at application level as well.
+  usernameTournament String?  @unique
+
+  // Friends: self-relation via Friend table
+  friends        Friend[]      @relation("UserFriendsUser")
+  friendOf       Friend[]      @relation("UserFriendsFriend")
+
+  // Friend requests
+  sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
+}
+
+
+model ChatRoom {
+  id          Int      @id @default(autoincrement())
+  name        String?
+  type        String   @default("private")
+  password    String?
+  created_at  DateTime @default(now())
+
+  ownerId     Int
+  owner       User                 @relation("RoomOwner", fields: [ownerId], references: [id])
+
+  // Many-to-many relationship with users
+  members     chatRoomMember[]
+  messages    message[]
+  unreadMessages UnreadMessage[]
+
+  // Game invitations sent from this room
+  gameInvitations GameInvitation[]
+}
+
+model chatRoomMember {
+  userId      Int
+  chatRoomId  Int
+  joinedAt    DateTime @default(now())
+  role        String   @default("member") // member, admin, moderator
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatRoom    ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  @@id([chatRoomId, userId])
+  @@index([userId])
+  @@index([chatRoomId])
+  @@map("MembersOnChatRooms")
+}
+
+model message {
+  id          Int      @id @default(autoincrement())
+  content     String
+  type        String   @default("text") // text, game_invitation, system
+  metadata    String?  // JSON string for additional data
+  created_at  DateTime @default(now())
+
+  senderId    Int
+  sender      User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  chatRoomId  Int
+  chatRoom    ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  @@index([chatRoomId])
+  @@index([senderId])
+  @@index([created_at])
+  @@map("ChatMessage")
+}
+
+model block {
+  blockerId   Int
+  blockedId   Int
+  created_at  DateTime @default(now())
+
+  blocker     User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked     User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+  @@map("BlockedUser")
+}
+
+model GameInvitation {
+  id            Int      @id @default(autoincrement())
+  senderId      Int
+  receiverId    Int
+  chatRoomId    Int?
+  status        String   @default("pending") // pending, accepted, declined, expired
+  gameRoomId    String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  sender        User     @relation("GameInviteSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver      User     @relation("GameInviteReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  chatRoom      ChatRoom? @relation(fields: [chatRoomId], references: [id], onDelete: SetNull)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@index([created_at])
+}
+
+model TournamentNotification {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  tournamentId  Int
+  title         String
+  message       String
+  type          String   @default("match") // match, start, win, lose
+  isRead        Boolean  @default(false)
+  created_at    DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tournamentId])
+  @@index([isRead])
+  @@index([created_at])
+}
+
+model UnreadMessage {
+  userId        Int
+  chatRoomId    Int
+  unreadCount   Int      @default(0)
+  lastMessageId Int?
+  updated_at    DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatRoom      ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  @@id([userId, chatRoomId])
+  @@index([userId])
+  @@index([chatRoomId])
+}
+
+// Symmetric friendship represented by two directed rows (userId -> friendId)
+model Friend {
+  userId    Int
+  friendId  Int
+  created_at DateTime @default(now())
+
+  user    User @relation("UserFriendsUser", fields: [userId], references: [id], onDelete: Cascade)
+  friend  User @relation("UserFriendsFriend", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@id([userId, friendId])
+  @@index([friendId])
+}
+
+// Friend request flow
+model FriendRequest {
+  id          Int      @id @default(autoincrement())
+  senderId    Int
+  receiverId  Int
+  status      String   @default("pending") // pending, accepted, declined, canceled
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  sender   User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId])
+  @@index([senderId])
+  @@index([status])
+}

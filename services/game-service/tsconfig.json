@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+      "outDir": "./dist",
+      "rootDir": ".",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "resolveJsonModule": true,
+      "types": ["node", "@fastify/websocket"],
+      "lib": ["es2022"]
+    },
+    "include": ["src/**/*.ts", "loadSharedDb.ts", "src/types/**/*.d.ts"],
+    "exclude": ["node_modules", "dist"]
+  }

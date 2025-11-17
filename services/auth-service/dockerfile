@@ -1,27 +1,33 @@
 FROM node:20-slim
 
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    curl \
-    python3 \
-    make \
-    g++ \
-    sqlite3 \
-    libsqlite3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Copy and install Shared_dataBase first
+COPY Shared_dataBase/package*.json ./Shared_dataBase/
+COPY Shared_dataBase/prisma ./Shared_dataBase/prisma/
+COPY Shared_dataBase/prismaClient.ts ./Shared_dataBase/
+COPY Shared_dataBase/prismaClient.js ./Shared_dataBase/
+COPY Shared_dataBase/prismaClient.d.ts ./Shared_dataBase/
 
+WORKDIR /app/Shared_dataBase
+RUN npm install
+RUN npx prisma generate
+
+# Now build auth service
+WORKDIR /app/services/auth-service
 COPY services/auth-service/package*.json ./
 RUN npm install
 
-COPY services/auth-service/ ./
-COPY Shared_dataBase/ ./Shared_dataBase/
+COPY services/auth-service ./
+RUN npm run build
 
-RUN mkdir -p database && chmod 755 database
+# Setup environment
+ENV DATABASE_URL="file:/app/database/transcendence.db"
+
+RUN mkdir -p /app/database && chmod 755 /app/database
 
 EXPOSE 3010
 
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#   CMD curl -f http://localhost:3010/test || exit 1
-
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/auth-service && node dist/server.js"]

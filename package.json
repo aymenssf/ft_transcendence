@@ -2,16 +2,25 @@
   "type": "module",
   "name": "ft_transcendence",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "workspaces": [
+    "Shared_dataBase",
+    "services/*"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prisma:generate": "prisma generate --schema ./Shared_dataBase/prisma/schema.prisma",
+    "prisma:migrate:dev": "prisma migrate dev --schema ./Shared_dataBase/prisma/schema.prisma",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema ./Shared_dataBase/prisma/schema.prisma"
   },
   "devDependencies": {
+    "@types/node": "^24.5.2",
     "nodemon": "^3.1.10",
-    "pino-pretty": "^13.1.1"
+    "pino-pretty": "^13.1.1",
+    "prisma": "^5.22.0"
   },
   "dependencies": {
-    "sqlite3": "^5.1.7"
+    "@fastify/cors": "^11.1.0",
+    "@fastify/jwt": "^10.0.0",
+    "bcrypt": "^6.0.0",
+    "fastify": "^5.6.1"
   }
 }

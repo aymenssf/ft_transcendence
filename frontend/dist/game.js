@@ -3,19 +3,16 @@ export function game_start(config, state, ctx) {
     const { canvas: c, paddle, ball } = config;
     const { paddles, ball: ballPos } = state;
     ctx.clearRect(0, 0, c.width, c.height);
-    // Left paddle
     ctx.beginPath();
     ctx.fillStyle = paddle.color;
     ctx.roundRect(paddles.left.x, paddles.left.y, paddle.width, paddle.height, 10);
     ctx.fill();
     ctx.closePath();
-    // Right paddle
     ctx.beginPath();
     ctx.fillStyle = paddle.color;
     ctx.roundRect(paddles.right.x, paddles.right.y, paddle.width, paddle.height, 10);
     ctx.fill();
     ctx.closePath();
-    // Ball
     ctx.beginPath();
     ctx.fillStyle = ball.color;
     ctx.strokeStyle = "black";

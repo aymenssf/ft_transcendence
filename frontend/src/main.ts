@@ -777,7 +777,6 @@ private gettournamentpage(): Page {
       </style>
     `,
     init: () => {
-      // We'll build this step by step next!
     }
   };
 }

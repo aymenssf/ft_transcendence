@@ -312,7 +312,7 @@ function showGameOverOverlay(isWinner, gameType, navigateCallback, isPlayer2Winn
         navigateCallback(redirectPath);
     }, 3000);
 }
-function handleGameConfig(msg, userId, startButtonId, isAI = false, isRemote = false) {
+export function handleGameConfig(msg, userId, startButtonId, isAI = false, isRemote = false) {
     gameConfig = {
         gameId: msg.payload.gameId,
         mode: msg.payload.mode,

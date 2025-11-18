@@ -344,7 +344,7 @@ function showGameOverOverlay(
   }, 3000);
 }
 
-function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI: boolean = false, isRemote: boolean = false): void {
+export function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI: boolean = false, isRemote: boolean = false): void {
   gameConfig = {
     gameId: msg.payload.gameId,
     mode: msg.payload.mode,

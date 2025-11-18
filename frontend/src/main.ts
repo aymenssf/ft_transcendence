@@ -683,18 +683,15 @@ private getTournamentLobbyPage(): Page {
     init: () => {
       console.log("🏟️ Tournament Lobby Initialized");
 
-      // --- 1. GET ID & SETUP ---
       const tournamentId = localStorage.getItem('activeTournamentId');
       if (!tournamentId) {
         alert("No active tournament found.");
-        this.navigateTo("dashboard/game/tournament"); // Go back to selection
+        this.navigateTo("dashboard/game/tournament"); 
         return;
       }
 
-      // Cleanup any old game engine stuff
       cleanupGame(this.user.id, false);
 
-      // Elements
       const statusEl = document.getElementById("lobby-status")!;
       const bracketEl = document.getElementById("bracket-container")!;
       const waitingScreen = document.getElementById("lobby-waiting-screen")!;
@@ -702,12 +699,11 @@ private getTournamentLobbyPage(): Page {
       const playerCountEl = document.getElementById("player-count-display")!;
       const leaveBtn = document.getElementById("leave-tournament-btn")!;
 
-      // --- 2. HELPER: Leave Tournament ---
       const handleLeave = async () => {
         if(!confirm("Are you sure you want to leave?")) return;
 
         try {
-           await fetch('/tournaments/leave', {
+           await fetch('/tournaments/tournaments/leave', {
              method: 'POST',
              headers: {
                'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
@@ -726,15 +722,12 @@ private getTournamentLobbyPage(): Page {
       addCleanupListener(() => leaveBtn.removeEventListener("click", handleLeave));
 
 
-      // --- 3. WEBSOCKET LISTENER ( The Brain ) ---
       const lobbyListener = (msg: any) => {
 
-        // A. Game Configuration (The match is starting!)
         if (msg.type === "game_config") {
             console.log("⚔️ Match Starting!");
             statusEl.innerText = "🔴 Match in Progress";
 
-            // Swap Screens
             waitingScreen.style.display = "none";
             gameScreen.style.display = "block";
             handleGameConfig(msg, this.user.id, "hidden-start-btn", false, true);
@@ -746,9 +739,7 @@ private getTournamentLobbyPage(): Page {
             return;
         }
 
-        // B. Tournament Updates
         switch (msg.type) {
-            // 1. Player Joined/Left
             case "tournament_player-joined":
             case "tournament_player-left":
                 if (msg.payload.tournamentId === tournamentId) {
@@ -756,17 +747,14 @@ private getTournamentLobbyPage(): Page {
                    playerCountEl.innerText = `${count} / 4 Joined`;
                    statusEl.innerText = "Waiting for players...";
 
-                   // Ideally, fetch details to update names in sidebar
                    updateLobbyDetails();
                 }
                 break;
 
-            // 2. Semi-Finals Announced
             case "tournament_semi-finals":
                 console.log("🏆 Semi-Finals announced", msg.payload);
                 statusEl.innerText = "Semi-Finals Starting...";
 
-                // Update Bracket UI
                 bracketEl.innerHTML = `
                     <div style="font-size:0.8rem; color:#9ca3af;">SEMI 1</div>
                     <div class="bracket-box">${msg.payload.semi1.players[0]} vs ${msg.payload.semi1.players[1]}</div>
@@ -775,14 +763,12 @@ private getTournamentLobbyPage(): Page {
                 `;
                 break;
 
-            // 3. Final Announced
             case "tournament_final":
                 console.log("🏆 Finals announced", msg.payload);
                 statusEl.innerText = "Finals Starting...";
 
-                // Clean up previous match canvas
                 cleanupGame(this.user.id, false);
-                waitingScreen.style.display = "flex"; // Show waiting briefly
+                waitingScreen.style.display = "flex";
                 gameScreen.style.display = "none";
 
                 bracketEl.innerHTML += `
@@ -793,15 +779,12 @@ private getTournamentLobbyPage(): Page {
                 `;
                 break;
 
-            // 4. Tournament Finished
             case "tournament_finish":
                 statusEl.innerText = "🏆 Tournament Over";
                 alert(`Tournament Winner: ${msg.payload.winner}`);
-                // Optionally redirect back after 5 seconds
                 break;
         }
       };
-
       setupGameListeners(
         lobbyListener,
         'tournament-score',
@@ -812,24 +795,23 @@ private getTournamentLobbyPage(): Page {
       );
 
       const updateLobbyDetails = async () => {
+        console.log("update tournoa");
         try {
-            const res = await fetch(`/tournaments/:${tournamentId}`, {
+            const res = await fetch(`/tournaments/${tournamentId}`, {
                  headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }
             });
             if(res.ok) {
                 const data = await res.json();
                 playerCountEl.innerText = `${data.numPlayers || 0} / 4 Joined`;
-                // You can loop through data.players to list names in bracketEl
                 bracketEl.innerHTML = data.players.map((p:any) =>
                     `<div style="padding:5px; background:#374151; margin-bottom:5px; border-radius:4px;">${p.username}</div>`
                 ).join('');
             }
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error("fale fetch liste"); }
       };
 
       updateLobbyDetails();
 
-      // Add some CSS for the bracket boxes
       const style = document.createElement('style');
       style.innerHTML = `
         .bracket-box { background: #374151; padding: 10px; border-radius: 5px; border: 1px solid #4b5563; color: white; }
@@ -941,17 +923,14 @@ private gettournamentpage(): Page {
 init: () => {
   console.log("🏆 Tournament Selection page loaded");
 
-  // 1. Cleanup previous games/listeners
   cleanupGame(this.user.id, false);
 
-  // 2. Setup Navigation (Back Button)
   setupNavigationHandlers(
     this.user.id,
     "back-button-tournament",
     (path: string) => this.loadPage(path)
   );
 
-  // --- DOM Elements ---
   const titleInput = document.getElementById("tournament-title-input") as HTMLInputElement;
   const createBtn = document.getElementById("create-tournament-btn") as HTMLButtonElement;
   const refreshBtn = document.getElementById("refresh-tournaments-btn") as HTMLButtonElement;
@@ -960,17 +939,14 @@ init: () => {
   const emptyState = document.getElementById("tournaments-empty")!;
   const listWrapper = document.getElementById("tournaments-list")!;
 
-  // --- HELPER: Fetch and Render Tournaments ---
   const fetchTournaments = async () => {
     try {
-      // Show loading, hide others
       loadingState.style.display = "block";
       emptyState.style.display = "none";
       listContainer.innerHTML = "";
 
       const token = localStorage.getItem('jwt_token');
 
-      // ✅ Fetch from Nginx Proxy (GET /tournaments)
       const response = await fetch('/tournaments/tournaments', {
         method: 'GET',
         headers: {
@@ -983,16 +959,13 @@ init: () => {
 
       const tournaments = await response.json();
 
-      // Hide loading
       loadingState.style.display = "none";
 
-      // Handle Empty List
       if (tournaments.length === 0) {
         emptyState.style.display = "block";
         return;
       }
 
-      // Render List
       tournaments.forEach((t: any) => {
         const card = document.createElement("div");
         card.style.cssText = `
@@ -1018,7 +991,6 @@ init: () => {
           </div>
         `;
 
-        // Join Button
         const joinBtn = document.createElement("button");
         joinBtn.innerText = "Join ➡️";
         joinBtn.style.cssText = `
@@ -1031,9 +1003,8 @@ init: () => {
           font-weight: 600;
         `;
 
-        // ✅ Handle JOIN Click
         joinBtn.onclick = async () => {
-          await joinTournament(t.id || t.tournamentId); // Handle both ID formats
+          await joinTournament(t.id || t.tournamentId);
         };
 
         card.appendChild(joinBtn);
@@ -1046,7 +1017,6 @@ init: () => {
     }
   };
 
-  // --- HELPER: Join Tournament Action ---
   const joinTournament = async (tournamentId: string) => {
     try {
       const token = localStorage.getItem('jwt_token');
@@ -1065,14 +1035,13 @@ init: () => {
         this.navigateTo("dashboard/game/tournament/lobby");
       } else {
         alert("Failed to join: Tournament might be full or started.");
-        fetchTournaments(); // Refresh list
+        fetchTournaments();
       }
     } catch (e) {
       console.error(e);
     }
   };
 
-  // --- HELPER: Create Tournament Action ---
   const createTournament = async () => {
     const title = titleInput.value.trim();
     if (!title) {
@@ -1111,38 +1080,28 @@ init: () => {
     }
   };
 
-  // --- Section 3: WebSocket Listener (Real-time updates) ---
   const tournamentListListener = (msg: any) => {
-    // If a new tournament is created, refresh the list for everyone!
     if (msg.type === "tournament_created" || msg.type === "tournament_deleted" || msg.type === "tournament_player-joined") {
       console.log("🔔 Tournament update received, refreshing list...");
       fetchTournaments();
     }
   };
 
-  // Add WS listener
   addMessageListener(tournamentListListener);
-  // Remove WS listener when leaving page
   addCleanupListener(() => removeMessageListener(tournamentListListener));
 
-  // --- Section 4: Event Listeners ---
-
-  // Click Create
   createBtn.addEventListener("click", createTournament);
   addCleanupListener(() => createBtn.removeEventListener("click", createTournament));
 
-  // Click Refresh
   refreshBtn.addEventListener("click", fetchTournaments);
   addCleanupListener(() => refreshBtn.removeEventListener("click", fetchTournaments));
 
-  // Enter key on Input
   const enterHandler = (e: KeyboardEvent) => {
     if (e.key === "Enter") createTournament();
   };
   titleInput.addEventListener("keypress", enterHandler);
   addCleanupListener(() => titleInput.removeEventListener("keypress", enterHandler));
 
-  // --- Initial Load ---
   fetchTournaments();
 }
   };
@@ -1828,47 +1787,36 @@ init: () => {
   const avatarInput = document.getElementById("settings-avatar") as HTMLInputElement;
   const profileAvatar = document.querySelector('.user-avatar') as HTMLImageElement; // main avatar in UI
 
-  // --- Avatar selection logic ---
   if (avatarOptions && avatarInput) {
     avatarOptions.forEach(option => {
       option.addEventListener("click", () => {
-        // Remove selection from others
         avatarOptions.forEach(o => o.classList.remove("selected"));
-        // Mark clicked one as selected
         option.classList.add("selected");
-        // Update hidden input value
         avatarInput.value = option.dataset.value || "";
-        // Optionally update live avatar preview
         if (profileAvatar) profileAvatar.src = avatarInput.value;
       });
     });
 
-    // Pre-select current avatar
     const currentAvatar = avatarInput.value;
     avatarOptions.forEach(o => {
       if (o.dataset.value === currentAvatar) o.classList.add("selected");
     });
   }
 
-  // --- Form submission logic ---
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      // Get form values
       const username = (document.getElementById('settings-username') as HTMLInputElement).value.trim();
       const email = (document.getElementById('settings-email') as HTMLInputElement).value.trim();
       const tournament = (document.getElementById('settings-tournament') as HTMLInputElement).value.trim();
       const avatar = avatarInput?.value.trim() || "";
-
-      // Build update object (only include changed fields)
       const updates: any = {};
       if (username && username !== this.currentUser) updates.username = username;
       if (email && email !== this.user.email) updates.email = email;
       if (tournament) updates.usernameTournament = tournament;
       if (avatar && avatar !== this.user.avatar) updates.avatar = avatar;
 
-      // Check if any changes were made
       if (Object.keys(updates).length === 0) {
         statusDiv.style.display = 'block';
         statusDiv.style.background = '#fef3c7';
@@ -1876,24 +1824,21 @@ init: () => {
         statusDiv.textContent = '⚠️ No changes detected';
         return;
       }
-
-      // Show loading state
       statusDiv.style.display = 'block';
       statusDiv.style.background = '#dbeafe';
       statusDiv.style.color = '#1e40af';
       statusDiv.textContent = '⏳ Updating profile...';
 
-      // Call update method
+
       const success = await this.updateUserProfile(updates);
 
       if (success) {
-        // Update local state
         if (updates.username) this.currentUser = updates.username;
         if (updates.email) this.user.email = updates.email;
         if (updates.usernameTournament) this.user.usernametournament = updates.usernameTournament;
         if (updates.avatar) {
           this.user.avatar = updates.avatar;
-          if (profileAvatar) profileAvatar.src = updates.avatar; // update avatar in UI
+          if (profileAvatar) profileAvatar.src = updates.avatar;
         }
 
         statusDiv.style.background = '#d1fae5';

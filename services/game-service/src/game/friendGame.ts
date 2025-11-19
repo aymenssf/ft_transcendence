@@ -115,7 +115,7 @@ async function friendRoutes(fastify: FastifyInstance, options: any) {
         const { gameId } = request.body;
 
         if (!gameId)
-            return reply.status(400).send({ error: "Cannot invite yourself" });
+            return reply.status(404).send({ error: "gameId required" });
 
         const guest_socket = playersSockets.get(guestId);
         const friendRoom = games.get(gameId);

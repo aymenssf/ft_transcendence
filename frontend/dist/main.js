@@ -1,7 +1,6 @@
 import "./game_soket.js";
-import { initgameSocket, sendMessage } from "./game_soket.js";
-// import {initchatSocket, onChatMessage} from "./chat_soket.js"
-import { cleanupGame, addCleanupListener, setupNavigationHandlers, setupGameListeners, createLocalGameListener, createAIGameListener, createRemoteGameListener } from "./game_shared.js";
+import { initgameSocket, sendMessage, removeMessageListener, addMessageListener } from "./game_soket.js";
+import { cleanupGame, addCleanupListener, setupNavigationHandlers, setupGameListeners, createLocalGameListener, createAIGameListener, createRemoteGameListener, handleGameConfig, cleanupTournamentPage } from "./game_shared.js";
 // import { getAllUsers } from "../loadSharedDb.ts";
 console.log("start Pong game");
 let gameid = "";
@@ -31,7 +30,8 @@ class AppRouter {
             "dashboard/game/ai",
             "dashboard/game/local",
             "dashboard/game/remote",
-            "dashboard/game/tournament"
+            "dashboard/game/tournament",
+            "dashboard/game/tournament/lobby"
         ];
         this.publicPages = ["/", "home", "login", "register"];
         this.protectedPages = [
@@ -46,7 +46,8 @@ class AppRouter {
             "dashboard/game/ai",
             "dashboard/game/local",
             "dashboard/game/remote",
-            "dashboard/game/tournament"
+            "dashboard/game/tournament",
+            "dashboard/game/tournament/lobby"
         ];
         this.currentPage = "home";
         const el = document.getElementById(containerId);
@@ -87,18 +88,6 @@ class AppRouter {
             this.setLoggedIn(true);
             initgameSocket();
             //  initchatSocket();
-            let token = localStorage.getItem('jwt_token');
-            const use = await fetch("chat/test/users", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ token }),
-            });
-            if (use.ok) {
-                console.log("user liste: ", use);
-            }
-            if (!use.ok) {
-                console.log("fale to get chat data");
-            }
             const respUser = data.user ?? data;
             if (respUser && typeof respUser === "object") {
                 this.user = {
@@ -494,6 +483,8 @@ class AppRouter {
                 return this.gettournamentpage();
             case "dashboard/game/remote":
                 return this.getremotepage();
+            case "dashboard/game/tournament/lobby":
+                return this.getTournamentLobbyPage();
             default:
                 return this.get404Page();
         }
@@ -556,6 +547,331 @@ class AppRouter {
             init: () => console.log("🏠 Home page loaded"),
         };
     }
+    getTournamentLobbyPage() {
+        return {
+            title: "Tournament Lobby",
+            content: `
+        <div class="lobby-page">
+          <!-- Background -->
+          <div class="lobby-bg-blobs">
+            <div class="absolute top-[10%] left-[10%] w-96 h-96 bg-emerald-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float1"></div>
+            <div class="absolute bottom-[20%] right-[10%] w-80 h-80 bg-purple-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float2"></div>
+            <div class="absolute top-[40%] right-[30%] w-72 h-72 bg-cyan-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float3"></div>
+          </div>
+
+          <div class="lobby-container">
+            <!-- Header -->
+            <div class="lobby-header">
+              <button id="leave-tournament-btn" class="back-button group">
+                <span class="group-hover:-translate-x-1 transition-transform">←</span>
+                <span>Leave Lobby</span>
+              </button>
+
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">🏆</span>
+                <h2 class="text-2xl font-bold text-gradient">Tournament Lobby</h2>
+              </div>
+              <div class="w-[100px] hidden sm:block"></div>
+            </div>
+
+            <div class="lobby-layout">
+              <!-- LEFT SIDEBAR: BRACKET -->
+              <div class="lobby-sidebar">
+                <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-4 shrink-0">
+                  <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                    👥 <span class="text-gray-200">Players List</span>
+                  </h3>
+                  <div id="lobby-status" class="lobby-status-badge">Loading...</div>
+                </div>
+                <!-- This container will now always have 4 items -->
+                <div id="bracket-container" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar"></div>
+              </div>
+
+              <!-- RIGHT MAIN AREA -->
+              <div class="lobby-main">
+                <!-- Waiting Screen -->
+                <div id="lobby-waiting-screen" class="lobby-waiting-screen">
+                  <div class="relative mb-8">
+                    <div class="absolute inset-0 bg-emerald-500/30 rounded-full animate-ping"></div>
+                    <div class="lobby-waiting-icon"><span class="text-6xl">⏳</span></div>
+                  </div>
+                  <h2 class="text-3xl font-bold text-white mb-2">Waiting for Players</h2>
+                  <div class="flex items-center gap-3 mb-6">
+                    <div class="h-px w-12 bg-gradient-to-r from-transparent to-gray-500"></div>
+                    <p id="player-count-display" class="text-2xl font-mono font-bold text-emerald-400">0 / 4 Joined</p>
+                    <div class="h-px w-12 bg-gradient-to-l from-transparent to-gray-500"></div>
+                  </div>
+                  <div class="lobby-info-card">
+                    <div class="flex items-start gap-4">
+                      <span class="text-2xl">ℹ️</span>
+                      <div class="text-left">
+                        <h4 class="text-white font-semibold mb-1">Tournament Rules</h4>
+                        <p class="text-gray-400 text-sm leading-relaxed">The tournament will automatically start once <strong class="text-emerald-400">4 players</strong> have joined the lobby.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Game Screen -->
+                <div id="lobby-game-screen" style="display:none;" class="lobby-game-wrapper">
+                  <div class="lobby-score-overlay">
+                    <span id="tournament-score" class="text-2xl font-mono font-bold text-emerald-400 tracking-widest">0 - 0</span>
+                  </div>
+                  <div id="game-container" class="w-full h-full flex items-center justify-center"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+            init: () => {
+                console.log("🏟️ Tournament Lobby Initialized");
+                const tournamentId = localStorage.getItem('activeTournamentId');
+                if (!tournamentId) {
+                    alert("No active tournament found.");
+                    this.navigateTo("dashboard/game/tournament");
+                    return;
+                }
+                if (typeof cleanupTournamentPage === 'function')
+                    cleanupTournamentPage();
+                cleanupGame(this.user.id, false);
+                // Elements
+                const statusEl = document.getElementById("lobby-status");
+                const bracketEl = document.getElementById("bracket-container");
+                const waitingScreen = document.getElementById("lobby-waiting-screen");
+                const gameScreen = document.getElementById("lobby-game-screen");
+                const playerCountEl = document.getElementById("player-count-display");
+                const leaveBtn = document.getElementById("leave-tournament-btn");
+                // --- Helper: Resolve User Details ---
+                const resolveUser = async (pid) => {
+                    // Fix: Convert ID to String immediately
+                    const pidStr = String(pid);
+                    const defaultData = {
+                        name: `Player ${pidStr.substring(0, 4)}`,
+                        avatar: '../images/avatars/unknown.jpg'
+                    };
+                    if (pidStr === String(this.user.id)) {
+                        return {
+                            name: `${this.user.username} (You)`,
+                            avatar: this.user.avatar || '../images/avatars/1.jpg'
+                        };
+                    }
+                    try {
+                        const res = await fetch(`/api/auth/user/${pidStr}`, {
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            return {
+                                name: data.username,
+                                avatar: data.avatar || '../images/avatars/unknown.jpg'
+                            };
+                        }
+                        return defaultData;
+                    }
+                    catch {
+                        return defaultData;
+                    }
+                };
+                // --- Helper: Create Match Card HTML ---
+                const createMatchHTML = (p1, p2, label) => `
+           <div class="bracket-section-title">${label}</div>
+           <div class="match-card">
+             <div class="match-player">
+               <div class="flex items-center gap-2">
+                 <img src="${p1.avatar}" class="avatar-sm" onerror="this.src='../images/avatars/unknown.jpg'">
+                 <span class="truncate w-24">${p1.name}</span>
+               </div>
+             </div>
+             <div class="match-divider"></div>
+             <div class="match-player">
+               <div class="flex items-center gap-2">
+                 <img src="${p2.avatar}" class="avatar-sm" onerror="this.src='../images/avatars/unknown.jpg'">
+                 <span class="truncate w-24">${p2.name}</span>
+               </div>
+             </div>
+             <div class="match-vs">VS</div>
+           </div>
+        `;
+                // --- Helper: Render Semi-Finals ---
+                const renderSemiFinals = async (payload) => {
+                    statusEl.innerText = "Semi-Finals";
+                    statusEl.className = "lobby-status-badge bg-blue-500/10 text-blue-400 border-blue-500/20";
+                    const [u1, u2, u3, u4] = await Promise.all([
+                        resolveUser(payload.semi1.players[0]),
+                        resolveUser(payload.semi1.players[1]),
+                        resolveUser(payload.semi2.players[0]),
+                        resolveUser(payload.semi2.players[1])
+                    ]);
+                    bracketEl.innerHTML =
+                        createMatchHTML(u1, u2, "Semi-Final 1") +
+                            createMatchHTML(u3, u4, "Semi-Final 2");
+                };
+                // --- Helper: Render Final ---
+                const renderFinal = async (payload) => {
+                    statusEl.innerText = "Grand Final";
+                    statusEl.className = "lobby-status-badge bg-yellow-500/10 text-yellow-400 border-yellow-500/20 animate-pulse";
+                    const [u1, u2] = await Promise.all([
+                        resolveUser(payload.final.players[0]),
+                        resolveUser(payload.final.players[1])
+                    ]);
+                    const finalHTML = createMatchHTML(u1, u2, "⭐ Grand Final ⭐");
+                    if (!bracketEl.innerHTML.includes("Semi-Final")) {
+                        bracketEl.innerHTML = finalHTML;
+                    }
+                    else {
+                        bracketEl.innerHTML += finalHTML;
+                    }
+                };
+                // --- Update Waiting List (Fixed 4 Slots & Types) ---
+                const updateLobbyUI = async (playerIds) => {
+                    playerCountEl.innerText = `${playerIds.length} / 4 Joined`;
+                    const totalSlots = 4;
+                    const slots = Array.from({ length: totalSlots }, (_, i) => i);
+                    const slotPromises = slots.map(async (index) => {
+                        if (index < playerIds.length) {
+                            // Slot Filled: Resolve user and add isEmpty: false
+                            const user = await resolveUser(playerIds[index]);
+                            return { ...user, isEmpty: false }; // ✅ FIX: Explicit false
+                        }
+                        else {
+                            // Slot Empty: Explicit true
+                            return { name: "Waiting...", avatar: null, isEmpty: true };
+                        }
+                    });
+                    const slotData = await Promise.all(slotPromises);
+                    bracketEl.innerHTML = `<div class="bracket-section-title">Lobby Players</div>` +
+                        slotData.map((p) => `
+              <div class="bracket-box flex items-center gap-3 p-2 ${p.isEmpty ? 'opacity-50 border-dashed border-gray-600' : ''}">
+                  ${p.isEmpty
+                            ? `<div class="w-8 h-8 rounded-full bg-gray-800/50 flex items-center justify-center text-xs text-gray-500 border border-gray-600">?</div>`
+                            : `<img src="${p.avatar}" class="avatar-sm" onerror="this.src='../images/avatars/unknown.jpg'">`}
+                  <span class="${p.isEmpty ? 'text-gray-500 italic text-sm' : 'text-gray-200 font-medium truncate'}">
+                    ${p.name}
+                  </span>
+              </div>`).join('');
+                };
+                const refreshLobbyData = async () => {
+                    try {
+                        const res = await fetch(`/tournaments/tournaments/${tournamentId}`, {
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            updateLobbyUI(data.players || []);
+                        }
+                    }
+                    catch (e) {
+                        console.error(e);
+                    }
+                };
+                const attemptAutoJoin = async () => {
+                    try {
+                        const joinRes = await fetch('/tournaments/tournaments/join', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ tournamentId })
+                        });
+                        if (joinRes.ok) {
+                            refreshLobbyData();
+                            initializeListeners();
+                        }
+                        else {
+                            alert("Tournament full or closed.");
+                            this.navigateTo("dashboard/game/tournament");
+                        }
+                    }
+                    catch (e) {
+                        console.error(e);
+                    }
+                };
+                const verifyAndInitialize = async () => {
+                    try {
+                        const res = await fetch(`/tournaments/tournaments/${tournamentId}`, {
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }
+                        });
+                        if (!res.ok) {
+                            alert("Tournament gone.");
+                            this.navigateTo("dashboard/game/tournament");
+                            return;
+                        }
+                        const data = await res.json();
+                        const playerIds = data.players || [];
+                        const myIdStr = String(this.user.id);
+                        const amIInTheList = playerIds.some(id => String(id) === myIdStr);
+                        if (amIInTheList) {
+                            updateLobbyUI(playerIds);
+                            initializeListeners();
+                        }
+                        else {
+                            await attemptAutoJoin();
+                        }
+                    }
+                    catch (e) {
+                        console.error(e);
+                    }
+                };
+                const initializeListeners = () => {
+                    sessionStorage.setItem('inTournamentLobby', tournamentId);
+                    const handleLeave = async () => {
+                        if (!confirm("Leave tournament?"))
+                            return;
+                        sessionStorage.removeItem('inTournamentLobby');
+                        localStorage.removeItem('activeTournamentId');
+                        try {
+                            await fetch('/tournaments/tournaments/leave', {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ tournamentId })
+                            });
+                        }
+                        catch (e) { }
+                        if (typeof gameid !== 'undefined' && gameid)
+                            cleanupGame(this.user.id, true);
+                        this.navigateTo("dashboard/game/tournament");
+                    };
+                    leaveBtn.onclick = handleLeave;
+                    addCleanupListener(() => leaveBtn.onclick = null);
+                    const lobbyListener = (msg) => {
+                        if (msg.type === "game_config") {
+                            statusEl.innerText = "Live Match";
+                            statusEl.className = "lobby-status-badge bg-red-500/10 text-red-400 border-red-500/20 animate-pulse";
+                            waitingScreen.style.display = "none";
+                            gameScreen.style.display = "block";
+                            handleGameConfig(msg, this.user.id, "hidden-start-btn", false, true);
+                            setTimeout(() => sendMessage("player_ready", { gameId: msg.payload.gameId, playerId: this.user.id.toString() }), 1000);
+                            return;
+                        }
+                        switch (msg.type) {
+                            case "tournament_player-joined":
+                            case "tournament_player-left":
+                                if (msg.payload.tournamentId === tournamentId)
+                                    refreshLobbyData();
+                                break;
+                            case "tournament_semi-finals":
+                                renderSemiFinals(msg.payload);
+                                break;
+                            case "tournament_final":
+                                renderFinal(msg.payload);
+                                cleanupGame(this.user.id, false);
+                                waitingScreen.style.display = "flex";
+                                gameScreen.style.display = "none";
+                                break;
+                            case "tournament_finish":
+                                statusEl.innerText = "Finished";
+                                sessionStorage.removeItem('inTournamentLobby');
+                                localStorage.removeItem('activeTournamentId');
+                                alert(`🏆 Tournament Winner: ${msg.payload.winner}`);
+                                setTimeout(() => this.navigateTo("dashboard/game/tournament"), 2000);
+                                break;
+                        }
+                    };
+                    setupGameListeners(lobbyListener, 'tournament-score', this.user.id, (path) => this.loadPage(path), false, true);
+                };
+                verifyAndInitialize();
+            }
+        };
+    }
     gettournamentpage() {
         return {
             title: "PONG Game - Tournament",
@@ -567,147 +883,263 @@ class AppRouter {
           <h2 style="display:inline-block; margin-left:1rem;">🏆 Tournament Mode</h2>
         </div>
 
-        <!-- Tournament Lobby (Initial State) -->
-        <div id="tournament-lobby" style="margin-top:2rem;">
-          <div style="text-align:center; max-width:600px; margin:0 auto;">
-            <h3 style="color:#fbbf24; font-size:1.5rem; margin-bottom:1rem;">Join Tournament</h3>
-            <p style="color:#9ca3af; margin-bottom:2rem;">
-              Enter a tournament to compete against multiple players!<br>
-              Win all matches to become the champion.
-            </p>
+        <!-- Main Content -->
+        <div style="margin-top:2rem; display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
 
-            <!-- Tournament Name Input -->
-            <div style="margin-bottom:1.5rem;">
-              <label style="display:block; color:#e5e7eb; margin-bottom:0.5rem; font-weight:600;">Your Tournament Name</label>
+          <!-- LEFT SIDE: Create Tournament -->
+          <div style="background:#1f2937; border-radius:0.75rem; padding:2rem;">
+            <h3 style="color:#fbbf24; font-size:1.3rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:0.5rem;">
+              ➕ Create New Tournament
+            </h3>
+
+            <!-- Create Form -->
+            <div>
+              <label style="display:block; color:#e5e7eb; margin-bottom:0.5rem; font-weight:600;">
+                Tournament Name
+              </label>
               <input
-                id="tournament-name-input"
+                id="tournament-title-input"
                 type="text"
-                placeholder="Enter your display name"
-                value="${this.user.usernametournament || this.currentUser || 'Player'}"
-                style="width:100%; padding:0.75rem; border-radius:0.5rem; border:2px solid #3b82f6; background:#1f2937; color:#e5e7eb; font-size:1rem;"
+                placeholder="Enter tournament name..."
+                maxlength="50"
+                style="width:100%; padding:0.75rem; border-radius:0.5rem; border:2px solid #3b82f6; background:#111827; color:#e5e7eb; font-size:1rem; margin-bottom:1.5rem;"
               />
-            </div>
 
-            <!-- Join Tournament Button -->
-            <button
-              id="join-tournament-btn"
-              class="btn-primary"
-              style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
-              🏆 Join Tournament
-            </button>
+              <button
+                id="create-tournament-btn"
+                class="btn-primary"
+                style="width:100%; padding:1rem; font-size:1.1rem;">
+                🏆 Create Tournament
+              </button>
+
+              <p style="margin-top:1rem; color:#9ca3af; font-size:0.875rem; text-align:center;">
+                You'll be the first player automatically
+              </p>
+            </div>
           </div>
-        </div>
 
-        <!-- Waiting Room (Hidden initially) -->
-        <div id="tournament-waiting" style="display:none; margin-top:2rem;">
-          <div style="text-align:center; max-width:800px; margin:0 auto;">
-            <h3 style="color:#10b981; font-size:1.5rem; margin-bottom:1rem;">
-              ⏳ Waiting for Players...
-            </h3>
-            <p style="color:#9ca3af; margin-bottom:1rem;">
-              Tournament starts when all players are ready
-            </p>
-
-            <!-- Player Count -->
-            <div style="margin-bottom:2rem; font-size:1.2rem; color:#fbbf24;">
-              <span id="player-count">1</span> / 4 Players Joined
+          <!-- RIGHT SIDE: Available Tournaments -->
+          <div style="background:#1f2937; border-radius:0.75rem; padding:2rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+              <h3 style="color:#10b981; font-size:1.3rem; margin:0;">
+                🎮 Available Tournaments
+              </h3>
+              <button
+                id="refresh-tournaments-btn"
+                style="padding:0.5rem 1rem; background:#3b82f6; color:white; border:none; border-radius:0.5rem; cursor:pointer; font-size:0.9rem;">
+                🔄 Refresh
+              </button>
             </div>
 
-            <!-- Registered Players List -->
-            <div style="background:#1f2937; border-radius:0.75rem; padding:1.5rem;">
-              <h4 style="color:#e5e7eb; margin-bottom:1rem;">Registered Players</h4>
-              <div id="players-list" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:1rem;">
-                <!-- Players will be added here dynamically -->
+            <!-- Tournaments List -->
+            <div id="tournaments-list" style="max-height:400px; overflow-y:auto;">
+              <!-- Loading state -->
+              <div id="tournaments-loading" style="text-align:center; padding:2rem; color:#9ca3af;">
+                <div style="font-size:2rem; margin-bottom:0.5rem;">⏳</div>
+                Loading tournaments...
               </div>
-            </div>
 
-            <!-- Leave Button -->
-            <button
-              id="leave-tournament-btn"
-              style="margin-top:1.5rem; padding:0.75rem 2rem; background:#ef4444; color:white; border:none; border-radius:0.5rem; cursor:pointer; font-weight:600;">
-              ❌ Leave Tournament
-            </button>
-          </div>
-        </div>
-
-        <!-- Tournament Bracket (Hidden initially) -->
-        <div id="tournament-bracket" style="display:none; margin-top:2rem;">
-          <div style="text-align:center; margin-bottom:2rem;">
-            <h3 style="color:#fbbf24; font-size:1.5rem; margin-bottom:0.5rem;">Tournament Bracket</h3>
-            <p style="color:#9ca3af;">Current Round: <span id="current-round" style="color:#10b981; font-weight:600;">Semi-Finals</span></p>
-          </div>
-
-          <!-- Bracket Display -->
-          <div id="bracket-display" style="max-width:1000px; margin:0 auto;">
-            <!-- Bracket will be generated here -->
-          </div>
-        </div>
-
-        <!-- Game Canvas (Hidden initially) -->
-        <div id="tournament-game" style="display:none; margin-top:2rem;">
-          <div style="text-align:center; margin-bottom:1rem;">
-            <h3 style="color:#fbbf24; font-size:1.3rem;">
-              <span id="match-players">Player 1 vs Player 2</span>
-            </h3>
-            <p style="color:#9ca3af;">Round: <span id="match-round">Semi-Final</span></p>
-          </div>
-
-          <!-- Score Display -->
-          <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
-            <div>Score: <span id="tournament-score" style="color:#fbbf24;">0 - 0</span></div>
-          </div>
-
-          <!-- Canvas Container -->
-          <div style="display:flex; justify-content:center;">
-            <div id="game-container"></div>
-          </div>
-
-          <!-- Controls Info -->
-          <div style="text-align:center; margin-top:1rem; color:#9ca3af;">
-            Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> /
-            <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
-          </div>
-        </div>
-
-        <!-- Tournament Results (Hidden initially) -->
-        <div id="tournament-results" style="display:none; margin-top:2rem;">
-          <div style="text-align:center; max-width:600px; margin:0 auto;">
-            <div style="font-size:80px; margin-bottom:1rem;">🏆</div>
-            <h3 style="color:#fbbf24; font-size:2rem; margin-bottom:1rem;">Tournament Complete!</h3>
-            <div id="tournament-winner" style="font-size:1.5rem; color:#10b981; margin-bottom:2rem;">
-              <!-- Winner name will be shown here -->
-            </div>
-
-            <!-- Final Standings -->
-            <div style="background:#1f2937; border-radius:0.75rem; padding:1.5rem; margin-bottom:2rem;">
-              <h4 style="color:#e5e7eb; margin-bottom:1rem;">Final Standings</h4>
-              <div id="final-standings">
-                <!-- Rankings will be shown here -->
+              <!-- Empty state (hidden by default) -->
+              <div id="tournaments-empty" style="display:none; text-align:center; padding:2rem; color:#9ca3af;">
+                <div style="font-size:2rem; margin-bottom:0.5rem;">🏜️</div>
+                No tournaments available<br>
+                <span style="font-size:0.875rem;">Create one to get started!</span>
               </div>
-            </div>
 
-            <button
-              id="back-to-games-btn"
-              class="btn-primary"
-              style="padding:1rem 2.5rem; font-size:1.1rem;">
-              🎮 Back to Games
-            </button>
+              <!-- Tournaments will be inserted here -->
+              <div id="tournaments-container"></div>
+            </div>
           </div>
         </div>
       </div>
 
       <style>
-        kbd {
-          font-family: monospace;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        /* Scrollbar styling */
+        #tournaments-list::-webkit-scrollbar {
+          width: 8px;
         }
-        .disabled-link {
-          pointer-events: none;
-          opacity: 0.5;
+        #tournaments-list::-webkit-scrollbar-track {
+          background: #111827;
+          border-radius: 4px;
+        }
+        #tournaments-list::-webkit-scrollbar-thumb {
+          background: #3b82f6;
+          border-radius: 4px;
+        }
+        #tournaments-list::-webkit-scrollbar-thumb:hover {
+          background: #2563eb;
         }
       </style>
     `,
             init: () => {
+                console.log("🏆 Tournament Selection page loaded");
+                // 1. Cleanup previous games/listeners
+                cleanupGame(this.user.id, false);
+                // 2. Setup Navigation (Back Button)
+                setupNavigationHandlers(this.user.id, "back-button-tournament", (path) => this.loadPage(path));
+                // --- DOM Elements ---
+                const titleInput = document.getElementById("tournament-title-input");
+                const createBtn = document.getElementById("create-tournament-btn");
+                const refreshBtn = document.getElementById("refresh-tournaments-btn");
+                const listContainer = document.getElementById("tournaments-container");
+                const loadingState = document.getElementById("tournaments-loading");
+                const emptyState = document.getElementById("tournaments-empty");
+                const listWrapper = document.getElementById("tournaments-list");
+                // --- HELPER: Fetch and Render Tournaments ---
+                const fetchTournaments = async () => {
+                    try {
+                        // Show loading, hide others
+                        loadingState.style.display = "block";
+                        emptyState.style.display = "none";
+                        listContainer.innerHTML = "";
+                        const token = localStorage.getItem('jwt_token');
+                        // ✅ Fetch from Nginx Proxy (GET /tournaments)
+                        const response = await fetch('/tournaments/tournaments', {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (!response.ok)
+                            throw new Error("Failed to fetch tournaments");
+                        const tournaments = await response.json();
+                        // Hide loading
+                        loadingState.style.display = "none";
+                        // Handle Empty List
+                        if (tournaments.length === 0) {
+                            emptyState.style.display = "block";
+                            return;
+                        }
+                        // Render List
+                        tournaments.forEach((t) => {
+                            const card = document.createElement("div");
+                            card.style.cssText = `
+          background: #374151;
+          margin-bottom: 1rem;
+          padding: 1rem;
+          border-radius: 0.5rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border: 1px solid #4b5563;
+          transition: transform 0.2s;
+        `;
+                            card.onmouseover = () => card.style.transform = "translateX(5px)";
+                            card.onmouseout = () => card.style.transform = "translateX(0)";
+                            console.log("t : ", t);
+                            const total = t.players.length;
+                            card.innerHTML = `
+          <div>
+            <div style="color: #e5e7eb; font-weight: bold; font-size: 1.1rem;">${t.title}</div>
+            <div style="color: #9ca3af; font-size: 0.9rem;">
+              Players: <span style="color: #10b981;">${total || 0}/4</span>
+            </div>
+          </div>
+        `;
+                            const joinBtn = document.createElement("button");
+                            joinBtn.innerText = "Join ➡️";
+                            joinBtn.style.cssText = `
+          background: #10b981;
+          color: white;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 0.5rem;
+          cursor: pointer;
+          font-weight: 600;
+        `;
+                            joinBtn.onclick = async () => {
+                                await joinTournament(t.id || t.tournamentId);
+                            };
+                            card.appendChild(joinBtn);
+                            listContainer.appendChild(card);
+                        });
+                    }
+                    catch (error) {
+                        console.error("Error fetching tournaments:", error);
+                        loadingState.innerHTML = `<span style="color:#ef4444">Failed to load.</span>`;
+                    }
+                };
+                const joinTournament = async (tournamentId) => {
+                    try {
+                        const token = localStorage.getItem('jwt_token');
+                        const res = await fetch('/tournaments/tournaments/join', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ tournamentId })
+                        });
+                        if (res.ok) {
+                            console.log("Joined successfully!");
+                            localStorage.setItem('activeTournamentId', tournamentId);
+                            this.navigateTo("dashboard/game/tournament/lobby");
+                        }
+                        else {
+                            alert("Failed to join: Tournament might be full or started.");
+                            fetchTournaments();
+                        }
+                    }
+                    catch (e) {
+                        console.error(e);
+                    }
+                };
+                const createTournament = async () => {
+                    const title = titleInput.value.trim();
+                    if (!title) {
+                        alert("Please enter a tournament name");
+                        return;
+                    }
+                    createBtn.disabled = true;
+                    createBtn.innerText = "Creating...";
+                    try {
+                        const token = localStorage.getItem('jwt_token');
+                        const res = await fetch('/tournaments/tournaments/create', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ title })
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            console.log("Tournament created!");
+                            localStorage.setItem('activeTournamentId', data.tournamentId);
+                            this.navigateTo("dashboard/game/tournament/lobby");
+                        }
+                        else {
+                            alert("Failed to create tournament.");
+                            createBtn.disabled = false;
+                            createBtn.innerText = "🏆 Create Tournament";
+                        }
+                    }
+                    catch (e) {
+                        console.error(e);
+                        createBtn.disabled = false;
+                        createBtn.innerText = "🏆 Create Tournament";
+                    }
+                };
+                const tournamentListListener = (msg) => {
+                    if (msg.type === "tournament_created" || msg.type === "tournament_deleted" || msg.type === "tournament_player-joined") {
+                        console.log("🔔 Tournament update received, refreshing list...");
+                        fetchTournaments();
+                    }
+                };
+                addMessageListener(tournamentListListener);
+                addCleanupListener(() => removeMessageListener(tournamentListListener));
+                createBtn.addEventListener("click", createTournament);
+                addCleanupListener(() => createBtn.removeEventListener("click", createTournament));
+                refreshBtn.addEventListener("click", fetchTournaments);
+                addCleanupListener(() => refreshBtn.removeEventListener("click", fetchTournaments));
+                const enterHandler = (e) => {
+                    if (e.key === "Enter")
+                        createTournament();
+                };
+                titleInput.addEventListener("keypress", enterHandler);
+                addCleanupListener(() => titleInput.removeEventListener("keypress", enterHandler));
+                fetchTournaments();
             }
         };
     }
@@ -1239,87 +1671,91 @@ class AppRouter {
         return {
             title: "PONG Game - Settings",
             content: `
-      <div class="content-card" style="margin-top: 5rem;">
-        <h2>⚙️ Settings</h2>
-        <form id="settings-form" style="margin-top: 1.5rem;">
-          <!-- Username -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-username" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-              Username
-            </label>
-            <input
-              type="text"
-              id="settings-username"
-              value="${this.user.username || ''}"
-              placeholder="Enter username"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-            />
-          </div>
+        <div class="content-card max-w-2xl mx-auto mt-20">
+          <h2 class="text-3xl font-bold text-white mb-6 flex items-center gap-3">
+            <span>⚙️</span> Settings
+          </h2>
 
-          <!-- Email -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-email" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-              Email
-            </label>
-            <input
-              type="email"
-              id="settings-email"
-              value="${this.user.email || ''}"
-              placeholder="player@example.com"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-            />
-          </div>
-          <!-- Tournament Username (Optional) -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-tournament" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-              Tournament Username (Optional)
-            </label>
-            <input
-              type="text"
-              id="settings-tournament"
-              placeholder="Tournament display name"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-            />
-          </div>
+          <form id="settings-form" class="flex flex-col gap-6">
 
-          <!-- Avatar URL (Optional) -->
-<div style="margin-bottom: 1.5rem;">
-  <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-    Choose Your Avatar
-  </label>
+            <!-- Username -->
+            <div>
+              <label for="settings-username" class="settings-label">
+                Username
+              </label>
+              <input
+                type="text"
+                id="settings-username"
+                value="${this.user.username || ''}"
+                placeholder="Enter username"
+                class="input-field"
+              />
+            </div>
 
-<div id="avatar-options">
-  <img src="../images/avatars/1.jpg" alt="Avatar 1" class="avatar-option" data-value="../images/avatars/1.jpg">
-  <img src="../images/avatars/2.jpg" alt="Avatar 2" class="avatar-option" data-value="../images/avatars/2.jpg">
-  <img src="../images/avatars/3.jpg" alt="Avatar 3" class="avatar-option" data-value="../images/avatars/3.jpg">
-  <img src="../images/avatars/4.jpg" alt="Avatar 4" class="avatar-option" data-value="../images/avatars/4.jpg">
-</div>
+            <!-- Email -->
+            <div>
+              <label for="settings-email" class="settings-label">
+                Email
+              </label>
+              <input
+                type="email"
+                id="settings-email"
+                value="${this.user.email || ''}"
+                placeholder="player@example.com"
+                class="input-field"
+              />
+            </div>
 
-  <!-- Hidden field to send selected avatar path -->
-  <input type="hidden" id="settings-avatar" name="avatar" value="${this.user.avatar || ''}" />
+            <!-- Tournament Username (Optional) -->
+            <div>
+              <label for="settings-tournament" class="settings-label">
+                Tournament Username (Optional)
+              </label>
+              <input
+                type="text"
+                id="settings-tournament"
+                placeholder="Tournament display name"
+                class="input-field"
+              />
+            </div>
 
-  <small style="color: #6b7280; font-size: 0.875rem;">
-    Current:
-    <img src="${this.user.avatar || './images/avatars/avatar1.png'}"
-         alt="Current Avatar"
-         style="width: 40px; height: 40px; border-radius: 50%; vertical-align: middle; margin-left: 0.5rem;">
-  </small>
-</div>
+            <!-- Avatar Selection -->
+            <div class="bg-gray-800/50 p-4 rounded-xl border border-white/5">
+              <label class="settings-label mb-4">
+                Choose Your Avatar
+              </label>
 
-          <!-- Save Button -->
-          <button
-            type="submit"
-            style="padding: 0.75rem 1.5rem; background: #10b981; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.3s;"
-            onmouseover="this.style.background='#059669'"
-            onmouseout="this.style.background='#10b981'"
-          >
-            💾 Save Changes
-          </button>
+              <!-- Horizontal Avatar Options -->
+              <div id="avatar-options">
+                <img src="../images/avatars/1.jpg" alt="Avatar 1" class="avatar-option" data-value="../images/avatars/1.jpg">
+                <img src="../images/avatars/2.jpg" alt="Avatar 2" class="avatar-option" data-value="../images/avatars/2.jpg">
+                <img src="../images/avatars/3.jpg" alt="Avatar 3" class="avatar-option" data-value="../images/avatars/3.jpg">
+                <img src="../images/avatars/4.jpg" alt="Avatar 4" class="avatar-option" data-value="../images/avatars/4.jpg">
+              </div>
 
-          <!-- Status Message -->
-          <div id="settings-status" style="margin-top: 1rem; padding: 0.75rem; border-radius: 0.5rem; display: none;"></div>
-        </form>
-      </div>
+              <!-- Hidden Input & Current Preview -->
+              <input type="hidden" id="settings-avatar" name="avatar" value="${this.user.avatar || ''}" />
+
+              <div class="flex items-center gap-3 mt-4 pt-4 border-t border-gray-700">
+                <span class="text-gray-400 text-sm">Current Selection:</span>
+                <img src="${this.user.avatar || './images/avatars/avatar1.png'}"
+                     alt="Current Avatar"
+                     class="w-10 h-10 rounded-full border border-emerald-500">
+              </div>
+            </div>
+
+            <!-- Save Button -->
+            <button
+              type="submit"
+              class="btn-primary w-full sm:w-auto mt-4 flex justify-center items-center gap-2"
+            >
+              <span>💾</span> Save Changes
+            </button>
+
+            <!-- Status Message -->
+            <div id="settings-status" class="settings-status hidden"></div>
+          </form>
+        </div>
     `,
             init: () => {
                 console.log("⚙️ Settings page loaded");
@@ -1328,38 +1764,29 @@ class AppRouter {
                 const avatarOptions = document.querySelectorAll(".avatar-option");
                 const avatarInput = document.getElementById("settings-avatar");
                 const profileAvatar = document.querySelector('.user-avatar'); // main avatar in UI
-                // --- Avatar selection logic ---
                 if (avatarOptions && avatarInput) {
                     avatarOptions.forEach(option => {
                         option.addEventListener("click", () => {
-                            // Remove selection from others
                             avatarOptions.forEach(o => o.classList.remove("selected"));
-                            // Mark clicked one as selected
                             option.classList.add("selected");
-                            // Update hidden input value
                             avatarInput.value = option.dataset.value || "";
-                            // Optionally update live avatar preview
                             if (profileAvatar)
                                 profileAvatar.src = avatarInput.value;
                         });
                     });
-                    // Pre-select current avatar
                     const currentAvatar = avatarInput.value;
                     avatarOptions.forEach(o => {
                         if (o.dataset.value === currentAvatar)
                             o.classList.add("selected");
                     });
                 }
-                // --- Form submission logic ---
                 if (form) {
                     form.addEventListener('submit', async (e) => {
                         e.preventDefault();
-                        // Get form values
                         const username = document.getElementById('settings-username').value.trim();
                         const email = document.getElementById('settings-email').value.trim();
                         const tournament = document.getElementById('settings-tournament').value.trim();
                         const avatar = avatarInput?.value.trim() || "";
-                        // Build update object (only include changed fields)
                         const updates = {};
                         if (username && username !== this.currentUser)
                             updates.username = username;
@@ -1369,7 +1796,6 @@ class AppRouter {
                             updates.usernameTournament = tournament;
                         if (avatar && avatar !== this.user.avatar)
                             updates.avatar = avatar;
-                        // Check if any changes were made
                         if (Object.keys(updates).length === 0) {
                             statusDiv.style.display = 'block';
                             statusDiv.style.background = '#fef3c7';
@@ -1377,15 +1803,12 @@ class AppRouter {
                             statusDiv.textContent = '⚠️ No changes detected';
                             return;
                         }
-                        // Show loading state
                         statusDiv.style.display = 'block';
                         statusDiv.style.background = '#dbeafe';
                         statusDiv.style.color = '#1e40af';
                         statusDiv.textContent = '⏳ Updating profile...';
-                        // Call update method
                         const success = await this.updateUserProfile(updates);
                         if (success) {
-                            // Update local state
                             if (updates.username)
                                 this.currentUser = updates.username;
                             if (updates.email)
@@ -1395,7 +1818,7 @@ class AppRouter {
                             if (updates.avatar) {
                                 this.user.avatar = updates.avatar;
                                 if (profileAvatar)
-                                    profileAvatar.src = updates.avatar; // update avatar in UI
+                                    profileAvatar.src = updates.avatar;
                             }
                             statusDiv.style.background = '#d1fae5';
                             statusDiv.style.color = '#065f46';

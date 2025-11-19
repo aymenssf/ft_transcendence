@@ -85,6 +85,7 @@ services:
     volumes:
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./frontend/images:/usr/share/nginx/html/images:ro
+      - ./frontend/dist:/usr/share/nginx/html/dist:ro
       - ./frontend/certs:/etc/nginx/certs
     networks:
       - transcendence-network

@@ -312,7 +312,7 @@ function showGameOverOverlay(isWinner, gameType, navigateCallback, isPlayer2Winn
         navigateCallback(redirectPath);
     }, 3000);
 }
-function handleGameConfig(msg, userId, startButtonId, isAI = false, isRemote = false) {
+export function handleGameConfig(msg, userId, startButtonId, isAI = false, isRemote = false) {
     gameConfig = {
         gameId: msg.payload.gameId,
         mode: msg.payload.mode,
@@ -521,4 +521,72 @@ export function setupGameListeners(gameListener, scoreElementId, userId, loadPag
         removeMessageListener(updateHandler);
         removeMessageListener(finishHandler);
     });
+}
+export function cleanupTournamentPage() {
+    console.log("🧹 Cleaning up tournament page (keeping tournament active)...");
+    cleanupListeners.forEach(cleanup => cleanup());
+    cleanupListeners = [];
+    if (keydownHandler) {
+        document.removeEventListener("keydown", keydownHandler);
+        keydownHandler = null;
+    }
+    if (keyupHandler) {
+        document.removeEventListener("keyup", keyupHandler);
+        keyupHandler = null;
+    }
+    const container = document.getElementById("game-container");
+    if (container)
+        container.innerHTML = '';
+    ctx = null;
+}
+export function setupTournamentNavigationHandlers(userId, tournamentId, loadPageCallback) {
+    sessionStorage.setItem('inTournamentLobby', tournamentId);
+    const beforeUnloadHandler = (e) => {
+        console.log("🔄 Page unloading (refresh/close) - not sending leave message");
+    };
+    window.addEventListener("beforeunload", beforeUnloadHandler);
+    addCleanupListener(() => window.removeEventListener("beforeunload", beforeUnloadHandler));
+    const popstateHandler = () => {
+        const tournamentId = sessionStorage.getItem('inTournamentLobby');
+        if (tournamentId && !window.location.pathname.includes('tournament/lobby')) {
+            console.log("🚪 Navigating away from tournament - leaving...");
+            sessionStorage.removeItem('inTournamentLobby');
+            fetch('/tournaments/tournaments/leave', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tournamentId })
+            }).catch(console.error);
+        }
+        cleanupTournamentPage();
+        loadPageCallback(window.location.pathname.replace(/^\//, "") || "home");
+    };
+    window.addEventListener("popstate", popstateHandler);
+    addCleanupListener(() => window.removeEventListener("popstate", popstateHandler));
+}
+export async function fetchUserDetails(userId) {
+    try {
+        const token = localStorage.getItem('jwt_token');
+        if (!token) {
+            console.warn("No token found for fetchUserDetails");
+            return null;
+        }
+        const res = await fetch(`/api/auth/user/${userId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        if (!res.ok) {
+            return null;
+        }
+        return await res.json();
+    }
+    catch (error) {
+        console.error(`Error fetching details for user ${userId}:`, error);
+        return null;
+    }
 }

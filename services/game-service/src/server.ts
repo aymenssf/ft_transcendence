@@ -10,7 +10,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { gameAPIs } from "./game/gameAPIs.js"
 import fs from 'fs'
-
+import { gameModelRoutes } from "./route/gameModelRoutes.js";
 
 
 const app: FastifyInstance = Fastify({
@@ -31,6 +31,7 @@ await app.register(friendRoutes);
 await app.register(gameSocket);
 await app.register(tournamentRoute);
 await app.register(gameAPIs);
+await app.register(gameModelRoutes);
 
 
 app.get('/', async (req: FastifyRequest, reply: FastifyReply) => {

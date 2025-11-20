@@ -1,13 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-generator client {
-  provider = "prisma-client-js"
-}
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,7 +10,7 @@ datasource db {
   url      = env("GAME_DATABASE_URL")
 }
 
-model GameRoom {
+model Match {
   id           Int        @id @default(autoincrement())
   gameId       String     @unique
   p1           String?
@@ -26,6 +19,8 @@ model GameRoom {
   mode         String
   difficulty   String?
   winner       String?
+  p1Score      Int        @default(0)
+  p2Score      Int        @default(0)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }

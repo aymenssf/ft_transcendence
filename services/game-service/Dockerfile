@@ -38,6 +38,7 @@ RUN openssl req -x509 -newkey rsa:2048 -nodes \
     -days 365
 
 EXPOSE 3012
+RUN npx prisma generate
 
 CMD ["npm", "run", "dev"]
 # CMD ["sh", "-c", "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && node dist/src/server.js"]

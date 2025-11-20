@@ -1,8 +1,6 @@
 // src/gameModels.ts
-import { PrismaClient } from '@prisma/client'
 import { GameRoom } from '../utils/types.js'
-
-const prisma = new PrismaClient()
+import prisma from "./prisma.js"
 
 export const GameModel = {
     async getAllMatches() {
@@ -38,6 +36,23 @@ export const GameModel = {
     },
 
     async getUserStats(id: string) {
+        // Debug info: what's prisma at runtime?
+        console.error('DEBUG prisma exists:', !!prisma);
+        try {
+            console.error('DEBUG prisma keys:', Object.keys(prisma || {}));
+        } catch (e) {
+            console.error('DEBUG prisma keys read failed:', e);
+        }
+        console.error('DEBUG has match model:', prisma?.match !== undefined);
+
+        if (!prisma) {
+            throw new Error('Prisma client is undefined — check import path and that @prisma/client was generated.');
+        }
+        if (!('match' in prisma)) {
+            throw new Error(
+                'Prisma client does not expose model "match". Check prisma/schema.prisma for a model named "Match" (model names are transformed to lowerCamel model properties) and ensure `prisma generate` ran.'
+            );
+        }
         const matches = await prisma.match.findMany({
             where: {
                 OR: [{ p1: id }, { p2: id }],
@@ -53,9 +68,9 @@ export const GameModel = {
         let gamesPlayed = matches.length;
 
         for (const match of matches) {
-            const isPlayer1 = match.player1 === id;
-            const playerScore = isPlayer1 ? match.score1 : match.score2;
-            const opponentScore = isPlayer1 ? match.score2 : match.score1;
+            const isPlayer1 = match.p1 === id;
+            const playerScore = isPlayer1 ? match.p1Score : match.p2Score;
+            const opponentScore = isPlayer1 ? match.p2Score : match.p1Score;
 
             totalScore += playerScore;
             if (match.winner === id) wins++;
@@ -78,24 +93,28 @@ export const GameModel = {
 
 
 export async function saveGameRoom(gameRoom: GameRoom) {
-    return await prisma.gameRoom.upsert({
+    return await prisma.match.upsert({
         where: { gameId: gameRoom.gameId },
         update: {
-            p1: gameRoom.p1,
-            p2: gameRoom.p2,
+            p1: "" + gameRoom.p1,
+            p2: "" + gameRoom.p2,
             status: gameRoom.status,
             mode: gameRoom.mode,
+            p1Score: gameRoom.state.paddles.left.score,
+            p2Score: gameRoom.state.paddles.right.score,
             difficulty: gameRoom.difficulty,
-            winner: gameRoom.winner,
+            winner: "" + gameRoom.winner,
         },
         create: {
             gameId: gameRoom.gameId,
-            p1: gameRoom.p1,
-            p2: gameRoom.p2,
+            p1: "" + gameRoom.p1,
+            p2: "" + gameRoom.p2,
             status: gameRoom.status,
             mode: gameRoom.mode,
+            p1Score: gameRoom.state.paddles.left.score,
+            p2Score: gameRoom.state.paddles.right.score,
             difficulty: gameRoom.difficulty,
-            winner: gameRoom.winner,
+            winner: "" + gameRoom.winner,
         },
     })
 }

@@ -4,6 +4,7 @@ import { GameBall, GameCanvas, GamePaddles, GameRoom } from "../utils/types.js";
 import { WebSocket } from "ws";
 import { createInitialGameState } from '../helpers/helpers.js';
 import { handleTournamentRoundWinner } from './tournament.js';
+import { saveGameRoom } from '../model/gameModels.js';
 
 function resetBall(gameRoom: GameRoom) {
     const { ball, canvas } = gameRoom.state;
@@ -162,6 +163,7 @@ export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
             if (gameRoom.loop) {
                 clearInterval(gameRoom.loop);
                 gameRoom.loop = null;
+                saveGameRoom(gameRoom);
             }
         }
         const updateMsg = JSON.stringify({

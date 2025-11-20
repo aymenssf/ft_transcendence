@@ -230,7 +230,7 @@ function startTournament(tournamentId: string) {
     setTimeout(() => {
         if (tournament.rounds[0].status !== GAME_ROOM_STATUS.FINISHED) startGame(tournament.rounds[0]);
         if (tournament.rounds[1].status !== GAME_ROOM_STATUS.FINISHED) startGame(tournament.rounds[1]);
-    }, 2000);
+    }, 10000);
 
 }
 

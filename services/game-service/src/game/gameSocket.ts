@@ -11,6 +11,7 @@ import { GAME_ROOM_MODE, GAME_ROOM_STATUS, TOURNAMENT_STATUS } from "../helpers/
 import "@fastify/websocket";
 import jwt from "@fastify/jwt"
 import { handleTournamentRoundWinner, notifyTournamentPlayers } from './tournament.js';
+import { saveGameRoom } from '../model/gameModels.js';
 
 interface SocketQuery {
     token: string;
@@ -112,6 +113,7 @@ function handlePlayerLeaveMatch(playerId: string, payload: any) {
         Array.from(gameRoom.sockets)[1]?.close();
     }
     if (gameRoom.loop) clearInterval(gameRoom.loop);
+    saveGameRoom(gameRoom);
     games.delete(payload.gameId);
 
 }
@@ -293,7 +295,7 @@ function handleSocketClose(playerId: string) {
 
     if (gameRoom.loop) clearInterval(gameRoom.loop);
     gameRoom.status = GAME_ROOM_STATUS.FINISHED;
-
+    saveGameRoom(gameRoom);
     cleanupRoom(gameRoom.gameId);
 }
 

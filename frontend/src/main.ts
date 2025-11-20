@@ -12,6 +12,7 @@ import {
   createRemoteGameListener
 } from "./game_shared.js";
 // import { getAllUsers } from "../loadSharedDb.ts";
+import { ChatManager } from "./chat/index.js";
 
 console.log("start Pong game");
 
@@ -44,6 +45,7 @@ class AppRouter {
   private currentUser: string | null = null;
   private postLoginRedirect: string | null = null;
   private user: User = {username:"", passworde:"",email:"", avatar:"../images/avatre/1jpg",usernametournament : "" ,id:0};
+  private chatManager: ChatManager | null = null;
   private allpages = [
     "/",
     "home",
@@ -1618,228 +1620,27 @@ private getStatsPage(): Page {
 private getChatPage(): Page {
   return {
     title: "PONG Game - Chat",
-    content: `
-<div class="content-card flex h-[80vh] gap-4">
+    content: `<div id="chat-app-container"></div>`,
+    init: () => {
+      console.log("💬 Chat page loaded");
 
-  <!-- SIDEBAR: USER LIST -->
-  <div class="w-64 bg-gray-900 text-gray-100 rounded-xl p-4 flex flex-col">
+      // Cleanup previous chat instance if exists
+      if (this.chatManager) {
+        this.chatManager.destroy();
+        this.chatManager = null;
+      }
 
-    <h2 class="text-xl font-bold mb-4">💬 Chats</h2>
-
-    <!-- Search Bar -->
-    <input
-      id="chat-search"
-      class="w-full p-2 rounded-md bg-gray-800 text-gray-200 mb-3"
-      placeholder="Search user..."
-    />
-
-    <!-- USER LIST -->
-    <div id="chat-user-list" class="flex-1 overflow-y-auto space-y-2">
-
-      <!-- Example user item (dynamic in JS) -->
-      <!--
-      <div class="p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700"
-           data-user-id="546479405">
-        <div class="flex items-center gap-2">
-          <img src="../images/avatars/1.jpg" class="w-10 h-10 rounded-full">
-          <div>
-            <div class="font-semibold">ybahij</div>
-            <div class="text-xs text-gray-400">Online</div>
-          </div>
-        </div>
-      </div>
-      -->
-
-    </div>
-
-  </div>
-
-  <!-- MAIN CHAT WINDOW -->
-  <div class="flex-1 bg-white rounded-xl p-4 flex flex-col">
-
-    <!-- Chat Header -->
-    <div id="chat-header" class="flex items-center justify-between mb-4 border-b pb-3 hidden">
-      <div class="flex items-center gap-3">
-        <img id="chat-user-avatar" class="w-12 h-12 rounded-full" src="">
-        <div>
-          <div id="chat-username" class="text-lg font-semibold"></div>
-          <button id="chat-view-profile" class="text-sm text-blue-600 hover:underline">
-            View Profile
-          </button>
-        </div>
-      </div>
-
-      <div class="flex gap-2">
-        <button id="chat-block-btn" class="px-3 py-1 bg-red-500 text-white rounded-md text-sm">
-          Block
-        </button>
-
-        <button id="chat-invite-btn" class="px-3 py-1 bg-green-600 text-white rounded-md text-sm">
-          Invite to Game
-        </button>
-      </div>
-    </div>
-
-    <!-- Chat Messages Area -->
-    <div id="chat-messages"
-         class="flex-1 overflow-y-auto bg-gray-100 p-4 rounded-md space-y-3">
-    </div>
-
-    <!-- Message Input -->
-    <div id="chat-message-box" class="flex gap-2 mt-4 hidden">
-      <input id="chat-input"
-             class="flex-1 p-3 rounded-md border"
-             placeholder="Type your message..."/>
-      <button id="chat-send"
-              class="px-4 py-2 bg-blue-600 text-white rounded-md">
-        Send
-      </button>
-    </div>
-
-  </div>
-</div>
-
-    `,
-
-init: () => {
-//   console.log("💬 Chat page loaded");
-
-//   // Initialize WebSocket only ONCE
-//   const socket = initchatSocket();
-
-//   // UI references
-//   const userList = document.getElementById("chat-user-list")!;
-//   const chatHeader = document.getElementById("chat-header")!;
-//   const messageBox = document.getElementById("chat-messages")!;
-//   const chatInput = document.getElementById("chat-input")! as HTMLInputElement;
-//   const sendBtn = document.getElementById("chat-send")!;
-//   const messageSection = document.getElementById("chat-message-box")!;
-//   const usernameLabel = document.getElementById("chat-username")!;
-//   const avatarImg = document.getElementById("chat-user-avatar")! as HTMLImageElement;
-
-//   let currentChatUser: any = null; // Active DM target
-
-//   // -------------------------------------------------------
-//   // 1️⃣ FETCH USER LIST (from your backend /api/users/all)
-//   // -------------------------------------------------------
-//   fetch("/api/users/all", {
-//     headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
-//   })
-//     .then(res => res.json())
-//     .then(users => {
-//       userList.innerHTML = "";
-//       console.log('users:', users);
-//       console.log('Is array?', Array.isArray(users));
-
-//       users.forEach((user: any) => {
-//         if (user.id === JSON.parse(localStorage.getItem("user")!).id) return; // skip self
-
-//         const div = document.createElement("div");
-//         div.className = "p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700";
-//         div.dataset.userId = user.id;
-
-//         div.innerHTML = `
-//           <div class="flex items-center gap-2">
-//             <img src="${user.avatar}" class="w-10 h-10 rounded-full" />
-//             <div>
-//               <div class="font-semibold">${user.username}</div>
-//               <div class="text-xs text-gray-400">Online</div>
-//             </div>
-//           </div>
-//         `;
-
-//         // Click to open DM
-//         div.onclick = () => {
-//           currentChatUser = user;
-
-//           // update header UI
-//           chatHeader.classList.remove("hidden");
-//           messageSection.classList.remove("hidden");
-
-//           usernameLabel.textContent = user.username;
-//           avatarImg.src = user.avatar;
-
-//           // clear chat display & load conversation
-//           messageBox.innerHTML = "";
-//           loadConversation(user.id);
-//         };
-
-//         userList.appendChild(div);
-//       });
-//     });
-
-//   // -------------------------------------------------------
-//   // 2️⃣ SEND MESSAGE
-//   // -------------------------------------------------------
-//   sendBtn.onclick = () => {
-//     if (!chatInput.value.trim() || !currentChatUser) return;
-
-//     const message = {
-//       type: "dm",
-//       to: currentChatUser.id,
-//       message: chatInput.value,
-//     };
-
-//     socket.send(JSON.stringify(message));
-
-//     // Add my own message to UI
-//     appendMessage("me", chatInput.value);
-//     chatInput.value = "";
-//   };
-
-//   // -------------------------------------------------------
-//   // 3️⃣ RECEIVE MESSAGE
-//   // -------------------------------------------------------
-//   onChatMessage((msg) => {
-//     if (msg.type === "dm") {
-//       // only show messages from the currently opened chat
-//       if (!currentChatUser || msg.from !== currentChatUser.id) return;
-
-//       appendMessage("them", msg.message);
-//     }
-//   });
-
-//   // -------------------------------------------------------
-//   // Helper: Append Message to UI
-//   // -------------------------------------------------------
-//   function appendMessage(sender: "me" | "them", text: string) {
-//     const bubble = document.createElement("div");
-
-//     bubble.className =
-//       sender === "me"
-//         ? "text-right"
-//         : "text-left";
-
-//     bubble.innerHTML = `
-//       <div class="inline-block px-3 py-2 rounded-lg mb-1 ${
-//         sender === 'me'
-//           ? 'bg-blue-600 text-white'
-//           : 'bg-gray-300 text-black'
-//       }">
-//         ${text}
-//       </div>
-//     `;
-
-//     messageBox.appendChild(bubble);
-//     messageBox.scrollTop = messageBox.scrollHeight;
-//   }
-
-//   // -------------------------------------------------------
-//   // Load conversation history (optional)
-//   // -------------------------------------------------------
-//   function loadConversation(userId: number) {
-//     fetch(`/api/chat/history/${userId}`, {
-//       headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
-//     })
-//       .then(res => res.json())
-//       .then(messages => {
-//         messages.forEach((msg: any) => {
-//           appendMessage(msg.fromMe ? "me" : "them", msg.message);
-//         });
-//       });
-//   }
-}
-
+      // Initialize new chat manager
+      this.chatManager = new ChatManager('chat-app-container');
+      this.chatManager.init({
+        id: this.user.id,
+        username: this.user.username,
+        email: this.user.email,
+        avatar: this.user.avatar
+      }).catch(err => {
+        console.error('Failed to initialize chat:', err);
+      });
+    }
   };
 }
 

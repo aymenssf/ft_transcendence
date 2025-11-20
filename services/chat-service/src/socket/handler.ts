@@ -46,6 +46,12 @@ export function setupSocketConnection(app: FastifyInstance) {
       // Update user status to online in database
       try {
         await app.db.updateUserStatus(userId, 'online');
+        // Auto-join user to General room
+        // @ts-ignore - joinGeneralRoom added to ChatDB interface
+        if (typeof app.db.joinGeneralRoom === 'function') {
+          // @ts-ignore
+          await app.db.joinGeneralRoom(userId);
+        }
       } catch (error: any) {
         app.log.error(`Failed to update user status for user ${userId}:`, error);
       }
@@ -66,10 +72,10 @@ export function setupSocketConnection(app: FastifyInstance) {
         // Notify friends specifically (if they are online)
         try {
           const friendIds = await app.db.getFriendIds(userId);
-          for (const fid of friendIds) 
+          for (const fid of friendIds)
           {
             const sid = onlineUsers.get(fid);
-            if (sid) 
+            if (sid)
               app.io.to(sid).emit('friend-status-change', { userId, status: 'online' });
           }
         } catch (e: any) {

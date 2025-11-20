@@ -136,6 +136,10 @@ export interface ChatDB {
   getFriends(userId: number): Promise<any[]>;
   getFriendIds(userId: number): Promise<number[]>;
 
+  // General room management
+  ensureGeneralRoom(): Promise<any>;
+  joinGeneralRoom(userId: number): Promise<void>;
+
   close(): void;
 }
 
@@ -517,17 +521,18 @@ function createChatDB(): ChatDB {
 
     // Friends
     async sendFriendRequest(senderId: number, receiverId: number): Promise<any> {
-      if (senderId === receiverId) 
+      if (senderId === receiverId)
         throw new Error('Cannot add yourself');
 
       // Check existing friendship
       const existingFriend = await prisma.friend.findUnique({
         where: { userId_friendId: { userId: senderId, friendId: receiverId } }
       });
-      if (existingFriend) 
+      if (existingFriend)
         throw new Error('Already friends');
-      // Check existing request in either direction
-      const existingReq = await prisma.friendRequest.findFirst({
+
+      // Check existing pending request in either direction
+      const existingPendingReq = await prisma.friendRequest.findFirst({
         where: {
           OR: [
             { senderId, receiverId, status: 'pending' },
@@ -535,8 +540,25 @@ function createChatDB(): ChatDB {
           ]
         }
       });
-      if (existingReq) 
-        return existingReq;
+      if (existingPendingReq)
+        return existingPendingReq;
+
+      // Check for declined or accepted requests - delete them first
+      const oldRequest = await prisma.friendRequest.findFirst({
+        where: {
+          OR: [
+            { senderId, receiverId },
+            { senderId: receiverId, receiverId: senderId }
+          ]
+        }
+      });
+
+      if (oldRequest) {
+        // Delete old request to avoid unique constraint error
+        await prisma.friendRequest.delete({
+          where: { id: oldRequest.id }
+        });
+      }
 
       return await prisma.friendRequest.create({
         data: { senderId, receiverId, status: 'pending' }
@@ -545,11 +567,11 @@ function createChatDB(): ChatDB {
 
     async respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any> {
       const req = await prisma.friendRequest.findUnique({ where: { id: requestId } });
-      if (!req) 
+      if (!req)
         throw new Error('Request not found');
-      if (req.receiverId !== receiverId) 
+      if (req.receiverId !== receiverId)
         throw new Error('Not authorized');
-      if (req.status !== 'pending') 
+      if (req.status !== 'pending')
         throw new Error('Request already handled');
 
       const status = accept ? 'accepted' : 'declined';
@@ -558,7 +580,7 @@ function createChatDB(): ChatDB {
         data: { status }
       });
 
-      if (accept) 
+      if (accept)
       {
         // create bidirectional friendship
         await prisma.friend.create({ data: { userId: req.senderId, friendId: req.receiverId } });
@@ -604,6 +626,74 @@ function createChatDB(): ChatDB {
 
     close() {
       // No need to disconnect shared prisma instance
+    },
+
+    async ensureGeneralRoom() {
+      try {
+        // Check if General room exists
+        let generalRoom = await prisma.chatRoom.findFirst({
+          where: {
+            name: 'General',
+            type: 'public'
+          }
+        });
+
+        // Create if doesn't exist
+        if (!generalRoom) {
+          // Get the first user to be the owner
+          const firstUser = await prisma.user.findFirst({
+            orderBy: { id: 'asc' }
+          });
+
+          if (!firstUser) {
+            console.log('⏭️  Skipping General room creation - no users exist yet');
+            return null;
+          }
+
+          generalRoom = await prisma.chatRoom.create({
+            data: {
+              name: 'General',
+              type: 'public',
+              ownerId: firstUser.id
+            }
+          });
+          console.log('✅ General room created');
+        }
+
+        return generalRoom;
+      } catch (error) {
+        console.error('Failed to ensure General room:', error);
+        return null;
+      }
+    },
+
+    async joinGeneralRoom(userId: number) {
+      const generalRoom = await this.ensureGeneralRoom();
+
+      if (!generalRoom) {
+        console.log('⏭️  Skipping General room join - room does not exist');
+        return;
+      }
+
+      // Check if user is already a member
+      const existingMember = await prisma.chatRoomMember.findFirst({
+        where: {
+          userId,
+          chatRoomId: generalRoom.id
+        }
+      });
+
+      // Add user if not already a member
+      if (!existingMember) {
+        await prisma.chatRoomMember.create({
+          data: {
+            userId,
+            chatRoomId: generalRoom.id,
+            role: 'member'
+          }
+        });
+        console.log(`✅ User ${userId} joined General room`);
+      }
     }
   };
 }

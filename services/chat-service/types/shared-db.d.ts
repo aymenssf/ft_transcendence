@@ -6,7 +6,7 @@ declare module '../../Shared_dataBase/db-connection.js' {
       avatar?: string;
       created_at?: string;
     }
-  
+
     interface Message {
       id: number;
       sender_id: number;
@@ -15,28 +15,31 @@ declare module '../../Shared_dataBase/db-connection.js' {
       content: string;
       created_at: string;
     }
-  
+
     interface ChatRoom {
       id: number;
       name: string;
       type: 'private' | 'group';
       created_at: string;
     }
-  
+
     interface Database {
       //dyal user auth , t9dr tkhdm bihom hna
       findUserById(id: number): Promise<User | undefined>;
       findUserByUsername(username: string): Promise<User | undefined>;
 
-    // example the chat 
+    // example the chat
       createMessage(senderId: number, content: string, receiverId?: number, roomId?: number): Promise<Message>;
-      
+
       createChatRoom(name: string, type: 'private' | 'group'): Promise<ChatRoom>;
-      
-      
+
+      // General room management
+      ensureGeneralRoom(): Promise<any>;
+      joinGeneralRoom(userId: number): Promise<void>;
+
       close(): void;
     }
-  
+
     const db: Database;
     export default db;
   }

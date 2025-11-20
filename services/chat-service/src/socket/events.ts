@@ -54,9 +54,6 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
         return;
       }
 
-      // Save message to database
-      const message = await app.db.createMessage(content, userId, chatRoomId);
-
       // Get room members to check blocking
       const { prisma } = await import('@ft/shared-database');
 
@@ -64,6 +61,25 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
         where: { chatRoomId },
         select: { userId: true }
       });
+
+      // For private chats (2 members), check blocking in both directions
+      if (members.length === 2) {
+        const otherMember = members.find(m => m.userId !== userId);
+        if (otherMember) {
+          // Check if receiver blocked sender
+          const isBlockedByReceiver = await app.db.isUserBlocked(otherMember.userId, userId);
+          // Check if sender blocked receiver
+          const hasSenderBlockedReceiver = await app.db.isUserBlocked(userId, otherMember.userId);
+
+          if (isBlockedByReceiver || hasSenderBlockedReceiver) {
+            socket.emit('error', { message: 'You cannot send messages to this user' });
+            return;
+          }
+        }
+      }
+
+      // Save message to database
+      const message = await app.db.createMessage(content, userId, chatRoomId);
 
       // Broadcast message to room members except blocked users
       for (const member of members) {
@@ -127,9 +143,11 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
         return;
       }
 
-      // Check if sender is blocked
-      const isBlocked = await app.db.isUserBlocked(receiverId, userId);
-      if (isBlocked) {
+      // Check if either user has blocked the other
+      const isBlockedByReceiver = await app.db.isUserBlocked(receiverId, userId);
+      const hasSenderBlockedReceiver = await app.db.isUserBlocked(userId, receiverId);
+
+      if (isBlockedByReceiver || hasSenderBlockedReceiver) {
         socket.emit('error', { message: 'Cannot send message to this user' });
         return;
       }
@@ -333,28 +351,28 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
   // Friend: send request via socket (supports receiverUsername or receiverId)
   socket.on('send-friend-request', async (data: { receiverId?: number; receiverUsername?: string }) => {
     try {
-      if (!userId) 
+      if (!userId)
         return socket.emit('error', { message: 'Not authenticated' });
       const { receiverId: rawReceiverId, receiverUsername } = data;
 
       // Resolve receiver by username if provided
       let receiverId = rawReceiverId;
-      if (!receiverId && receiverUsername) 
+      if (!receiverId && receiverUsername)
       {
         const user = await app.db.findUserByUsername(receiverUsername);
-        if (!user) 
+        if (!user)
           return socket.emit('error', { message: 'User not found' });
         receiverId = user.id;
       }
 
-      if (!receiverId) 
+      if (!receiverId)
         return socket.emit('error', { message: 'receiverUsername (preferred) or receiverId is required' });
 
       const req = await app.db.sendFriendRequest(userId, receiverId);
 
       // Notify receiver if online
       const receiverSocketId = onlineUsers.get(receiverId);
-      if (receiverSocketId) 
+      if (receiverSocketId)
       {
         app.io.to(receiverSocketId).emit('friend-request', {
           id: req.id,
@@ -375,7 +393,7 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
   // Friend: respond to request via socket
   socket.on('respond-friend-request', async (data: { requestId: number; accept: boolean }) => {
     try {
-      if (!userId) 
+      if (!userId)
         return socket.emit('error', { message: 'Not authenticated' });
       const { requestId, accept } = data;
       const updated = await app.db.respondFriendRequest(requestId, userId, accept);
@@ -384,14 +402,14 @@ export function registerSocketEvents(app: FastifyInstance, socket: Socket) {
       const req = updated; // includes senderId/receiverId
       const notify = (uid: number, payload: any) => {
         const sid = onlineUsers.get(uid);
-        if (sid) 
+        if (sid)
           app.io.to(sid).emit('friend-request-updated', payload);
       };
 
       notify(req.senderId, { requestId: req.id, status: req.status, otherUserId: req.receiverId });
       notify(req.receiverId, { requestId: req.id, status: req.status, otherUserId: req.senderId });
 
-      if (updated.status === 'accepted') 
+      if (updated.status === 'accepted')
       {
         const [sender, receiver] = await Promise.all([
           app.db.findUserById(req.senderId),

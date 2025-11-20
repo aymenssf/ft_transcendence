@@ -1,10 +1,12 @@
 import 'fastify';
 import { Server as SocketIOServer } from 'socket.io';
+import type { ChatDB } from '../loadSharedDb.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
     io: SocketIOServer;
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    db: ChatDB;
   }
 }
 

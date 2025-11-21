@@ -1,4 +1,0 @@
-/**
- * Chat Type Definitions
- */
-export {};

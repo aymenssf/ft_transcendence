@@ -266,8 +266,8 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
         if (!playerId)
             return reply.code(400).send({ error: "playerId is required" });
 
-        if (playerAlreadyInTournament(playerId))
-            return reply.code(400).send({ error: "playerId already in another tournament" });
+        // if (playerAlreadyInTournament(playerId))
+        //     return reply.code(400).send({ error: "playerId already in another tournament" });
 
         const tournament = createTournament(playerId, title);
         tournaments.set(tournament.tournamentId, tournament);
@@ -310,8 +310,8 @@ export async function tournamentRoute(fastify: FastifyInstance, options: any) {
         if (!playerId)
             return reply.code(400).send({ message: "playerId is required" });
 
-        if (playerAlreadyInTournament(playerId))
-            return reply.code(400).send({ error: "playerId already in another tournament" });
+        // if (playerAlreadyInTournament(playerId))
+        //     return reply.code(400).send({ error: "playerId already in another tournament" });
 
         const tournament = tournaments.get(tournamentId);
 

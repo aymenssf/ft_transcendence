@@ -11,6 +11,7 @@ services:
       - .env
     volumes:
       - ./database:/app/database:rw
+      - ./services/auth-service/avatar:/app/avatar:rw
     networks:
       - transcendence-network
     restart: unless-stopped

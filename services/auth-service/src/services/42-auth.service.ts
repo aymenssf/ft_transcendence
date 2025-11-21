@@ -46,6 +46,10 @@ export class Auth42Service {
 
     // Ensure we have exactly one slash between base URL and path
     this.redirectUri = `${baseUrl.replace(/\/+$/, '')}/auth/42/callback`;
+    
+    console.log('🔧 42 OAuth Configuration:');
+    console.log('   AUTH_SERVICE_URL:', baseUrl);
+    console.log('   Redirect URI:', this.redirectUri);
 
     setInterval(() => this.cleanupExpiredStates(), 10 * 60 * 1000);
   }

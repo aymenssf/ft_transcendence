@@ -20,7 +20,7 @@
 # Build artifacts
 services/ai-service/dist/
 services/*/dist/
-
+*/dist
 # Test files
 */ARCHITECTURE.md
 

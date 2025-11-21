@@ -44,9 +44,7 @@ services:
       - ./services/game-service/.env
     volumes:
       - ./services/game-service:/app/services/game-service:rw
-      - ./services/game-service/prisma:/app/prisma
       - /app/services/game-service/node_modules
-      - ./database:/app/database:rw
       - ./Shared_dataBase:/app/Shared_dataBase:rw
       - /app/Shared_dataBase/node_modules
     # command: >

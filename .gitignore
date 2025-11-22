@@ -16,7 +16,8 @@
 # database
 **/database/*
 *.db
-
+**/services/game-service/prisma/**/*.db
+**/services/game-service/prisma/**/*.db-*
 # Build artifacts
 services/ai-service/dist/
 services/*/dist/

@@ -11,7 +11,6 @@ import {
   createAIGameListener,
   createRemoteGameListener
 } from "./game_shared.js";
-// import { getAllUsers } from "../loadSharedDb.ts";
 import { ChatManager } from "./chat/index.js";
 import { initAuth42, Auth42Handler, create42IntraButton } from './auth-42-intra.js';
 import {
@@ -97,7 +96,7 @@ constructor(containerId: string) {
       if (auth42Result) {
         console.log('✅ 42 intra authentication successful!');
         console.log('   User:', auth42Result.user);
-        
+
         // Set logged in state
         this.setLoggedIn(true);
         this.currentUser = auth42Result.user.username;
@@ -109,15 +108,15 @@ constructor(containerId: string) {
           usernametournament: auth42Result.user.usernameTournament || auth42Result.user.username,
           id: auth42Result.user.id
         };
-        
+
         // Initialize game socket
         initgameSocket();
-        
+
         // Redirect to dashboard
         await this.navigateTo('/dashboard', true);
         return;
       }
-      
+
       await this.checkAuth();
     } catch (e) {
       console.error('Auth initialization error:', e);
@@ -153,7 +152,6 @@ private async performLogin(username: string, password: string): Promise<boolean>
 
     this.setLoggedIn(true);
      initgameSocket();
-    //  initchatSocket();
 
     const respUser = data.user ?? data;
     if (respUser && typeof respUser === "object") {
@@ -249,7 +247,6 @@ private async checkAuth(): Promise<void> {
     this.currentUser = payload.username || null;
     this.setLoggedIn(true);
     initgameSocket();
-    // initchatSocket();
     const storedUserData = localStorage.getItem('user_data');
     if (storedUserData) {
       try {
@@ -524,7 +521,6 @@ private renderDashboardLayout(): void {
 
   this.contentContainer = document.getElementById('dashboard-main-content');
 
-  // Setup the logout functionality
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async (e) => {
@@ -533,7 +529,6 @@ private renderDashboardLayout(): void {
     });
   }
 
-  // Add event listener to toggle user dropdown menu
   const userMenuToggle = document.getElementById('user-menu-toggle');
   const userDropdown = document.getElementById('user-dropdown');
   if (userMenuToggle && userDropdown) {
@@ -542,7 +537,6 @@ private renderDashboardLayout(): void {
     });
   }
 
-  // Close dropdown when clicking outside
   document.addEventListener('click', (e) => {
     if (userDropdown && !userDropdown.contains(e.target as Node)) {
       userDropdown.classList.remove('show');
@@ -689,7 +683,7 @@ private getTournamentLobbyPage(): Page {
 
               <!-- RIGHT MAIN AREA -->
               <div class="lobby-main">
-                
+
                 <!-- 1. WAITING SCREEN -->
                 <div id="lobby-waiting-screen" class="lobby-waiting-screen">
                   <div class="relative mb-8">
@@ -724,7 +718,7 @@ private getTournamentLobbyPage(): Page {
 
                 <!-- 3. GAME VIEW -->
                 <div id="view-game" class="fixed inset-0 z-50 bg-gray-900" style="display: none;">
-                   
+
                    <!-- Game Header (Fixed Top-2) -->
                    <div class="absolute top-2 w-full p-4 flex justify-between items-center z-20 pointer-events-none">
                       <div class="text-white font-bold text-xl" id="game-round-label">MATCH</div>
@@ -743,7 +737,7 @@ private getTournamentLobbyPage(): Page {
                    <!-- Strict Ratio Container (Scaled Down to 700px) -->
                    <div class="game-stage-wrapper">
                       <div class="maintain-aspect-ratio-9-6 max-w-[700px]"> <!-- ✅ Resized here -->
-                          
+
                           <!-- Left Player Info -->
                           <div class="player-info-float left">
                               <img id="game-p1-avatar" src="" class="w-20 h-20 rounded-full border-4 border-gray-600 shadow-lg object-cover">
@@ -769,7 +763,6 @@ private getTournamentLobbyPage(): Page {
           </div>
         </div>
       `,
-      // ... (init function remains the same) ...
       init: () => {
         console.log("🏟️ Tournament Lobby Initialized");
         const tId = localStorage.getItem('activeTournamentId');
@@ -807,7 +800,7 @@ private getTournamentLobbyPage(): Page {
                     <span class="text-gray-200 text-sm font-medium truncate">${p.username}</span>
                 </div>
             `).join('');
-            
+
             const slotsLeft = 4 - players.length;
             if (slotsLeft > 0) {
                 const emptySlots = Array(slotsLeft).fill(0).map(() => `
@@ -829,7 +822,7 @@ private getTournamentLobbyPage(): Page {
                    if (playerCountEl) playerCountEl.innerText = `${pList.length} / 4 Joined`;
                    updateLobbySidebar(pList);
                } else {
-                   alert("Tournament expired."); 
+                   alert("Tournament expired.");
                    this.navigateTo("dashboard/game/tournament");
                }
             } catch {}
@@ -846,10 +839,10 @@ private getTournamentLobbyPage(): Page {
         const tournamentBrain = createTournamentListener(this.user.id, tId, (path) => this.loadPage(path));
 
         const mainListener = (msg: any) => {
-           tournamentBrain(msg); 
+           tournamentBrain(msg);
            if (msg.type === "tournament_player-joined" || msg.type === "tournament_player-left") {
                if (msg.payload.tournamentId === tId) {
-                   refreshLobbyData(); 
+                   refreshLobbyData();
                }
            }
         };
@@ -1061,8 +1054,8 @@ private getremotepage(): Page {
         <div class="local-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
           <!-- Player 1 (You) -->
           <div style="text-align:center; width:180px;">
-            <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
+            <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
+            <div id="r-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
             <div style="font-size:0.875rem; color:#10b981; margin-top:0.25rem;">● Online</div>
           </div>
 
@@ -1089,9 +1082,9 @@ private getremotepage(): Page {
 
           <!-- Player 2 (Opponent) -->
           <div style="text-align:center; width:180px;">
-            <img id="opponent-avatar" src="../images/avatars/unknown.jpg" alt="Opponent" style="width:120px;height:120px;border-radius:50%;border:4px solid #6b7280;opacity:0.5;box-shadow:0 4px 12px rgba(107,114,128,0.3);" onerror="this.src='../images/avatars/2.jpg'">
+            <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent" style="width:120px;height:120px;border-radius:50%;border:4px solid #6b7280;opacity:0.5;box-shadow:0 4px 12px rgba(107,114,128,0.3);" onerror="this.src='../images/avatars/2.jpg'">
             <div id="opponent-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#9ca3af;">Waiting...</div>
-            <div style="font-size:0.875rem; color:#6b7280; margin-top:0.25rem;">Searching...</div>
+            <div id="serch"style="font-size:0.875rem; color:#6b7280; margin-top:0.25rem;">Searching...</div>
           </div>
         </div>
 
@@ -1120,11 +1113,6 @@ private getremotepage(): Page {
     init: () => {
       console.log("🌐 Remote game page loaded");
       cleanupGame(this.user.id, false);
-    //   const res = fetch("/api/auth/me", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({ username, password }),
-    // });
       setupNavigationHandlers(
         this.user.id,
         "back-button-remote",
@@ -1425,7 +1413,7 @@ private getaipage(): Page {
             })();
           });
         }
-        
+
         // ✅ Add 42 intra button
         const loginCard = document.querySelector('.login-card');
         if (loginCard) {
@@ -1435,16 +1423,16 @@ private getaipage(): Page {
             // Create container for 42 button
             const container = document.createElement('div');
             container.id = 'login-42-container';
-            
+
             // Add divider
             const divider = document.createElement('div');
             divider.style.cssText = 'margin: 1.5rem 0; text-align: center; color: #9ca3af; font-size: 0.9rem;';
             divider.innerHTML = '— or —';
             container.appendChild(divider);
-            
+
             // Insert after form
             form.parentNode?.insertBefore(container, form.nextSibling);
-            
+
             // Add 42 intra button
             create42IntraButton(container, {
               text: '🎓 Sign in with 42 intra',
@@ -1491,14 +1479,14 @@ private getaipage(): Page {
       <input type="email" id="email" placeholder="Email" required class="input-field">
       <input type="password" id="new-password" placeholder="Password" required class="input-field">
       <input type="text" id="usernameTournament" placeholder="Tournament Username (optional)" class="input-field">
-      
+
       <!-- Avatar Upload (Optional) -->
       <div style="margin: 1rem 0;">
         <label style="display: block; margin-bottom: 0.5rem; color: #6b7280; font-size: 0.9rem;">
           Profile Picture (optional)
         </label>
         <div style="display: flex; align-items: center; gap: 1rem;">
-          <img id="avatar-preview" src="/avatar/default_avatar/default_avatar.jpg" 
+          <img id="avatar-preview" src="/avatar/default_avatar/default_avatar.jpg"
                style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #e5e7eb;">
           <label for="avatar-upload" style="cursor: pointer; padding: 0.5rem 1rem; background: #3b82f6; color: white; border-radius: 0.375rem; font-size: 0.875rem; transition: background 0.2s;">
             Choose Image
@@ -1512,13 +1500,13 @@ private getaipage(): Page {
           Upload a profile picture or use the default avatar
         </p>
       </div>
-      
+
       <button type="submit" class="submit-btn">Register</button>
     </form>
-    
+
     <!-- 42 Intra Button will be inserted here by JavaScript -->
     <div id="register-42-container"></div>
-    
+
     <p>
       Already have an account?
       <a href="/login" class="nav-link">Sign In</a>
@@ -1531,13 +1519,13 @@ private getaipage(): Page {
       `,
       init: () => {
         console.log("📝 Register page loaded");
-        
+
         // Handle avatar upload and preview
         let selectedAvatarFile: File | null = null;
         const avatarUpload = document.getElementById('avatar-upload') as HTMLInputElement;
         const avatarPreview = document.getElementById('avatar-preview') as HTMLImageElement;
         const removeAvatarBtn = document.getElementById('remove-avatar') as HTMLButtonElement;
-        
+
         if (avatarUpload && avatarPreview && removeAvatarBtn) {
           avatarUpload.addEventListener('change', (e) => {
             const file = (e.target as HTMLInputElement).files?.[0];
@@ -1552,9 +1540,9 @@ private getaipage(): Page {
                 alert('Image size must be less than 5MB');
                 return;
               }
-              
+
               selectedAvatarFile = file;
-              
+
               // Show preview
               const reader = new FileReader();
               reader.onload = (e) => {
@@ -1564,7 +1552,7 @@ private getaipage(): Page {
               reader.readAsDataURL(file);
             }
           });
-          
+
           removeAvatarBtn.addEventListener('click', () => {
             selectedAvatarFile = null;
             avatarPreview.src = '/avatar/default_avatar/default_avatar.jpg';
@@ -1572,7 +1560,7 @@ private getaipage(): Page {
             removeAvatarBtn.style.display = 'none';
           });
         }
-        
+
         const form = document.getElementById('register-form');
         if (form) {
           form.addEventListener('submit', async (e) => {
@@ -1583,17 +1571,17 @@ private getaipage(): Page {
             const usernameTournament = (document.getElementById('usernameTournament') as HTMLInputElement).value;
             try {
               let avatarPath = null;
-              
+
               // Upload avatar first if selected
               if (selectedAvatarFile) {
                 const formData = new FormData();
                 formData.append('file', selectedAvatarFile);
-                
+
                 const uploadRes = await fetch('/api/upload-avatar', {
                   method: 'POST',
                   body: formData
                 });
-                
+
                 if (uploadRes.ok) {
                   const uploadData = await uploadRes.json();
                   avatarPath = uploadData.avatar;
@@ -1604,14 +1592,14 @@ private getaipage(): Page {
                   alert('Avatar upload failed. Using default avatar.');
                 }
               }
-              
+
               // Register user with avatar path
               const res = await fetch("/api/register", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  username, 
-                  email, 
+                body: JSON.stringify({
+                  username,
+                  email,
                   password,
                   usernameTournament: usernameTournament || username,
                   avatar: avatarPath
@@ -1629,7 +1617,7 @@ private getaipage(): Page {
             }
           });
         }
-        
+
         // ✅ Add 42 intra button
         const container = document.getElementById('register-42-container');
         if (container) {
@@ -1638,7 +1626,7 @@ private getaipage(): Page {
           divider.style.cssText = 'margin: 1.5rem 0; text-align: center; color: #9ca3af; font-size: 0.9rem;';
           divider.innerHTML = '— or —';
           container.appendChild(divider);
-          
+
           // Add 42 intra button
           create42IntraButton(container, {
             text: '🎓 Register with 42 intra',
@@ -1801,9 +1789,9 @@ private getSettingsPage(): Page {
     <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem; font-size: 0.9rem;">
       📤 Upload Custom Avatar
     </label>
-    
+
     <div id="settings-avatar-preview-container" style="display: none; margin-bottom: 1rem;">
-      <img id="settings-avatar-preview" src="" alt="Avatar preview" 
+      <img id="settings-avatar-preview" src="" alt="Avatar preview"
            style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #10b981;">
       <div style="margin-top: 0.5rem;">
         <small style="color: #059669; font-weight: 600;">✓ New avatar selected</small>
@@ -1811,7 +1799,7 @@ private getSettingsPage(): Page {
     </div>
 
     <input type="file" id="settings-avatar-file" accept="image/*" style="display: none;">
-    
+
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
       <button
         type="button"
@@ -2011,7 +1999,7 @@ init: () => {
       const username = (document.getElementById('settings-username') as HTMLInputElement).value.trim();
       const email = (document.getElementById('settings-email') as HTMLInputElement).value.trim();
       const tournament = (document.getElementById('settings-tournament') as HTMLInputElement).value.trim();
-      
+
       // Determine avatar: prioritize uploaded avatar, then predefined selection
       let finalAvatar = '';
       if (uploadedAvatarPath) {

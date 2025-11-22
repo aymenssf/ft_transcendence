@@ -375,9 +375,10 @@ export function handleGameConfig(msg: any, userId: number, startButtonId: string
   if (!canvas) {
     canvas = document.createElement("canvas");
     canvas.id = "game-id";
-    canvas.width = gameConfig.canvas.width;
-    canvas.height = gameConfig.canvas.height;
-    canvas.style.backgroundColor = gameConfig.canvas.color;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.borderRadius = "12px";
+    canvas.style.border = "2px solid rgba(255,255,255,0.1)";
     container.appendChild(canvas);
   }
 
@@ -664,7 +665,7 @@ export async function fetchUserDetails(userId: string | number): Promise<any> {
       return null;
     }
 
-    const res = await fetch(`/api/auth/user/${userId}`, {
+    const res = await fetch(`/api/user/${userId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

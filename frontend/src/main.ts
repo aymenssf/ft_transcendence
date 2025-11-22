@@ -14,6 +14,11 @@ import {
 // import { getAllUsers } from "../loadSharedDb.ts";
 import { ChatManager } from "./chat/index.js";
 import { initAuth42, Auth42Handler, create42IntraButton } from './auth-42-intra.js';
+import {
+  createTournamentListener,
+  cleanupTournamentMatch,
+  setupTournamentGameListeners
+} from "./game_tournament_handler.js"
 
 console.log("start Pong game");
 
@@ -55,14 +60,13 @@ class AppRouter {
     "dashboard",
     "dashboard/chat",
     "dashboard/friends",
-    "dashboard/status",
-    "dashboard/stats",
     "dashboard/settings",
     "dashboard/game",
     "dashboard/game/ai",
     "dashboard/game/local",
     "dashboard/game/remote",
-    "dashboard/game/tournament"
+    "dashboard/game/tournament",
+    "dashboard/game/tournament/lobby"
   ]
   private publicPages = ["/","home", "login", "register"];
   private protectedPages = [
@@ -70,14 +74,13 @@ class AppRouter {
     "dashboard",
     "dashboard/chat",
     "dashboard/friends",
-    "dashboard/status",
-    "dashboard/stats",
     "dashboard/settings",
     "dashboard/game",
     "dashboard/game/ai",
     "dashboard/game/local",
     "dashboard/game/remote",
-    "dashboard/game/tournament"
+    "dashboard/game/tournament",
+    "dashboard/game/tournament/lobby"
   ];
 
 constructor(containerId: string) {
@@ -384,8 +387,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
       "dashboard/game",
       "dashboard/chat",
       "dashboard/friends",
-      "dashboard/status",
-      "dashboard/stats",
       "dashboard/settings",
     ];
 
@@ -435,7 +436,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
         body.classList.toggle('sidebar-open');
     };
 
-    // Add event listeners with null checks
     const toggleButton: HTMLElement | null = document.getElementById('sidebar-toggle');
     const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
 
@@ -447,7 +447,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
         overlay.addEventListener('click', toggleSidebar);
     }
 
-    // Close sidebar when clicking nav links (optional)
     const navLinks: NodeListOf<Element> = document.querySelectorAll('.nav-link');
     navLinks.forEach((link: Element) => {
         link.addEventListener('click', () => {
@@ -461,7 +460,6 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     console.log(`📄 Loaded page: ${page}`);
   }
 
-  // Render the dashboard layout once, then only update content
 private renderDashboardLayout(): void {
   console.log(`user info :` ,this.user);
   this.container.innerHTML = `
@@ -503,10 +501,6 @@ private renderDashboardLayout(): void {
           <a href="/dashboard/friends" class="nav-link nav-links" data-page="friends" style="display: flex; align-items: center;">
             <img src="../images/friends.svg" alt="Friends" width="24" height="24" style="margin-right: 8px;">
             Friends
-          </a>
-          <a href="/dashboard/status" class="nav-link nav-links" data-page="status" style="display: flex; align-items: center;">
-            <img src="../images/status.svg" alt="Status" width="24" height="24" style="margin-right: 8px;">
-            Status
           </a>
           <a href="/dashboard/stats" class="nav-link nav-links" data-page="stats" style="display: flex; align-items: center;">
             <img src="../images/stats.svg" alt="Stats" width="24" height="24" style="margin-right: 8px;">
@@ -574,14 +568,10 @@ private renderDashboardLayout(): void {
         return this.getDashboardPage();
       case "dashboard/settings":
         return this.getSettingsPage();
-      case "dashboard/stats":
-        return this.getStatsPage();
       case "dashboard/chat":
         return this.getChatPage();
       case "dashboard/friends":
         return this.getFriendsPage();
-      case "dashboard/status":
-        return this.getStatusPage();
       case "dashboard/game/ai":
         return this.getaipage();
       case "dashboard/game/local":
@@ -590,6 +580,8 @@ private renderDashboardLayout(): void {
         return this.gettournamentpage();
       case "dashboard/game/remote":
         return this.getremotepage();
+      case "dashboard/game/tournament/lobby":
+        return this.getTournamentLobbyPage();
       default:
         return this.get404Page();
     }
@@ -657,162 +649,356 @@ private getHomePage(): Page {
     };
   }
 
-private gettournamentpage(): Page {
-  return {
-    title: "PONG Game - Tournament",
-    content: `
-      <div class="tournament-container" style="margin-top:5rem;">
-        <!-- Header -->
-        <div class="game-header">
-          <a href="/dashboard/game" id="back-button-tournament" class="back-button nav-link">← Back</a>
-          <h2 style="display:inline-block; margin-left:1rem;">🏆 Tournament Mode</h2>
-        </div>
-
-                <!-- Tournament Lobby (Initial State) -->
-        <div id="tournament-lobby" style="margin-top:2rem;">
-          <div style="text-align:center; max-width:600px; margin:0 auto;">
-            <h3 style="color:#fbbf24; font-size:1.5rem; margin-bottom:1rem;">Join Tournament</h3>
-            <p style="color:#9ca3af; margin-bottom:2rem;">
-              Enter a tournament to compete against multiple players!<br>
-              Win all matches to become the champion.
-            </p>
-
-            <!-- Tournament Name Input -->
-            <div style="margin-bottom:1.5rem;">
-              <label style="display:block; color:#e5e7eb; margin-bottom:0.5rem; font-weight:600;">Your Tournament Name</label>
-              <input
-                id="tournament-name-input"
-                type="text"
-                placeholder="Enter your display name"
-                value="${this.user.usernametournament || this.currentUser || 'Player'}"
-                style="width:100%; padding:0.75rem; border-radius:0.5rem; border:2px solid #3b82f6; background:#1f2937; color:#e5e7eb; font-size:1rem;"
-              />
-            </div>
-
-            <!-- Join Tournament Button -->
-              <button
-              id="join-tournament-btn"
-                class="btn-primary"
-              style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
-              🏆 Join Tournament
-            </button>
-            </div>
+private getTournamentLobbyPage(): Page {
+    return {
+      title: "Tournament Lobby",
+      content: `
+        <div class="lobby-page">
+          <!-- Background -->
+          <div class="lobby-bg-blobs">
+            <div class="absolute top-[10%] left-[10%] w-96 h-96 bg-emerald-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float1"></div>
+            <div class="absolute bottom-[20%] right-[10%] w-80 h-80 bg-purple-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float2"></div>
+            <div class="absolute top-[40%] right-[30%] w-72 h-72 bg-cyan-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float3"></div>
           </div>
 
-        <!-- Waiting Room (Hidden initially) -->
-        <div id="tournament-waiting" style="display:none; margin-top:2rem;">
-          <div style="text-align:center; max-width:800px; margin:0 auto;">
-            <h3 style="color:#10b981; font-size:1.5rem; margin-bottom:1rem;">
-              ⏳ Waiting for Players...
-              </h3>
-            <p style="color:#9ca3af; margin-bottom:1rem;">
-              Tournament starts when all players are ready
-            </p>
-
-            <!-- Player Count -->
-            <div style="margin-bottom:2rem; font-size:1.2rem; color:#fbbf24;">
-              <span id="player-count">1</span> / 4 Players Joined
-            </div>
-
-            <!-- Registered Players List -->
-            <div style="background:#1f2937; border-radius:0.75rem; padding:1.5rem;">
-              <h4 style="color:#e5e7eb; margin-bottom:1rem;">Registered Players</h4>
-              <div id="players-list" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:1rem;">
-                <!-- Players will be added here dynamically -->
-              </div>
-            </div>
-
-            <!-- Leave Button -->
-              <button
-              id="leave-tournament-btn"
-              style="margin-top:1.5rem; padding:0.75rem 2rem; background:#ef4444; color:white; border:none; border-radius:0.5rem; cursor:pointer; font-weight:600;">
-              ❌ Leave Tournament
+          <div class="lobby-container" id="lobby-container">
+            <!-- Header -->
+            <div class="lobby-header">
+              <button id="leave-tournament-btn" class="back-button group">
+                <span class="group-hover:-translate-x-1 transition-transform">←</span>
+                <span>Leave Lobby</span>
               </button>
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">🏆</span>
+                <h2 class="text-2xl font-bold text-gradient">Tournament Lobby</h2>
+              </div>
+              <div class="w-[100px] hidden sm:block"></div>
             </div>
+
+            <div class="lobby-layout">
+              <!-- LEFT SIDEBAR -->
+              <div class="lobby-sidebar">
+                <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-4 shrink-0">
+                  <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                    👥 <span class="text-gray-200">Players List</span>
+                  </h3>
+                  <div id="lobby-status" class="lobby-status-badge">Loading...</div>
+                </div>
+                <div id="bracket-container" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar"></div>
               </div>
 
-        <!-- Tournament Bracket (Hidden initially) -->
-        <div id="tournament-bracket" style="display:none; margin-top:2rem;">
-          <div style="text-align:center; margin-bottom:2rem;">
-            <h3 style="color:#fbbf24; font-size:1.5rem; margin-bottom:0.5rem;">Tournament Bracket</h3>
-            <p style="color:#9ca3af;">Current Round: <span id="current-round" style="color:#10b981; font-weight:600;">Semi-Finals</span></p>
-          </div>
+              <!-- RIGHT MAIN AREA -->
+              <div class="lobby-main">
+                
+                <!-- 1. WAITING SCREEN -->
+                <div id="lobby-waiting-screen" class="lobby-waiting-screen">
+                  <div class="relative mb-8">
+                    <div class="absolute inset-0 bg-emerald-500/30 rounded-full animate-ping"></div>
+                    <div class="lobby-waiting-icon"><span class="text-6xl">⏳</span></div>
+                  </div>
+                  <h2 class="text-3xl font-bold text-white mb-2">Waiting for Players</h2>
+                  <div class="flex items-center gap-3 mb-6">
+                    <div class="h-px w-12 bg-gradient-to-r from-transparent to-gray-500"></div>
+                    <p id="player-count-display" class="text-2xl font-mono font-bold text-emerald-400">0 / 4 Joined</p>
+                    <div class="h-px w-12 bg-gradient-to-l from-transparent to-gray-500"></div>
+                  </div>
+                  <div class="lobby-info-card">
+                    <div class="flex items-start gap-4">
+                      <span class="text-2xl">ℹ️</span>
+                      <div class="text-left">
+                        <h4 class="text-white font-semibold mb-1">Tournament Rules</h4>
+                        <p class="text-gray-400 text-sm leading-relaxed">The tournament will automatically start once <strong class="text-emerald-400">4 players</strong> have joined the lobby.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-          <!-- Bracket Display -->
-          <div id="bracket-display" style="max-width:1000px; margin:0 auto;">
-            <!-- Bracket will be generated here -->
-          </div>
+                <!-- 2. BRACKET VIEW -->
+                <div id="view-bracket" class="fullscreen-layer" style="display: none;">
+                   <h1 id="bracket-round-title" class="round-title">SEMI-FINALS</h1>
+                   <div id="big-bracket-content" class="big-bracket-container"></div>
+                   <div class="mt-12 text-gray-400 animate-pulse">
+                      Next match starting in <span id="timer-count" class="text-white font-bold">8</span>s...
+                   </div>
+                </div>
+
+                <!-- 3. GAME VIEW -->
+                <div id="view-game" class="fixed inset-0 z-50 bg-gray-900" style="display: none;">
+                   
+                   <!-- Game Header (Fixed Top-2) -->
+                   <div class="absolute top-2 w-full p-4 flex justify-between items-center z-20 pointer-events-none">
+                      <div class="text-white font-bold text-xl" id="game-round-label">MATCH</div>
+                      <div class="bg-gray-800/80 px-6 py-2 rounded-full border border-white/10 shadow-lg">
+                         <span id="tournament-score" class="text-2xl font-mono text-emerald-400 font-bold">0 - 0</span>
+                      </div>
+                      <div class="w-[100px]"></div>
+                   </div>
+
+                   <!-- Ready Overlay -->
+                   <div id="ready-overlay" class="ready-overlay flex flex-col gap-8 bg-black/80">
+                      <div id="game-match-info" class="flex items-center gap-16 mb-6 scale-110"></div>
+                      <button id="game-ready-btn" class="ready-btn-large">I AM READY! ⚔️</button>
+                   </div>
+
+                   <!-- Strict Ratio Container (Scaled Down to 700px) -->
+                   <div class="game-stage-wrapper">
+                      <div class="maintain-aspect-ratio-9-6 max-w-[700px]"> <!-- ✅ Resized here -->
+                          
+                          <!-- Left Player Info -->
+                          <div class="player-info-float left">
+                              <img id="game-p1-avatar" src="" class="w-20 h-20 rounded-full border-4 border-gray-600 shadow-lg object-cover">
+                              <span id="game-p1-name" class="mt-2 font-bold text-white bg-black/50 px-3 rounded text-center">P1</span>
+                          </div>
+
+                          <!-- CANVAS -->
+                          <div id="game-container" class="w-full h-full"></div>
+
+                          <!-- Right Player Info -->
+                          <div class="player-info-float right">
+                              <img id="game-p2-avatar" class="w-20 h-20 rounded-full border-4 border-gray-600 shadow-lg object-cover">
+                              <span id="game-p2-name" class="mt-2 font-bold text-white bg-black/50 px-3 rounded text-center">P2</span>
+                          </div>
+
+                      </div>
+                   </div>
+
+                </div>
+
+              </div>
             </div>
-
-        <!-- Game Canvas (Hidden initially) -->
-        <div id="tournament-game" style="display:none; margin-top:2rem;">
-          <div style="text-align:center; margin-bottom:1rem;">
-            <h3 style="color:#fbbf24; font-size:1.3rem;">
-              <span id="match-players">Player 1 vs Player 2</span>
-            </h3>
-            <p style="color:#9ca3af;">Round: <span id="match-round">Semi-Final</span></p>
-          </div>
-
-          <!-- Score Display -->
-          <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
-            <div>Score: <span id="tournament-score" style="color:#fbbf24;">0 - 0</span></div>
-          </div>
-
-          <!-- Canvas Container -->
-          <div style="display:flex; justify-content:center;">
-            <div id="game-container"></div>
-          </div>
-
-          <!-- Controls Info -->
-          <div style="text-align:center; margin-top:1rem; color:#9ca3af;">
-            Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> /
-            <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
           </div>
         </div>
+      `,
+      // ... (init function remains the same) ...
+      init: () => {
+        console.log("🏟️ Tournament Lobby Initialized");
+        const tId = localStorage.getItem('activeTournamentId');
+        if(!tId) { this.navigateTo("dashboard/game/tournament"); return; }
 
-        <!-- Tournament Results (Hidden initially) -->
-        <div id="tournament-results" style="display:none; margin-top:2rem;">
-          <div style="text-align:center; max-width:600px; margin:0 auto;">
-            <div style="font-size:80px; margin-bottom:1rem;">🏆</div>
-            <h3 style="color:#fbbf24; font-size:2rem; margin-bottom:1rem;">Tournament Complete!</h3>
-            <div id="tournament-winner" style="font-size:1.5rem; color:#10b981; margin-bottom:2rem;">
-              <!-- Winner name will be shown here -->
-            </div>
+        cleanupTournamentMatch();
 
-            <!-- Final Standings -->
-            <div style="background:#1f2937; border-radius:0.75rem; padding:1.5rem; margin-bottom:2rem;">
-              <h4 style="color:#e5e7eb; margin-bottom:1rem;">Final Standings</h4>
-              <div id="final-standings">
-                <!-- Rankings will be shown here -->
+        const playerCountEl = document.getElementById("player-count-display")!;
+        const leaveBtn = document.getElementById("leave-tournament-btn")!;
+        const bracketEl = document.getElementById("bracket-container")!;
+
+        const resolveUser = async (pid: string | number) => {
+            const pidStr = String(pid);
+            if (pidStr === String(this.user.id)) {
+                return { username: `${this.user.username} (You)`, avatar: this.user.avatar || '../images/avatars/1.jpg' };
+            }
+            try {
+                const res = await fetch(`/api/user/${pidStr}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }});
+                if(res.ok) {
+                    const d = await res.json();
+                    return { username: d.username, avatar: d.avatar || '../images/avatars/unknown.jpg' };
+                }
+            } catch {}
+            return { username: `Player ${pidStr.substring(0,4)}`, avatar: '../images/avatars/unknown.jpg' };
+        };
+
+        const updateLobbySidebar = async (playerIds: any[]) => {
+            if (!bracketEl) return;
+            const promises = playerIds.map(id => resolveUser(id));
+            const players = await Promise.all(promises);
+
+            bracketEl.innerHTML = players.map(p => `
+                <div class="bg-gray-800/50 p-2 rounded-lg flex items-center gap-3 border border-white/5">
+                    <img src="${p.avatar}" class="w-8 h-8 rounded-full border border-emerald-500/30 object-cover">
+                    <span class="text-gray-200 text-sm font-medium truncate">${p.username}</span>
+                </div>
+            `).join('');
+            
+            const slotsLeft = 4 - players.length;
+            if (slotsLeft > 0) {
+                const emptySlots = Array(slotsLeft).fill(0).map(() => `
+                    <div class="bg-gray-800/20 p-2 rounded-lg flex items-center gap-3 border border-white/5 border-dashed opacity-50">
+                        <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs">?</div>
+                        <span class="text-gray-500 text-sm italic">Waiting...</span>
+                    </div>
+                `).join('');
+                bracketEl.innerHTML += emptySlots;
+            }
+        };
+
+        const refreshLobbyData = async () => {
+             try {
+               const res = await fetch(`/tournaments/tournaments/${tId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }});
+               if(res.ok) {
+                   const d = await res.json();
+                   const pList = d.players || [];
+                   if (playerCountEl) playerCountEl.innerText = `${pList.length} / 4 Joined`;
+                   updateLobbySidebar(pList);
+               } else {
+                   alert("Tournament expired."); 
+                   this.navigateTo("dashboard/game/tournament");
+               }
+            } catch {}
+        };
+
+        const handleLeave = async () => {
+            if(!confirm("Leave tournament?")) return;
+            localStorage.removeItem('activeTournamentId');
+            try { await fetch('/tournaments/tournaments/leave', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json'}, body: JSON.stringify({ tournamentId: tId }) }); } catch {}
+            this.navigateTo("dashboard/game/tournament");
+        };
+        leaveBtn.onclick = handleLeave;
+
+        const tournamentBrain = createTournamentListener(this.user.id, tId, (path) => this.loadPage(path));
+
+        const mainListener = (msg: any) => {
+           tournamentBrain(msg); 
+           if (msg.type === "tournament_player-joined" || msg.type === "tournament_player-left") {
+               if (msg.payload.tournamentId === tId) {
+                   refreshLobbyData(); 
+               }
+           }
+        };
+
+        setupTournamentGameListeners(mainListener);
+        refreshLobbyData();
+      }
+    };
+  }
+
+
+  private gettournamentpage(): Page {
+    return {
+      title: "PONG Game - Tournament",
+      content: `
+        <div class="tournament-container" style="margin-top:5rem;">
+          <div class="game-header">
+            <a href="/dashboard/game" id="back-button-tournament" class="back-button nav-link">← Back</a>
+            <h2 style="display:inline-block; margin-left:1rem;">🏆 Tournament Mode</h2>
+          </div>
+
+          <div style="margin-top:2rem; display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
+            <!-- LEFT SIDE: Create -->
+            <div style="background:#1f2937; border-radius:0.75rem; padding:2rem;">
+              <h3 style="color:#fbbf24; font-size:1.3rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:0.5rem;">➕ Create New Tournament</h3>
+              <div>
+                <label style="display:block; color:#e5e7eb; margin-bottom:0.5rem; font-weight:600;">Tournament Name</label>
+                <input id="tournament-title-input" type="text" placeholder="Enter tournament name..." maxlength="50" style="width:100%; padding:0.75rem; border-radius:0.5rem; border:2px solid #3b82f6; background:#111827; color:#e5e7eb; font-size:1rem; margin-bottom:1.5rem;" />
+                <button id="create-tournament-btn" class="btn-primary" style="width:100%; padding:1rem; font-size:1.1rem;">🏆 Create Tournament</button>
+                <p style="margin-top:1rem; color:#9ca3af; font-size:0.875rem; text-align:center;">You'll be the first player automatically</p>
               </div>
             </div>
 
-            <button
-              id="back-to-games-btn"
-              class="btn-primary"
-              style="padding:1rem 2.5rem; font-size:1.1rem;">
-              🎮 Back to Games
-            </button>
-        </div>
-        </div>
-      </div>
+            <!-- RIGHT SIDE: List -->
+            <div style="background:#1f2937; border-radius:0.75rem; padding:2rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                <h3 style="color:#10b981; font-size:1.3rem; margin:0;">🎮 Available Tournaments</h3>
+                <button id="refresh-tournaments-btn" style="padding:0.5rem 1rem; background:#3b82f6; color:white; border:none; border-radius:0.5rem; cursor:pointer; font-size:0.9rem;">🔄 Refresh</button>
+              </div>
 
-      <style>
-        kbd {
-          font-family: monospace;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-        .disabled-link {
-          pointer-events: none;
-          opacity: 0.5;
-        }
-      </style>
-    `,
-init: () => {
-  cleanupGame(this.user.id, false);
-}
-  };
-}
+              <div id="tournaments-list" style="max-height:400px; overflow-y:auto;">
+                <div id="tournaments-loading" style="text-align:center; padding:2rem; color:#9ca3af;">
+                  <div style="font-size:2rem; margin-bottom:0.5rem;">⏳</div>Loading tournaments...
+                </div>
+                <div id="tournaments-empty" style="display:none; text-align:center; padding:2rem; color:#9ca3af;">
+                  <div style="font-size:2rem; margin-bottom:0.5rem;">🏜️</div>No tournaments available<br><span style="font-size:0.875rem;">Create one to get started!</span>
+                </div>
+                <div id="tournaments-container"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <style>
+          #tournaments-list::-webkit-scrollbar { width: 8px; }
+          #tournaments-list::-webkit-scrollbar-track { background: #111827; border-radius: 4px; }
+          #tournaments-list::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
+          #tournaments-list::-webkit-scrollbar-thumb:hover { background: #2563eb; }
+        </style>
+      `,
+      init: () => {
+        console.log("🏆 Tournament Selection page loaded");
+        cleanupGame(this.user.id, false);
+        setupNavigationHandlers(this.user.id, "back-button-tournament", (path) => this.loadPage(path));
+
+        const titleInput = document.getElementById("tournament-title-input") as HTMLInputElement;
+        const createBtn = document.getElementById("create-tournament-btn") as HTMLButtonElement;
+        const refreshBtn = document.getElementById("refresh-tournaments-btn") as HTMLButtonElement;
+        const listContainer = document.getElementById("tournaments-container")!;
+        const loadingState = document.getElementById("tournaments-loading")!;
+        const emptyState = document.getElementById("tournaments-empty")!;
+
+        const fetchTournaments = async () => {
+          try {
+            loadingState.style.display = "block"; emptyState.style.display = "none"; listContainer.innerHTML = "";
+            const res = await fetch('/tournaments/tournaments', { method: 'GET', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }});
+            if (!res.ok) throw new Error("Failed");
+            const tournaments = await res.json();
+            loadingState.style.display = "none";
+
+            if (tournaments.length === 0) { emptyState.style.display = "block"; return; }
+
+            tournaments.forEach((t: any) => {
+              const card = document.createElement("div");
+              card.style.cssText = `background: #374151; margin-bottom: 1rem; padding: 1rem; border-radius: 0.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid #4b5563; transition: transform 0.2s;`;
+              card.onmouseover = () => card.style.transform = "translateX(5px)";
+              card.onmouseout = () => card.style.transform = "translateX(0)";
+
+              let count = 0;
+              if (t.numPlayers !== undefined) count = t.numPlayers;
+              else if (Array.isArray(t.players)) count = t.players.length;
+
+              card.innerHTML = `
+                <div>
+                  <div style="color: #e5e7eb; font-weight: bold; font-size: 1.1rem;">${t.title}</div>
+                  <div style="color: #9ca3af; font-size: 0.9rem;">Players: <span style="color: #10b981;">${count}/4</span></div>
+                </div>
+              `;
+
+              const joinBtn = document.createElement("button");
+              joinBtn.innerText = count >= 4 ? "Full ⛔" : "Join ➡️";
+              joinBtn.style.cssText = `background: ${count >= 4 ? '#ef4444' : '#10b981'}; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; ${count >= 4 ? 'opacity:0.5;cursor:not-allowed;' : ''}`;
+
+              if (count < 4) {
+                joinBtn.onclick = async () => {
+                  try {
+                    const joinRes = await fetch('/tournaments/tournaments/join', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId: t.id || t.tournamentId }) });
+                    if (joinRes.ok) {
+                      localStorage.setItem('activeTournamentId', t.id || t.tournamentId);
+                      this.navigateTo("dashboard/game/tournament/lobby");
+                    } else { alert("Failed to join."); fetchTournaments(); }
+                  } catch {}
+                };
+              }
+              card.appendChild(joinBtn);
+              listContainer.appendChild(card);
+            });
+          } catch { loadingState.innerHTML = `<span style="color:#ef4444">Failed to load.</span>`; }
+        };
+
+        const createTournament = async () => {
+          const title = titleInput.value.trim();
+          if (!title) { alert("Enter name"); return; }
+          createBtn.disabled = true; createBtn.innerText = "Creating...";
+          try {
+            const res = await fetch('/tournaments/tournaments/create', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+            if (res.ok) {
+              const data = await res.json();
+              localStorage.setItem('activeTournamentId', data.tournamentId || data.id);
+              this.navigateTo("dashboard/game/tournament/lobby");
+            } else { alert("Failed"); createBtn.disabled = false; createBtn.innerText = "🏆 Create Tournament"; }
+          } catch { createBtn.disabled = false; createBtn.innerText = "🏆 Create Tournament"; }
+        };
+
+        const listListener = (msg: any) => {
+          if (["tournament_created", "tournament_deleted", "tournament_player-joined"].includes(msg.type)) fetchTournaments();
+        };
+
+        addMessageListener(listListener);
+        addCleanupListener(() => removeMessageListener(listListener));
+        createBtn.addEventListener("click", createTournament);
+        addCleanupListener(() => createBtn.removeEventListener("click", createTournament));
+        refreshBtn.addEventListener("click", fetchTournaments);
+        addCleanupListener(() => refreshBtn.removeEventListener("click", fetchTournaments));
+
+        fetchTournaments();
+      }
+    };
+  }
 
 private getGamePage(): Page {
   return {
@@ -1473,7 +1659,7 @@ private getaipage(): Page {
         <section class="max-w-lg mx-auto px-6 py-20 text-center">
           <h1 class="text-4xl font-bold text-red-600 mb-6">404</h1>
           <p class="text-gray-600 mb-6">Oops! The page you are looking for does not exist.</p>
-          <a href="/home" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-semibold nav-links">Go Home</a>
+          <a href="/home" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-semibold nav-link">Go Home</a>
         </section>
       `,
     };
@@ -1504,7 +1690,7 @@ private async updateUserProfile(updates: User): Promise<boolean> {
       return false;
     }
 
-    const response = await fetch('/api/users/update', {
+    const response = await fetch('/api/user/update', {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -1925,36 +2111,6 @@ init: () => {
   }
 
 
-private getStatsPage(): Page {
-  return {
-    title: "PONG Game - Stats",
-    content:  `
-      <div class="content-card">
-        <h2>📈 Your Statistics</h2>
-        <div class="stats-grid" style="margin-top: 1.5rem;">
-          <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 1.5rem; border-radius: 0.75rem;">
-            <h3 style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Total Wins</h3>
-            <div style="font-size: 2rem; font-weight: 700;">28</div>
-          </div>
-          <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 1.5rem; border-radius: 0.75rem;">
-            <h3 style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Total Losses</h3>
-            <div style="font-size: 2rem; font-weight: 700;">14</div>
-          </div>
-          <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 1.5rem; border-radius: 0.75rem;">
-            <h3 style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Best Streak</h3>
-            <div style="font-size: 2rem; font-weight: 700;">7</div>
-          </div>
-          <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 1.5rem; border-radius: 0.75rem;">
-            <h3 style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Avg Score</h3>
-            <div style="font-size: 2rem; font-weight: 700;">4.2</div>
-          </div>
-        </div>
-      </div>
-    `,
-    init: () => console.log("📈 Stats page loaded"),
-  };
-}
-
 private getChatPage(): Page {
   return {
     title: "PONG Game - Chat",
@@ -2005,31 +2161,7 @@ private getFriendsPage(): Page {
   };
 }
 
-private getStatusPage(): Page {
-  return {
-    title: "PONG Game - Status",
-    content: `
-      <div class="content-card">
-        <h2>📊 System Status</h2>
-        <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
-          <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem;">
-            <span style="color: #374151; font-weight: 500;">Server Status</span>
-            <span style="color: #10b981; font-weight: 600;">● Online</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem;">
-            <span style="color: #374151; font-weight: 500;">Active Players</span>
-            <span style="color: #111827; font-weight: 600;">127</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem;">
-            <span style="color: #374151; font-weight: 500;">Active Games</span>
-            <span style="color: #111827; font-weight: 600;">34</span>
-          </div>
-        </div>
-      </div>
-    `,
-    init: () => console.log("📊 Status page loaded"),
-  };
-}
+
 
 }
 

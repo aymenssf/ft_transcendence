@@ -5,10 +5,8 @@ export function initgameSocket() {
     if (socket) return socket;
     
     const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const hostName = window.location.hostname;
 
-    socket = new WebSocket(`${wsProtocol}://${hostName}:3012/ws?token=${localStorage.getItem('jwt_token')}`);
-
+    socket = new WebSocket(`${wsProtocol}://${window.location.host}/ws?token=${localStorage.getItem('jwt_token')}`);
     socket.onopen = () => console.log("✅ Connected to server");
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);

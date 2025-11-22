@@ -25,7 +25,7 @@ services/*/dist/
 # Test files
 */ARCHITECTURE.md
 
-
+frontend/certs/*
 # Package locks (keep only root)
 services/*/package-lock.json
 Shared_dataBase/package-lock.json

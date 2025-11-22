@@ -78,7 +78,7 @@ services:
       dockerfile: ./Dockerfile
     container_name: ft_transcendence_frontend
     ports:
-      - "0.0.0.0:80:80"
+      - "0.0.0.0:8080:80"
       # - "${FRONTEND_SERVICE_PORT:-443}:443"
     env_file:
       - .env

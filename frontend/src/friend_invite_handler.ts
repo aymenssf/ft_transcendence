@@ -18,7 +18,7 @@ let activeInviteModal: HTMLDivElement | null = null;
 async function fetchInviterDetails(userId: string): Promise<{ username: string; avatar: string }> {
   try {
     const token = localStorage.getItem('jwt_token');
-    const res = await fetch(`/api/auth/user/${userId}`, {
+    const res = await fetch(`/api/user/${userId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 

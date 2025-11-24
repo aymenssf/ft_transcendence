@@ -10,7 +10,7 @@ let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 let keyupHandler: ((e: KeyboardEvent) => void) | null = null;
 let gameUpdateListener: ((msg: any) => void) | null = null;
 let finalGameConfig: any = null;
-
+let popstateHandler: any=null;
 const getElement = (id: string) => document.getElementById(id);
 
 export function cleanupTournamentMatch() {
@@ -19,6 +19,9 @@ export function cleanupTournamentMatch() {
   if (gameUpdateListener) removeMessageListener(gameUpdateListener);
   keydownHandler = keyupHandler = gameUpdateListener = null;
   ctx = null;
+  if (popstateHandler)
+    addCleanupListener(() => window.removeEventListener("popstate", popstateHandler));
+
 }
 
 async function fetchUserDetails(userId: string): Promise<{ username: string; avatar: string } | null> {
@@ -75,6 +78,11 @@ export function createTournamentListener(
     return user;
   };
 
+    popstateHandler = () => {
+      cleanupTournamentMatch();
+      localStorage.removeItem('activeTournamentId');
+    };
+    window.addEventListener("popstate", popstateHandler);
   const runCountdown = (container: HTMLElement, seconds: number): Promise<void> => {
     return new Promise((resolve) => {
       let count = seconds;
@@ -331,14 +339,39 @@ export function createTournamentListener(
 
       case "game_finish": {
         cleanupTournamentMatch();
-        const winnerId = msg.payload.winner;
+        const winner = await resolveUser(msg.payload.winner);
+        console.log("game_finish");
+        if (currentRound === "final") {
+            if (winner.id === userId.toString()){
+              container.innerHTML = createWinnerHTML(winner);
 
-        if (myMatch && String(winnerId) !== userIdStr) {
-          const iWasInMatch = myMatch.p1.isMe || myMatch.p2.isMe;
-          if (iWasInMatch) {
-            isEliminated = true;
-            container.innerHTML = createEliminatedHTML();
-          }
+            setTimeout(() => {
+              localStorage.removeItem("activeTournamentId");
+              navigateCallback("dashboard/game/tournament");
+            }, 5000);
+            }  else {
+              cleanupTournamentMatch();
+              localStorage.removeItem("activeTournamentId");
+              navigateCallback("dashboard/game/tournament");
+            }
+        }
+        else if (currentRound === "semi") {
+            if (winner.id === userId.toString()) {
+                container.innerHTML = `
+                <div class="flex flex-col items-center justify-center min-h-full py-8">
+                  <div class="text-6xl mb-4">🎉</div>
+                  <h1 class="text-3xl font-bold text-emerald-400 mb-2">You Won the Semi-Final!</h1>
+                  <img src="${winner.avatar}" class="w-32 h-32 rounded-full border-4 border-emerald-400 shadow-lg object-cover mb-4">
+                  <p class="text-white font-semibold mb-2">${winner.name}${winner.isMe ? " (You)" : ""}</p>
+                  <p class="text-gray-400 mb-6">Advancing to the final. Waiting for your opponent...</p>
+                  <div class="animate-pulse text-emerald-400 font-bold">⏳ Preparing final match...</div>
+                </div>
+                `;
+            }  else {
+              cleanupTournamentMatch();
+              localStorage.removeItem("activeTournamentId");
+              navigateCallback("dashboard/game/tournament");
+            }
         }
         break;
       }

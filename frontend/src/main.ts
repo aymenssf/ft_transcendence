@@ -128,14 +128,7 @@ constructor(containerId: string) {
           usernametournament: auth42Result.user.usernameTournament || auth42Result.user.username,
           id: auth42Result.user.id
         };
-<<<<<<< HEAD
         
-        // Connect global socket for real-time updates
-        await this.connectGlobalSocket();
-        
-=======
-
->>>>>>> origin
         // Initialize game socket
         initgameSocket();
         initFriendInviteListener((roomId) => {
@@ -187,13 +180,6 @@ private async performLogin(username: string, password: string): Promise<boolean>
 
     this.setLoggedIn(true);
      initgameSocket();
-<<<<<<< HEAD
-    //  initchatSocket();
-    
-    // Connect global socket for real-time updates
-    await this.connectGlobalSocket();
-=======
->>>>>>> origin
 
     const respUser = data.user ?? data;
     if (respUser && typeof respUser === "object") {
@@ -289,14 +275,7 @@ private async checkAuth(): Promise<void> {
     this.currentUser = payload.username || null;
     this.setLoggedIn(true);
     initgameSocket();
-<<<<<<< HEAD
-    // initchatSocket();
-    
-    // Connect global socket for real-time updates
-    await this.connectGlobalSocket();
-    
-=======
->>>>>>> origin
+
     const storedUserData = localStorage.getItem('user_data');
     if (storedUserData) {
       try {
@@ -963,9 +942,9 @@ private getTournamentLobbyPage(): Page {
         const popstateHandler = () => {
           cleanupTournamentMatch();
           localStorage.removeItem('activeTournamentId');
+          this.navigateTo("dashboard/game/tournament");          
         };
         window.addEventListener("popstate", popstateHandler);
-        addCleanupListener(() => window.removeEventListener("popstate", popstateHandler));
 
         const playerCountEl = document.getElementById("player-count-display")!;
         const leaveBtn = document.getElementById("leave-tournament-btn")!;

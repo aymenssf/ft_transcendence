@@ -717,8 +717,6 @@ export function setupTournamentNavigationHandlers(
     console.log("🔄 Page unloading (refresh/close) - not sending leave message");
   };
 
-  window.addEventListener("beforeunload", beforeUnloadHandler);
-  addCleanupListener(() => window.removeEventListener("beforeunload", beforeUnloadHandler));
 
   const popstateHandler = () => {
     const tournamentId = sessionStorage.getItem('inTournamentLobby');

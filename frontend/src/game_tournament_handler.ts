@@ -62,6 +62,7 @@ export function createTournamentListener(
 ) {
   const userIdStr = String(userId);
   let currentRound: "semi" | "final" | null = null;
+  let round : "semi" | "final" | null = null;
   let myMatch: { p1: any; p2: any } | null = null;
   let isEliminated = false;
   let pendingFinalGameId: string | null = null;
@@ -329,6 +330,7 @@ export function createTournamentListener(
         container.innerHTML = createSemiFinalHTML({ p1: s1p1, p2: s1p2 }, { p1: s2p1, p2: s2p2 });
 
         await runCountdown(container, 8);
+        round = "semi";
 
         if (myMatch) {
           container.innerHTML = createGameViewHTML(myMatch.p1, myMatch.p2);
@@ -338,21 +340,22 @@ export function createTournamentListener(
       }
 
       case "game_finish": {
-        cleanupTournamentMatch();
         const winner = await resolveUser(msg.payload.winner);
+        console.log("payload: ", msg.payload);
         console.log("game_finish");
-        if (currentRound === "final") {
-            if (winner.id === userId.toString()){
-              container.innerHTML = createWinnerHTML(winner);
-
+        if (currentRound === "final" && round === "final") {
+          if (winner.id === userId.toString()){
+            container.innerHTML = createWinnerHTML(winner);
+            
             setTimeout(() => {
               localStorage.removeItem("activeTournamentId");
               navigateCallback("dashboard/game/tournament");
-            }, 5000);
-            }  else {
               cleanupTournamentMatch();
-              localStorage.removeItem("activeTournamentId");
-              navigateCallback("dashboard/game/tournament");
+            }, 5000);
+          }  else {
+            cleanupTournamentMatch();
+            localStorage.removeItem("activeTournamentId");
+            navigateCallback("dashboard/game/tournament");
             }
         }
         else if (currentRound === "semi") {
@@ -388,9 +391,9 @@ export function createTournamentListener(
           isEliminated = false;
 
           container.innerHTML = createFinalHTML(f1, f2);
-
+          
           await runCountdown(container, 8);
-
+          round = "final";
           container.innerHTML = createGameViewHTML(f1, f2, true);
           console.log("📺 Final game view rendered with button.");
 

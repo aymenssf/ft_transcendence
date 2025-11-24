@@ -516,6 +516,9 @@ export function createAIGameListener(userId: number): (msg: any) => void {
     if (msg.type === "join_ai-opponent_ack") {
       const startBtn = document.getElementById("start-ai-game") as HTMLButtonElement;
       if (startBtn) {
+        const d_b = document.getElementById("ai_butin") ;
+        if (d_b)
+          d_b.classList.add("disabled-div");
         startBtn.innerHTML = "Connecting to AI...";
         startBtn.disabled = true;
       }

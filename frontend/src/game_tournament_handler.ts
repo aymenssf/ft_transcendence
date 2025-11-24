@@ -1,7 +1,10 @@
+
+
 import { game_start } from "./game.js";
 import { sendMessage, addMessageListener, removeMessageListener } from "./game_soket.js";
 import { addCleanupListener } from "./game_shared.js";
 
+// --- State ---
 let ctx: CanvasRenderingContext2D | null = null;
 let gameConfig: any = null;
 let gameState: any = null;
@@ -9,9 +12,11 @@ let gameId: string = "";
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 let keyupHandler: ((e: KeyboardEvent) => void) | null = null;
 let gameUpdateListener: ((msg: any) => void) | null = null;
+let finalGameConfig: any = null;
 
 const getElement = (id: string) => document.getElementById(id);
 
+// --- Cleanup ---
 export function cleanupTournamentMatch() {
   if (keydownHandler) window.removeEventListener("keydown", keydownHandler);
   if (keyupHandler) window.removeEventListener("keyup", keyupHandler);
@@ -20,6 +25,7 @@ export function cleanupTournamentMatch() {
   ctx = null;
 }
 
+// --- Fetch User Details ---
 async function fetchUserDetails(userId: string): Promise<{ username: string; avatar: string } | null> {
   try {
     const token = localStorage.getItem("jwt_token");
@@ -32,6 +38,7 @@ async function fetchUserDetails(userId: string): Promise<{ username: string; ava
   }
 }
 
+// --- Input Handling ---
 function setupInput(gId: string, pId: string) {
   const moves = { up: false, down: false };
   const send = () => sendMessage("game_update", { gameId: gId, playerId: pId, input: { ...moves } });
@@ -50,6 +57,7 @@ function setupInput(gId: string, pId: string) {
   window.addEventListener("keyup", keyupHandler);
 }
 
+  // --- Main Factory ---
 export function createTournamentListener(
   userId: number,
   tournamentId: string,
@@ -59,8 +67,9 @@ export function createTournamentListener(
   let currentRound: "semi" | "final" | null = null;
   let myMatch: { p1: any; p2: any } | null = null;
   let isEliminated = false;
-  let pendingGameId: string | null = null; 
+  let pendingFinalGameId: string | null = null; // Store gameId for final ready button
 
+  // --- Resolve User ---
   const resolveUser = async (pid: string) => {
     const pidStr = String(pid);
     const isMe = pidStr === userIdStr;
@@ -73,6 +82,7 @@ export function createTournamentListener(
     return user;
   };
 
+  // --- Countdown Helper ---
   const runCountdown = (container: HTMLElement, seconds: number): Promise<void> => {
     return new Promise((resolve) => {
       let count = seconds;
@@ -90,6 +100,7 @@ export function createTournamentListener(
     });
   };
 
+  // --- Create Semi-Final HTML ---
   const createSemiFinalHTML = (semi1: { p1: any; p2: any }, semi2: { p1: any; p2: any }) => {
     const createMatchCard = (p1: any, p2: any, label: string) => `
       <div class="bg-gray-800/60 rounded-2xl p-6 border border-white/10 backdrop-blur-sm">
@@ -122,6 +133,7 @@ export function createTournamentListener(
     `;
   };
 
+  // --- Create Final HTML ---
   const createFinalHTML = (p1: any, p2: any) => `
     <div class="flex flex-col items-center justify-center min-h-full py-8">
       <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-8">🏆 GRAND FINAL 🏆</h1>
@@ -144,6 +156,7 @@ export function createTournamentListener(
     </div>
   `;
 
+  // --- Create Game View HTML (with optional ready button for finals) ---
   const createGameViewHTML = (leftPlayer: any, rightPlayer: any, showReadyButton: boolean = false) => `
     <div class="fixed inset-0 bg-gray-900 flex flex-col">
       <!-- Header -->
@@ -186,7 +199,7 @@ export function createTournamentListener(
             <span class="mt-2 font-bold ${rightPlayer.isMe ? "text-emerald-400" : "text-white"}">${rightPlayer.name}${rightPlayer.isMe ? " (You)" : ""}</span>
           </div>
         </div>
-        ${showReadyButton 
+        ${showReadyButton
           ? `<button id="final-ready-btn" class="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold text-xl rounded-xl hover:scale-105 transition-transform shadow-lg cursor-pointer">
               🏆 READY FOR FINAL! 🏆
             </button>`
@@ -196,6 +209,7 @@ export function createTournamentListener(
     </div>
   `;
 
+  // --- Create Eliminated HTML ---
   const createEliminatedHTML = () => `
     <div class="flex flex-col items-center justify-center min-h-full py-8">
       <div class="text-6xl mb-6">😢</div>
@@ -205,6 +219,7 @@ export function createTournamentListener(
     </div>
   `;
 
+  // --- Create Winner HTML ---
   const createWinnerHTML = (winner: any) => `
     <div class="flex flex-col items-center justify-center min-h-full py-8">
       <div class="text-8xl mb-6 animate-bounce">👑</div>
@@ -261,7 +276,7 @@ export function createTournamentListener(
 
   return async (msg: any) => {
     console.log("📨 Tournament message received:", msg.type);
-    
+
     const container = getElement("lobby-container");
     if (!container) {
       console.error("❌ lobby-container not found!");
@@ -271,22 +286,28 @@ export function createTournamentListener(
     if (msg.type === "game_config") {
       console.log("🎮 Game config received!");
       const config = msg.payload;
-      
       if (config && myMatch) {
-        initGame(config, myMatch.p1, myMatch.p2);
-        
-        console.log("📤 Sending player_ready:", { gameId: config.gameId, playerId: userIdStr });
-        sendMessage("player_ready", { gameId: config.gameId, playerId: userIdStr });
-        
-        const waitingOverlay = document.getElementById("waiting-overlay");
-        if (waitingOverlay) {
-          waitingOverlay.style.display = "none";
-          console.log("✅ Game started! Overlay hidden.");
+        if (currentRound === "semi") {
+          initGame(config, myMatch.p1, myMatch.p2);
+
+          console.log("📤 Sending player_ready:", { gameId: config.gameId, playerId: userIdStr });
+          sendMessage("player_ready", { gameId: config.gameId, playerId: userIdStr });
+
+          const waitingOverlay = document.getElementById("waiting-overlay");
+          if (waitingOverlay) {
+            waitingOverlay.style.display = "none";
+            console.log("✅ Semi-final game started!");
+          }
+        }
+        else if (currentRound === "final") {
+          finalGameConfig = msg.payload;
+          pendingFinalGameId = finalGameConfig.gameId;
+          console.log("🏆 Final game config stored for later. GameId:", config.gameId);
         }
       }
       return;
     }
-    
+
     if (msg.type === "game_start") {
       console.log("🚀 Game started!");
       const waitingOverlay = document.getElementById("waiting-overlay");
@@ -312,7 +333,7 @@ export function createTournamentListener(
 
         container.innerHTML = createSemiFinalHTML({ p1: s1p1, p2: s1p2 }, { p1: s2p1, p2: s2p2 });
 
-        await runCountdown(container, 8);
+        await runCountdown(container, 10);
 
         if (myMatch) {
           container.innerHTML = createGameViewHTML(myMatch.p1, myMatch.p2);
@@ -350,9 +371,46 @@ export function createTournamentListener(
 
           await runCountdown(container, 8);
 
-          container.innerHTML = createGameViewHTML(f1, f2);
-          console.log("📺 Final game view shown. Waiting for game_config...");
+          container.innerHTML = createGameViewHTML(f1, f2, true);
+          console.log("📺 Final game view rendered with button.");
+
+          if (pendingFinalGameId) {
+            console.log("🎮 Setting up final ready button with stored gameId:", pendingFinalGameId);
+
+            setTimeout(() => {
+              const readyBtn = document.getElementById("final-ready-btn") as HTMLButtonElement;
+              if (readyBtn) {
+                console.log("✅ Final button found!");
+
+                readyBtn.onclick = (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log("🚀 FINAL READY BUTTON CLICKED!");
+
+                  const configToUse = { gameId: pendingFinalGameId, ...gameConfig };
+                  if (finalGameConfig && myMatch) {
+                    initGame(finalGameConfig, myMatch.p1, myMatch.p2);
+                  }
+                  console.log("📤 Sending player_ready:", { gameId: pendingFinalGameId, playerId: userIdStr });
+                  sendMessage("player_ready", { gameId: pendingFinalGameId, playerId: userIdStr });
+
+                  const waitingOverlay = document.getElementById("waiting-overlay");
+                  if (waitingOverlay) waitingOverlay.style.display = "none";
+
+                  return false;
+                };
+
+                readyBtn.onmouseenter = () => console.log("🖱️ Mouse on button");
+                console.log("✅ Button handler attached!");
+              } else {
+                console.error("❌ Button not found!");
+              }
+            }, 100);
+          } else {
+            console.warn("⚠️ No pendingFinalGameId yet, button will be setup when game_config arrives");
+          }
         } else {
+          // I lost in semi-finals, just show the final bracket
           isEliminated = true;
           container.innerHTML = `
             <div class="flex flex-col items-center justify-center min-h-full py-8">
@@ -377,6 +435,7 @@ export function createTournamentListener(
         break;
       }
 
+      // --- TOURNAMENT FINISH ---
       case "tournament_finish": {
         cleanupTournamentMatch();
         const winner = await resolveUser(msg.payload.winner);

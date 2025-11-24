@@ -51,8 +51,15 @@
   }
 
   .logout-btn {
-    @apply px-4 py-2 bg-red-500/10 text-red-400 rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-white transition-all duration-300 font-medium text-sm;
+    @apply px-4 py-2;
+    @apply bg-red-500/10 text-red-400;
+    @apply rounded-lg border border-red-500/20;
+    @apply hover:bg-red-500 hover:text-white;
+    @apply transition-all duration-300;
+    @apply font-medium text-sm;
   }
+
+
 
   .input-field {
     @apply w-full p-3 rounded-lg bg-gray-900/50 border border-gray-700 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all duration-200;
@@ -130,62 +137,195 @@
   }
 
   .dashboard-wrapper {
-    @apply flex min-h-screen w-full justify-center items-start bg-transparent box-border;
+    @apply flex min-h-screen w-full justify-center items-start bg-transparent box-border relative;
   }
 
   .sidebar-brand {
-    @apply fixed top-[2%] left-[max(10px,2vw)] flex items-center gap-3 z-[60] rounded-xl px-4 py-3 backdrop-blur-lg transition-all duration-300 max-w-[min(300px,25vw)] hover:bg-gray-700/80 hover:border-emerald-500/40;
+    @apply fixed top-4 z-[9998];
+    @apply flex items-center gap-3;
+    @apply rounded-xl px-4 py-3;
+    @apply backdrop-blur-lg;
+    @apply transition-all duration-300;
+    @apply border border-transparent;
+    @apply bg-gray-800/60;
+    @apply hover:bg-gray-700/80 hover:border-emerald-500/40;
   }
-  .sidebar-brand img { @apply w-8 h-8 rounded-md; }
-  .sidebar-brand h2 { @apply text-white text-xl font-bold m-0; }
+
+  @media (max-width: 1023px) {
+    .sidebar-brand {
+      @apply left-16;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .sidebar-brand {
+      @apply left-4;
+    }
+  }
+
+  .sidebar-brand img {
+    @apply w-8 h-8 rounded-md;
+  }
+
+  .sidebar-brand h2 {
+    @apply text-white text-xl font-bold m-0;
+  }
+
+  @media (max-width: 640px) {
+    .sidebar-brand h2 {
+      @apply hidden;
+    }
+  }
+
+  .sidebar-toggle {
+    @apply fixed top-4 left-4 z-[9999];
+    @apply bg-gray-800/90 backdrop-blur-lg;
+    @apply text-white p-3 rounded-xl;
+    @apply border border-white/10;
+    @apply transition-all duration-300;
+    @apply hover:bg-emerald-500/20 hover:border-emerald-500/50;
+    @apply shadow-lg;
+  }
+
+@media (min-width: 1024px) {
+  .sidebar-toggle {
+    @apply hidden;
+  }
+}
 
   .sidebar-username {
-    @apply fixed top-[1.2rem] right-8 flex items-center gap-3 bg-slate-800/60 text-white px-4 py-2 rounded-xl backdrop-blur-lg z-[100] border border-white/5;
+    @apply fixed top-5 right-4 z-[9998];
+    @apply flex items-center gap-3;
+    @apply bg-slate-800/90 text-white;
+    @apply px-4 py-2 rounded-xl;
+    @apply backdrop-blur-lg;
+    @apply border border-white/5;
+    @apply shadow-lg;
+  }
+
+  @media (max-width: 640px) {
+    .sidebar-username {
+      @apply gap-2 px-3 py-2;
+    }
+
+    .logout-btn {
+      @apply hidden;
+    }
   }
 
   .sidebar-card {
-    @apply fixed left-4 top-24 bottom-4 w-64 h-[calc(100vh-7rem)]
-      flex flex-col rounded-2xl backdrop-blur-xl bg-gray-800/40 border border-white/10
-      z-50 overflow-y-auto overflow-x-hidden transition-all duration-300;
+    @apply fixed top-24;
+    @apply w-64;
+    @apply flex flex-col;
+    @apply rounded-2xl backdrop-blur-xl;
+    @apply bg-gray-800/40 border border-white/10;
+    @apply z-50;
+    @apply overflow-visible;
+    @apply transition-all duration-300;
   }
 
-  .sidebar-nav {
-    @apply flex flex-col gap-2 flex-1 p-4 overflow-y-auto;
+  @media (max-width: 1023px) {
+    .sidebar-card {
+      @apply -left-72;
+    }
+
+    .sidebar-card.open {
+      @apply left-4;
+    }
   }
+
+  @media (min-width: 1024px) {
+    .sidebar-card {
+      @apply left-4;
+    }
+  }
+
+  .disabled-div {
+    @apply opacity-50 pointer-events-none cursor-not-allowed;
+  }
+
+  .sidebar-card::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .sidebar-card::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .sidebar-card::-webkit-scrollbar-thumb {
+    @apply bg-gray-600/50 rounded-full;
+    @apply hover:bg-gray-600/70;
+  }
+    .sidebar-nav {
+      @apply flex flex-col gap-2 flex-1 p-4 overflow-y-auto;
+    }
 
   .nav-links {
-    @apply flex items-center px-4 py-3 rounded-md text-slate-200 no-underline font-medium transition-all duration-200 border border-transparent bg-gray-700/30 whitespace-nowrap overflow-hidden text-ellipsis min-w-0;
+    @apply flex items-center;
+    @apply px-4 py-3 rounded-md;
+    @apply text-slate-200 no-underline font-medium;
+    @apply transition-all duration-200;
+    @apply border border-transparent;
+    @apply bg-transparent;
+    @apply whitespace-nowrap overflow-hidden text-ellipsis min-w-0;
   }
+
   .nav-links:hover {
     @apply bg-emerald-500/15 text-emerald-400 border-emerald-400/40;
   }
+
   .nav-links.active {
     @apply bg-emerald-500/20 text-emerald-400 font-semibold border-emerald-400/40;
   }
 
   .dashboard-content {
-    @apply w-full ml-0 lg:ml-[18rem];
+    @apply w-full;
     @apply pt-28 px-6 pb-10;
     @apply min-h-screen flex flex-col;
     @apply max-w-[1600px];
+    @apply transition-all duration-300;
   }
 
-  .content-card {
-    @apply bg-gray-700/30 border border-gray-600/30 rounded-xl p-6 mb-6 backdrop-blur-md;
+  @media (max-width: 1023px) {
+    .dashboard-content {
+      @apply ml-0;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .dashboard-content {
+      @apply ml-[18rem];
+    }
+  }
+
+.content-card {
+    @apply bg-gray-700/30 border border-gray-600/30 rounded-xl p-6 mb-6 backdrop-blur-md flex flex-col;
   }
   .content-card h2 { @apply text-white text-2xl font-semibold mb-2; }
   .content-card p { @apply text-gray-300; }
 
   .stat-card {
-    @apply bg-gray-700/30 border border-gray-600/30 rounded-xl p-6 text-center backdrop-blur-md;
+    @apply bg-gray-700/30 border border-gray-600/30 rounded-xl p-6 backdrop-blur-md h-full flex flex-col items-center justify-center;
   }
   .stat-value {
-    @apply text-white text-4xl font-bold;
+    @apply text-white text-4xl font-bold mt-2;
   }
+
+.stats-grid {
+    @apply grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4;
+}
 
   .user-info {
     @apply flex items-center gap-4 cursor-pointer p-2 rounded-md transition-colors duration-200 hover:bg-gray-700/30;
   }
+
+  .user-avatar_D {
+    @apply w-10 h-10 rounded-full;
+    @apply border-2 border-emerald-400;
+    @apply object-cover;
+    @apply shadow-[0_4px_12px_rgba(16,185,129,0.3)];
+  }
+
   .user-avatar {
     @apply w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-semibold text-base;
   }
@@ -535,4 +675,138 @@
   .vs-name {
     @apply text-xl font-bold text-white tracking-wide;
   }
+
+  .friend-invite-modal {
+    @apply fixed inset-0 z-[10000] flex items-center justify-center;
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .friend-invite-overlay {
+    @apply absolute inset-0 bg-black/60 backdrop-blur-sm;
+  }
+
+  .friend-invite-content {
+    @apply relative z-10 bg-gray-800 rounded-2xl border border-emerald-500/30;
+    @apply p-6 max-w-md w-full mx-4;
+    @apply shadow-[0_0_40px_rgba(16,185,129,0.3)];
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .friend-invite-close {
+    @apply absolute top-4 right-4;
+    @apply w-8 h-8 rounded-full;
+    @apply bg-gray-700 text-gray-300;
+    @apply hover:bg-red-500 hover:text-white;
+    @apply transition-all duration-200;
+    @apply flex items-center justify-center;
+    @apply text-lg font-bold;
+    @apply border border-gray-600;
+    @apply cursor-pointer;
+  }
+
+  .friend-invite-header {
+    @apply flex items-center justify-center gap-3 mb-6;
+  }
+
+  .friend-invite-title {
+    @apply text-2xl font-bold;
+    @apply bg-gradient-to-r from-emerald-400 to-cyan-400;
+    @apply bg-clip-text text-transparent;
+  }
+
+  .friend-invite-body {
+    @apply flex flex-col items-center gap-4 mb-6;
+    @apply p-6 bg-gray-900/50 rounded-xl;
+    @apply border border-emerald-500/20;
+  }
+
+  .friend-invite-avatar {
+    @apply w-20 h-20 rounded-full;
+    @apply border-4 border-emerald-500;
+    @apply object-cover;
+    @apply shadow-[0_0_20px_rgba(16,185,129,0.4)];
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
+    }
+  }
+
+  .friend-invite-message {
+    @apply flex flex-col items-center gap-2 text-center;
+  }
+
+  .friend-invite-username {
+    @apply text-xl font-bold text-emerald-400;
+  }
+
+  .friend-invite-text {
+    @apply text-gray-300 text-base;
+  }
+
+  .friend-invite-actions {
+    @apply flex gap-3 justify-center;
+  }
+
+  .friend-invite-btn {
+    @apply flex-1 px-6 py-3;
+    @apply rounded-xl font-bold text-base;
+    @apply transition-all duration-300;
+    @apply border-2;
+    @apply cursor-pointer;
+    @apply hover:scale-105 hover:shadow-lg;
+  }
+
+  .friend-invite-accept {
+    @apply bg-emerald-500 hover:bg-emerald-600;
+    @apply text-white border-emerald-400;
+    @apply shadow-[0_0_20px_rgba(16,185,129,0.3)];
+  }
+
+  .friend-invite-accept:hover {
+    @apply shadow-[0_0_30px_rgba(16,185,129,0.5)];
+  }
+
+  .friend-invite-decline {
+    @apply bg-gray-700 hover:bg-red-500;
+    @apply text-white border-gray-600;
+    @apply hover:border-red-400;
+  }
+
+  .friend-invite-timer {
+    @apply text-center text-sm text-gray-400 mt-4;
+    @apply animate-pulse;
+  }
+
+  #invite-countdown {
+    @apply font-bold text-yellow-400;
+  }
+
 }

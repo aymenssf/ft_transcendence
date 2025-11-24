@@ -1,0 +1,41 @@
+  {
+    "name": "ft-transcendence-frontend",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Frontend for FT Transcendence — TypeScript + Tailwind static site",
+    "scripts": {
+      "build:ts": "tsc",
+      "build:css": "postcss src/styles/tailwind.css -o dist/styles/tailwind.css",
+      "build": "npm run build:ts && npm run build:css",
+      "watch:ts": "tsc -w",
+      "watch:css": "postcss src/styles/tailwind.css -o dist/styles/tailwind.css --watch",
+      "dev": "concurrently \"npm run watch:ts\" \"npm run watch:css\" \"vite\"",
+      "serve": "vite preview --port 8000 --strictPort",
+      "start": "npx http-server ./dist -p 8000",
+      "test": "vitest",
+      "test:watch": "vitest --watch"
+    },
+    "dependencies": {
+      "@ft/shared-database": "file:../../Shared_dataBase",
+      "socket.io-client": "^4.8.1"
+
+    },
+    "devDependencies": {
+      "@testing-library/dom": "^8.0.0",
+      "@types/node": "^18.17.0",
+      "autoprefixer": "^10.0.0",
+      "concurrently": "^7.6.0",
+      "http-server": "^14.1.1",
+      "jsdom": "^22.0.0",
+      "postcss": "^8.4.0",
+      "postcss-import": "^16.1.1",
+      "postcss-cli": "^10.1.0",
+      "tailwindcss": "^3.4.18",
+      "ts-node": "^10.9.1",
+      "typescript": "~4.9.5",
+      "vite": "^5.0.0",
+      "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  }}

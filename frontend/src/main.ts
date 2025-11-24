@@ -19,6 +19,12 @@ import {
   setupTournamentGameListeners
 } from "./game_tournament_handler.js"
 
+import {
+  initFriendInviteListener,
+  cleanupFriendInviteListener,
+  sendFriendInvite
+} from "./friend_invite_handler.js";
+
 console.log("start Pong game");
 
 let gameid = "";
@@ -40,6 +46,14 @@ interface User {
   avatar : string;
   usernametournament : string;
   id: number;
+}
+
+interface user_state {
+  avgScore: string,
+  losses: string,
+  total: string,
+  winRate: string,
+  wins: string,
 }
 
 class AppRouter {
@@ -111,6 +125,9 @@ constructor(containerId: string) {
 
         // Initialize game socket
         initgameSocket();
+        initFriendInviteListener((roomId) => {
+          this.navigateTo(`/dashboard/game/friend/${roomId}`);
+        });
 
         // Redirect to dashboard
         await this.navigateTo('/dashboard', true);
@@ -118,6 +135,11 @@ constructor(containerId: string) {
       }
 
       await this.checkAuth();
+      if (this.isLoggedIn) {
+        initFriendInviteListener((roomId) => {
+          this.navigateTo(`/dashboard/game/friend/${roomId}`);
+        });
+      }
     } catch (e) {
       console.error('Auth initialization error:', e);
     }
@@ -269,6 +291,7 @@ private async checkAuth(): Promise<void> {
 public async performLogout(): Promise<void> {
   localStorage.removeItem('jwt_token');
   localStorage.removeItem('user_data');
+  cleanupFriendInviteListener();
   console.log("logout");
   this.setLoggedIn(false);
   this.currentUser = null;
@@ -418,54 +441,75 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     const sidebar = document.getElementById('dashboard-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
 
-    if (sidebarToggle && sidebar && overlay) {
-    const toggleSidebar = (): void => {
-        const sidebar: HTMLElement | null = document.getElementById('dashboard-sidebar');
-        const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
-        const body: HTMLElement = document.body;
+    // if (sidebarToggle && sidebar && overlay) {
+    // const toggleSidebar = (): void => {
+    //     const sidebar: HTMLElement | null = document.getElementById('dashboard-sidebar');
+    //     const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
+    //     const body: HTMLElement = document.body;
 
-        if (sidebar) {
-            sidebar.classList.toggle('open');
-        }
-        if (overlay) {
-            overlay.classList.toggle('active');
-        }
-        body.classList.toggle('sidebar-open');
-    };
+    //     if (sidebar) {
+    //         sidebar.classList.toggle('open');
+    //     }
+    //     if (overlay) {
+    //         overlay.classList.toggle('active');
+    //     }
+    //     body.classList.toggle('sidebar-open');
+    // };
 
-    const toggleButton: HTMLElement | null = document.getElementById('sidebar-toggle');
-    const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
+    // const toggleButton: HTMLElement | null = document.getElementById('sidebar-toggle');
+    // const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
 
-    if (toggleButton) {
-        toggleButton.addEventListener('click', toggleSidebar);
-    }
+    // if (toggleButton) {
+    //     toggleButton.addEventListener('click', toggleSidebar);
+    // }
 
-    if (overlay) {
-        overlay.addEventListener('click', toggleSidebar);
-    }
+    // if (overlay) {
+    //     overlay.addEventListener('click', toggleSidebar);
+    // }
 
-    const navLinks: NodeListOf<Element> = document.querySelectorAll('.nav-link');
-    navLinks.forEach((link: Element) => {
-        link.addEventListener('click', () => {
-            if (window.innerWidth <= 1024) {
-                toggleSidebar();
-            }
-        });
-    });
-    }
+    // const navLinks: NodeListOf<Element> = document.querySelectorAll('.nav-link');
+    // navLinks.forEach((link: Element) => {
+    //     link.addEventListener('click', () => {
+    //         if (window.innerWidth <= 1024) {
+    //             toggleSidebar();
+    //         }
+    //     });
+    // });
+    // }
 
     console.log(`📄 Loaded page: ${page}`);
   }
 
-private renderDashboardLayout(): void {
-  console.log(`user info :` ,this.user);
-  this.container.innerHTML = `
-<div class="dashboard-wrapper">
+private toggleSidebar(): void {
+    const sidebar: HTMLElement | null = document.getElementById('dashboard-sidebar');
+    const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
+    const body: HTMLElement = document.body;
 
-      <!-- Sidebar Overlay (Mobile) -->
+    if (sidebar) {
+        sidebar.classList.toggle('open');
+    }
+    if (overlay) {
+        overlay.classList.toggle('active');
+    }
+}
+
+
+private renderDashboardLayout(): void {
+  console.log(`user info:`, this.user);
+  this.container.innerHTML = `
+    <div class="dashboard-wrapper">
+
+      <!-- Mobile Sidebar Toggle Button -->
+      <button id="sidebar-toggle" class="sidebar-toggle lg:hidden">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+
+      <!-- Sidebar Overlay (Mobile) - Click to close -->
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-      <!-- Sidebar Brand -->
+      <!-- Sidebar Brand (Top Left) -->
       <div class="sidebar-brand">
         <img src="../images/logo.svg" alt="PONG Logo">
         <h2>PONG Game</h2>
@@ -474,53 +518,49 @@ private renderDashboardLayout(): void {
       <!-- User Avatar Section (Top Right) -->
       <div class="sidebar-username">
         <div class="user-avatar-container">
-          <img class="user-avatar" src="${this.user.avatar}">
+          <img class="user-avatar_D" src="${this.user.avatar}">
           <span class="header-username">${this.user.username || "Player"}</span>
         </div>
         <button id="logout-btn" class="logout-btn">🚪 Logout</button>
       </div>
 
-      <!-- Sidebar (Fixed) -->
+      <!-- Sidebar (Collapsible on mobile) -->
       <aside class="sidebar-card" id="dashboard-sidebar">
         <nav class="sidebar-nav">
-          <a href="/dashboard" class="nav-link nav-links" data-page="dashboard" style="display: flex; align-items: center;">
+          <a href="/dashboard" class="nav-link nav-links" data-page="dashboard">
             <img src="../images/dashboard.svg" alt="Dashboard" width="24" height="24" style="margin-right: 8px;">
             Dashboard
           </a>
-          <a href="/dashboard/game" class="nav-link nav-links" data-page="game" style="display: flex; align-items: center;">
+          <a href="/dashboard/game" class="nav-link nav-links" data-page="game">
             <img src="../images/game.svg" alt="Game" width="24" height="24" style="margin-right: 8px;">
             Game
           </a>
-          <a href="/dashboard/chat" class="nav-link nav-links" data-page="chat" style="display: flex; align-items: center;">
+          <a href="/dashboard/chat" class="nav-link nav-links" data-page="chat">
             <img src="../images/chat.svg" alt="Chat" width="24" height="24" style="margin-right: 8px;">
             Chat
           </a>
-          <a href="/dashboard/friends" class="nav-link nav-links" data-page="friends" style="display: flex; align-items: center;">
+          <a href="/dashboard/friends" class="nav-link nav-links" data-page="friends">
             <img src="../images/friends.svg" alt="Friends" width="24" height="24" style="margin-right: 8px;">
             Friends
           </a>
-          <a href="/dashboard/stats" class="nav-link nav-links" data-page="stats" style="display: flex; align-items: center;">
-            <img src="../images/stats.svg" alt="Stats" width="24" height="24" style="margin-right: 8px;">
-            Stats
-          </a>
-          <a href="/dashboard/settings" class="nav-link nav-links" data-page="settings" style="display: flex; align-items: center;">
+          <a href="/dashboard/settings" class="nav-link nav-links" data-page="settings">
             <img src="../images/settings.svg" alt="Settings" width="24" height="24" style="margin-right: 8px;">
             Settings
           </a>
         </nav>
       </aside>
 
-      <!-- Main Content Area (ONLY ONE) -->
+      <!-- Main Content Area -->
       <main class="dashboard-content" id="dashboard-main-content">
-        <div class="content-wrapper">
-          <!-- Content will be injected here -->
-        </div>
+        <div class="content-wrapper"></div>
       </main>
+
     </div>
   `;
 
   this.contentContainer = document.getElementById('dashboard-main-content');
 
+  // Setup logout button
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async (e) => {
@@ -529,23 +569,30 @@ private renderDashboardLayout(): void {
     });
   }
 
-  const userMenuToggle = document.getElementById('user-menu-toggle');
-  const userDropdown = document.getElementById('user-dropdown');
-  if (userMenuToggle && userDropdown) {
-    userMenuToggle.addEventListener('click', () => {
-      userDropdown.classList.toggle('show');
+  // Setup sidebar toggle
+  const toggleButton = document.getElementById('sidebar-toggle');
+  const overlay = document.getElementById('sidebar-overlay');
+  const navLinks = document.querySelectorAll('.nav-links');
+
+  if (toggleButton && overlay) {
+    // Toggle on button click
+    toggleButton.addEventListener('click', () => this.toggleSidebar());
+
+    // Close on overlay click
+    overlay.addEventListener('click', () => this.toggleSidebar());
+
+    // Close sidebar when clicking nav links on mobile
+    navLinks.forEach((link) => {
+      link.addEventListener('click', () => {
+        if (window.innerWidth < 1024) {
+          this.toggleSidebar();
+        }
+      });
     });
   }
 
-  document.addEventListener('click', (e) => {
-    if (userDropdown && !userDropdown.contains(e.target as Node)) {
-      userDropdown.classList.remove('show');
-    }
-  });
-
   console.log(`📄 Loaded dashboard layout`);
 }
-
 
   private getPageData(page: string): Page {
     console.log(`page is ${page}`);
@@ -1267,7 +1314,7 @@ private getaipage(): Page {
 
           <!-- Game Area -->
           <div style="flex:1;">
-            <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; padding:1rem; background:#1f2937; border-radius:0.5rem;">
+            <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; padding:1rem; background:#1f2937; border-radius:0.5rem;" id="ai_butin">
               <div>
                 <label for="ai-difficulty" style="color:#9ca3af; margin-right:0.75rem; font-weight:600;">Difficulty:</label>
                 <select id="ai-difficulty" style="padding:0.5rem 1rem; border-radius:6px; color:#111827; font-weight:600; border:2px solid #3b82f6; cursor:pointer;">
@@ -2061,42 +2108,150 @@ init: () => {
   };
 }
 
+
+
   private getDashboardPage(): Page {
     return {
       title: "PONG Game - Dashboard",
       content: `
-        <div class="content-card">
+               <div class="content-card">
           <h2>Welcome back, ${this.user.username || 'Player'}! 👋</h2>
           <p>Ready to play some Pong? Check out your stats below.</p>
         </div>
 
+        <!-- The Stat Cards now flow horizontally in a grid -->
         <div class="stats-grid">
+
+          <!-- Stat Card 1 -->
           <div class="stat-card">
             <h3>Games Played</h3>
-            <div class="stat-value">42</div>
+            <div class="stat-value" id="total">Loading...</div>
           </div>
-          <div class="stat-card">
-            <h3>Win Rate</h3>
-            <div class="stat-value">68%</div>
-          </div>
-          <div class="stat-card">
-            <h3>Current Rank</h3>
-            <div class="stat-value">#15</div>
-          </div>
-          <div class="stat-card">
-            <h3>Online Friends</h3>
-            <div class="stat-value">5</div>
-          </div>
-        </div>
 
-        <div class="content-card">
-          <h2>Recent Activity</h2>
-          <p>No recent games. Start playing to see your activity here!</p>
+          <!-- Stat Card 2 -->
+          <div class="stat-card">
+            <h3>Wins</h3>
+            <div class="stat-value" id="wins">Loading...</div>
+          </div>
+
+          <!-- Stat Card 3 -->
+          <div class="stat-card">
+            <h3>Losses</h3>
+            <div class="stat-value" id="losses">Loading...</div>
+          </div>
+
+           <!-- Stat Card 4 -->
+           <div class="stat-card">
+            <h3>Average Score</h3>
+            <div class="stat-value" id="avgScore">Loading...</div>
+          </div>
+
+          <!-- Stat Card 5 (The Graph Card) -->
+          <!-- This card takes 2 columns on mobile (col-span-2) but only 1 on larger screens (md:col-span-1) -->
+          <div class="stat-card col-span-2 md:col-span-1">
+            <h3>Win Rate Visual</h3>
+            <div id="winRateGraph" class="mt-4 flex justify-center">
+              <!-- SVG will be injected here by TypeScript -->
+            </div>
+            <div class="text-center mt-2 text-xl font-bold" id="winRateText">Loading...</div>
+          </div>
+
         </div>
       `,
-      init: () => console.log("📊 Dashboard page loaded"),
+      init: () => {
+        console.log("📊 Dashboard page loaded");
+        this.fetchAndDisplayStats();
+      },
     };
-  }
+}
+
+private async fetchAndDisplayStats() {
+    try {
+        const res = await fetch(`/tournaments/matches/user/${this.user.id}/stats`);
+        if (!res.ok) {
+            console.error("Failed to get user state:", res.statusText);
+            return;
+        }
+        const data = await res.json();
+        console.log("User stats fetched:", data);
+
+        // 1. Update text stats (your existing logic)
+        (document.getElementById("avgScore") as HTMLElement).innerHTML = String(data.avgScore || 'N/A');
+        (document.getElementById("losses") as HTMLElement).innerHTML = String(data.losses || 'N/A');
+        (document.getElementById("total") as HTMLElement).innerHTML = String(data.total || 'N/A');
+        (document.getElementById("wins") as HTMLElement).innerHTML = String(data.wins || 'N/A');
+
+        // 2. Generate and display the visual graph
+        const winRateGraphContainer = document.getElementById("winRateGraph");
+        const winRateText = document.getElementById("winRateText");
+
+        if (winRateGraphContainer && winRateText) {
+            const winPercentage = parseFloat(data.winRate) || 0; // Assuming winRate is a percentage string like "68%"
+
+            // Clean up the input (if "68%", convert to 68)
+            const numericRate = data.winRate.includes('%') ? parseFloat(data.winRate) : data.winRate;
+
+            winRateText.innerHTML = `${numericRate}% Win Rate`;
+
+            // Create and append the SVG element
+            const svgGraph = this.createCircleGraph(numericRate);
+            winRateGraphContainer.appendChild(svgGraph);
+        }
+
+    } catch (e) {
+        console.error("Error fetching stats:", e);
+    }
+}
+
+/**
+ * Creates an SVG circular progress bar element dynamically using TypeScript.
+ * @param percentage The percentage value (0-100) to display.
+ * @returns The SVG element.
+ */
+private createCircleGraph(percentage: number): SVGElement {
+    const size = 120;
+    const strokeWidth = 10;
+    const radius = (size / 2) - (strokeWidth / 2);
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (percentage / 100) * circumference;
+
+    // Create the main SVG element
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", String(size));
+    svg.setAttribute("height", String(size));
+    svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+    // Optional: Add Tailwind classes for rotation to start from the top
+    svg.classList.add("transform", "-rotate-90");
+
+    // Create the background circle
+    const bgCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    bgCircle.setAttribute("cx", String(size / 2));
+    bgCircle.setAttribute("cy", String(size / 2));
+    bgCircle.setAttribute("r", String(radius));
+    bgCircle.setAttribute("fill", "none");
+    bgCircle.setAttribute("stroke", "#e5e7eb"); // Tailwind gray-200
+    bgCircle.setAttribute("stroke-width", String(strokeWidth));
+
+    // Create the progress circle
+    const progressCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    progressCircle.setAttribute("cx", String(size / 2));
+    progressCircle.setAttribute("cy", String(size / 2));
+    progressCircle.setAttribute("r", String(radius));
+    progressCircle.setAttribute("fill", "none");
+    progressCircle.setAttribute("stroke", "#10b981"); // Tailwind emerald-500
+    progressCircle.setAttribute("stroke-width", String(strokeWidth));
+    progressCircle.setAttribute("stroke-dasharray", String(circumference));
+    progressCircle.setAttribute("stroke-dashoffset", String(offset));
+    progressCircle.setAttribute("stroke-linecap", "round");
+    // Optional: Add a subtle transition effect using Tailwind's arbitrary properties (if configured)
+    // progressCircle.style.transition = 'stroke-dashoffset 0.5s ease-in-out';
+
+    // Append circles to the SVG
+    svg.appendChild(bgCircle);
+    svg.appendChild(progressCircle);
+
+    return svg;
+}
 
 
 private getChatPage(): Page {

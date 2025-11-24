@@ -5,7 +5,7 @@ export function game_start(config: any, state: any, ctx: CanvasRenderingContext2
     const { paddles, ball: ballPos } = state;
     ctx.clearRect(0, 0, c.width, c.height);
 
-
+    // console.log(`game config ${config} game state ${state}`);
     ctx.beginPath();
     ctx.fillStyle = paddle.color;
     ctx.roundRect(paddles.left.x, paddles.left.y, paddle.width, paddle.height, 10);

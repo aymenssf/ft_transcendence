@@ -816,6 +816,12 @@ private getTournamentLobbyPage(): Page {
         if(!tId) { this.navigateTo("dashboard/game/tournament"); return; }
 
         cleanupTournamentMatch();
+        const popstateHandler = () => {
+          cleanupTournamentMatch();
+          localStorage.removeItem('activeTournamentId');
+        };
+        window.addEventListener("popstate", popstateHandler);
+        addCleanupListener(() => window.removeEventListener("popstate", popstateHandler));
 
         const playerCountEl = document.getElementById("player-count-display")!;
         const leaveBtn = document.getElementById("leave-tournament-btn")!;

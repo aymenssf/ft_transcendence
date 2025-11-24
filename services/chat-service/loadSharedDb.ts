@@ -88,6 +88,8 @@ export interface ChatDB {
   getFriendRequests(userId: number): Promise<any[]>;
   getFriends(userId: number): Promise<any[]>;
   getFriendIds(userId: number): Promise<number[]>;
+  areFriends(userId: number, friendId: number): Promise<boolean>;
+  removeFriend(userId: number, friendId: number): Promise<void>;
 
   close(): void;
 }
@@ -135,6 +137,8 @@ export interface ChatDB {
   getFriendRequests(userId: number): Promise<any[]>;
   getFriends(userId: number): Promise<any[]>;
   getFriendIds(userId: number): Promise<number[]>;
+  areFriends(userId: number, friendId: number): Promise<boolean>;
+  removeFriend(userId: number, friendId: number): Promise<void>;
 
   // General room management
   ensureGeneralRoom(): Promise<any>;
@@ -622,6 +626,28 @@ function createChatDB(): ChatDB {
         select: { friendId: true }
       });
       return rows.map((r: any) => r.friendId);
+    },
+
+    async areFriends(userId: number, friendId: number): Promise<boolean> {
+      const friendship = await prisma.friend.findFirst({
+        where: {
+          userId: userId,
+          friendId: friendId
+        }
+      });
+      return !!friendship;
+    },
+
+    async removeFriend(userId: number, friendId: number): Promise<void> {
+      // Remove bidirectional friendship
+      await prisma.friend.deleteMany({
+        where: {
+          OR: [
+            { userId: userId, friendId: friendId },
+            { userId: friendId, friendId: userId }
+          ]
+        }
+      });
     },
 
     close() {

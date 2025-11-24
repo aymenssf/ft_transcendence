@@ -45,6 +45,8 @@ export interface Database {
   getFriendRequests(userId: number): Promise<any[]>;
   getFriends(userId: number): Promise<any[]>;
   getFriendIds(userId: number): Promise<number[]>;
+  areFriends(userId: number, friendId: number): Promise<boolean>;
+  removeFriend(userId: number, friendId: number): Promise<void>;
 
   close(): void;
 }

@@ -1,7 +1,6 @@
 import { FastifyInstance } from 'fastify';
 
 export async function friendsRoutes(app: FastifyInstance) {
-  // Get current user's friends
   app.get('/api/friends', { preHandler: [app.authenticate] }, async (request: any, reply: any) => {
     try {
       const userId = request.user.id;
@@ -13,7 +12,6 @@ export async function friendsRoutes(app: FastifyInstance) {
     }
   });
 
-  // Get incoming friend requests (pending)
   app.get('/api/friends/requests', { preHandler: [app.authenticate] }, async (request: any, reply: any) => {
     try {
       const userId = request.user.id;
@@ -25,7 +23,6 @@ export async function friendsRoutes(app: FastifyInstance) {
     }
   });
 
-  // Send a friend request (by username preferred)
   app.post('/api/friends/request', { preHandler: [app.authenticate] }, async (request: any, reply: any) => {
     try {
       const senderId = request.user.id;
@@ -45,7 +42,8 @@ export async function friendsRoutes(app: FastifyInstance) {
 
       const req = await app.db.sendFriendRequest(senderId, targetId);
 
-      // Notify receiver via socket if online
+      const sender = await app.db.findUserById(senderId);
+
       const { onlineUsers } = await import('../../src/socket/handler.js');
       const receiverSocketId = onlineUsers.get(targetId);
       if (receiverSocketId) {
@@ -54,7 +52,21 @@ export async function friendsRoutes(app: FastifyInstance) {
           senderId,
           receiverId: targetId,
           status: req.status,
-          created_at: req.created_at
+          created_at: req.created_at,
+          sender: {
+            id: sender.id,
+            username: sender.username,
+            avatar: sender.avatar
+          }
+        });
+      }
+
+      const senderSocketId = onlineUsers.get(senderId);
+      if (senderSocketId) {
+        app.io.to(senderSocketId).emit('friend-request-sent', {
+          id: req.id,
+          receiverId: targetId,
+          status: req.status
         });
       }
 
@@ -65,7 +77,6 @@ export async function friendsRoutes(app: FastifyInstance) {
     }
   });
 
-  // Respond to a friend request (accept/decline)
   app.post('/api/friends/respond', { preHandler: [app.authenticate] }, async (request: any, reply: any) => {
     try {
       const receiverId = request.user.id;
@@ -76,7 +87,6 @@ export async function friendsRoutes(app: FastifyInstance) {
 
       const updated = await app.db.respondFriendRequest(requestId, receiverId, accept);
 
-      // Notify both parties
       const { onlineUsers } = await import('../../src/socket/handler.js');
       const req = updated; // already has senderId/receiverId
       const notify = (userId: number, payload: any) => {
@@ -87,20 +97,58 @@ export async function friendsRoutes(app: FastifyInstance) {
       notify(req.senderId, { requestId: req.id, status: req.status, otherUserId: req.receiverId });
       notify(req.receiverId, { requestId: req.id, status: req.status, otherUserId: req.senderId });
 
-      // If accepted, also notify about new friend added
       if (updated.status === 'accepted') {
         const [sender, receiver] = await Promise.all([
           app.db.findUserById(req.senderId),
           app.db.findUserById(req.receiverId)
         ]);
-        notify(req.senderId, { type: 'friend-added', friend: receiver });
-        notify(req.receiverId, { type: 'friend-added', friend: sender });
+        const senderSid = onlineUsers.get(req.senderId);
+        const receiverSid = onlineUsers.get(req.receiverId);
+        if (senderSid) app.io.to(senderSid).emit('friend-added', { type: 'friend-added', friend: receiver });
+        if (receiverSid) app.io.to(receiverSid).emit('friend-added', { type: 'friend-added', friend: sender });
       }
 
       return { request: updated };
     } catch (error: any) {
       app.log.error('Error responding to friend request:', error);
       reply.status(400).send({ message: error.message || 'Failed to respond to friend request' });
+    }
+  });
+
+  app.delete('/api/friends/:friendId', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply: any) => {
+    try {
+      const { friendId } = request.params as { friendId: string };
+      const userId = request.user.id;
+      const friendIdNum = parseInt(friendId);
+
+      if (!friendIdNum || isNaN(friendIdNum)) {
+        return reply.status(400).send({ message: 'Valid friend ID is required' });
+      }
+
+      const areFriends = await app.db.areFriends(userId, friendIdNum);
+      if (!areFriends) {
+        return reply.status(400).send({ message: 'You are not friends with this user' });
+      }
+
+      await app.db.removeFriend(userId, friendIdNum);
+
+      const { onlineUsers } = await import('../../src/socket/handler.js');
+      const userSid = onlineUsers.get(userId);
+      const friendSid = onlineUsers.get(friendIdNum);
+      
+      if (userSid) {
+        app.io.to(userSid).emit('friend-removed', { userId: friendIdNum });
+      }
+      if (friendSid) {
+        app.io.to(friendSid).emit('friend-removed', { userId: userId });
+      }
+
+      return { message: 'Friend removed successfully' };
+    } catch (error: any) {
+      app.log.error('Error removing friend:', error);
+      reply.status(400).send({ message: error.message || 'Failed to remove friend' });
     }
   });
 }

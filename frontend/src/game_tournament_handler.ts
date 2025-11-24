@@ -1,10 +1,7 @@
-
-
 import { game_start } from "./game.js";
 import { sendMessage, addMessageListener, removeMessageListener } from "./game_soket.js";
 import { addCleanupListener } from "./game_shared.js";
 
-// --- State ---
 let ctx: CanvasRenderingContext2D | null = null;
 let gameConfig: any = null;
 let gameState: any = null;
@@ -16,7 +13,6 @@ let finalGameConfig: any = null;
 
 const getElement = (id: string) => document.getElementById(id);
 
-// --- Cleanup ---
 export function cleanupTournamentMatch() {
   if (keydownHandler) window.removeEventListener("keydown", keydownHandler);
   if (keyupHandler) window.removeEventListener("keyup", keyupHandler);
@@ -25,7 +21,6 @@ export function cleanupTournamentMatch() {
   ctx = null;
 }
 
-// --- Fetch User Details ---
 async function fetchUserDetails(userId: string): Promise<{ username: string; avatar: string } | null> {
   try {
     const token = localStorage.getItem("jwt_token");
@@ -57,7 +52,6 @@ function setupInput(gId: string, pId: string) {
   window.addEventListener("keyup", keyupHandler);
 }
 
-  // --- Main Factory ---
 export function createTournamentListener(
   userId: number,
   tournamentId: string,
@@ -67,9 +61,8 @@ export function createTournamentListener(
   let currentRound: "semi" | "final" | null = null;
   let myMatch: { p1: any; p2: any } | null = null;
   let isEliminated = false;
-  let pendingFinalGameId: string | null = null; // Store gameId for final ready button
+  let pendingFinalGameId: string | null = null;
 
-  // --- Resolve User ---
   const resolveUser = async (pid: string) => {
     const pidStr = String(pid);
     const isMe = pidStr === userIdStr;
@@ -82,7 +75,6 @@ export function createTournamentListener(
     return user;
   };
 
-  // --- Countdown Helper ---
   const runCountdown = (container: HTMLElement, seconds: number): Promise<void> => {
     return new Promise((resolve) => {
       let count = seconds;
@@ -100,7 +92,6 @@ export function createTournamentListener(
     });
   };
 
-  // --- Create Semi-Final HTML ---
   const createSemiFinalHTML = (semi1: { p1: any; p2: any }, semi2: { p1: any; p2: any }) => {
     const createMatchCard = (p1: any, p2: any, label: string) => `
       <div class="bg-gray-800/60 rounded-2xl p-6 border border-white/10 backdrop-blur-sm">
@@ -133,7 +124,6 @@ export function createTournamentListener(
     `;
   };
 
-  // --- Create Final HTML ---
   const createFinalHTML = (p1: any, p2: any) => `
     <div class="flex flex-col items-center justify-center min-h-full py-8">
       <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-8">🏆 GRAND FINAL 🏆</h1>
@@ -156,7 +146,6 @@ export function createTournamentListener(
     </div>
   `;
 
-  // --- Create Game View HTML (with optional ready button for finals) ---
   const createGameViewHTML = (leftPlayer: any, rightPlayer: any, showReadyButton: boolean = false) => `
     <div class="fixed inset-0 bg-gray-900 flex flex-col">
       <!-- Header -->
@@ -209,7 +198,6 @@ export function createTournamentListener(
     </div>
   `;
 
-  // --- Create Eliminated HTML ---
   const createEliminatedHTML = () => `
     <div class="flex flex-col items-center justify-center min-h-full py-8">
       <div class="text-6xl mb-6">😢</div>
@@ -219,7 +207,6 @@ export function createTournamentListener(
     </div>
   `;
 
-  // --- Create Winner HTML ---
   const createWinnerHTML = (winner: any) => `
     <div class="flex flex-col items-center justify-center min-h-full py-8">
       <div class="text-8xl mb-6 animate-bounce">👑</div>
@@ -333,7 +320,7 @@ export function createTournamentListener(
 
         container.innerHTML = createSemiFinalHTML({ p1: s1p1, p2: s1p2 }, { p1: s2p1, p2: s2p2 });
 
-        await runCountdown(container, 10);
+        await runCountdown(container, 8);
 
         if (myMatch) {
           container.innerHTML = createGameViewHTML(myMatch.p1, myMatch.p2);
@@ -410,7 +397,6 @@ export function createTournamentListener(
             console.warn("⚠️ No pendingFinalGameId yet, button will be setup when game_config arrives");
           }
         } else {
-          // I lost in semi-finals, just show the final bracket
           isEliminated = true;
           container.innerHTML = `
             <div class="flex flex-col items-center justify-center min-h-full py-8">
@@ -435,7 +421,6 @@ export function createTournamentListener(
         break;
       }
 
-      // --- TOURNAMENT FINISH ---
       case "tournament_finish": {
         cleanupTournamentMatch();
         const winner = await resolveUser(msg.payload.winner);

@@ -1,3 +1,6 @@
+// Socket.IO is loaded from CDN in index.html
+declare const io: any;
+
 import {game_start, listenForInputLocal} from "./game.js";
 import "./game_soket.js"
 import {initgameSocket, sendMessage, removeMessageListener, addMessageListener } from "./game_soket.js"
@@ -13,6 +16,7 @@ import {
 } from "./game_shared.js";
 // import { getAllUsers } from "../loadSharedDb.ts";
 import { ChatManager } from "./chat/index.js";
+import { FriendsManager } from "./friends/index.js";
 import { initAuth42, Auth42Handler, create42IntraButton } from './auth-42-intra.js';
 import {
   createTournamentListener,
@@ -52,6 +56,8 @@ class AppRouter {
   private postLoginRedirect: string | null = null;
   private user: User = {username:"", passworde:"",email:"", avatar:"../images/avatre/1jpg",usernametournament : "" ,id:0};
   private chatManager: ChatManager | null = null;
+  private friendsManager: FriendsManager | null = null;
+  private globalSocket: any = null;
   private allpages = [
     "/",
     "home",
@@ -110,6 +116,9 @@ constructor(containerId: string) {
           id: auth42Result.user.id
         };
         
+        // Connect global socket for real-time updates
+        await this.connectGlobalSocket();
+        
         // Initialize game socket
         initgameSocket();
         
@@ -154,6 +163,9 @@ private async performLogin(username: string, password: string): Promise<boolean>
     this.setLoggedIn(true);
      initgameSocket();
     //  initchatSocket();
+    
+    // Connect global socket for real-time updates
+    await this.connectGlobalSocket();
 
     const respUser = data.user ?? data;
     if (respUser && typeof respUser === "object") {
@@ -250,6 +262,10 @@ private async checkAuth(): Promise<void> {
     this.setLoggedIn(true);
     initgameSocket();
     // initchatSocket();
+    
+    // Connect global socket for real-time updates
+    await this.connectGlobalSocket();
+    
     const storedUserData = localStorage.getItem('user_data');
     if (storedUserData) {
       try {
@@ -269,7 +285,123 @@ private async checkAuth(): Promise<void> {
   }
 }
 
+/**
+ * Connect to global Socket.IO for real-time updates
+ */
+private async connectGlobalSocket(): Promise<void> {
+  if (typeof io === 'undefined') {
+    console.warn('Socket.IO library not loaded');
+    return;
+  }
+
+  const token = localStorage.getItem('jwt_token');
+  if (!token) {
+    console.warn('No auth token available for socket connection');
+    return;
+  }
+
+  try {
+    const socketUrl = `${window.location.protocol}//${window.location.host}`;
+    const socketOptions = {
+      path: '/chat/socket.io',
+      auth: { token },
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 10000
+    };
+
+    this.globalSocket = io(socketUrl, socketOptions);
+
+    this.globalSocket.on('connect', () => {
+      console.log('✅ Global Socket.IO connected');
+    });
+
+    this.globalSocket.on('disconnect', () => {
+      console.log('❌ Global Socket.IO disconnected');
+    });
+
+    this.globalSocket.on('connect_error', (error: any) => {
+      console.warn('⚠️ Global Socket.IO connection error:', error.message);
+    });
+
+    // Listen for friend status changes globally
+    this.globalSocket.on('friend-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
+      console.log('👥 [GLOBAL] Friend status changed:', data);
+      
+      // Update in chat manager if active
+      if (this.chatManager) {
+        console.log('   → Updating chat manager');
+        this.chatManager.handleFriendStatusChange(data.userId, data.status);
+      }
+      
+      // Update in friends manager if active
+      if (this.friendsManager) {
+        console.log('   → Updating friends manager');
+        this.friendsManager.handleFriendStatusChange(data.userId, data.status);
+      }
+    });
+
+    // Also listen for generic user-status-change event
+    this.globalSocket.on('user-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
+      console.log('👤 [GLOBAL] User status changed:', data);
+      
+      // Update in chat manager if active
+      if (this.chatManager) {
+        this.chatManager.handleFriendStatusChange(data.userId, data.status);
+      }
+      
+      // Update in friends manager if active
+      if (this.friendsManager) {
+        this.friendsManager.handleFriendStatusChange(data.userId, data.status);
+      }
+    });
+
+    // Listen for other global events
+    this.globalSocket.on('friend-request', (data: any) => {
+      console.log('📬 Friend request received:', data);
+      if (this.chatManager) this.chatManager.handleFriendRequest(data);
+      if (this.friendsManager) this.friendsManager.handleFriendRequest(data);
+    });
+
+    this.globalSocket.on('friend-added', (data: any) => {
+      console.log('✅ Friend added:', data);
+      if (this.chatManager) this.chatManager.handleFriendAdded(data);
+      if (this.friendsManager) this.friendsManager.handleFriendAdded(data);
+    });
+
+  } catch (error) {
+    console.error('Failed to connect global socket:', error);
+  }
+}
+
+/**
+ * Disconnect global Socket.IO
+ */
+private disconnectGlobalSocket(): void {
+  if (this.globalSocket) {
+    this.globalSocket.disconnect();
+    this.globalSocket = null;
+    console.log('🔌 Global socket disconnected');
+  }
+}
+
 public async performLogout(): Promise<void> {
+  // Disconnect global socket first (will trigger offline status)
+  this.disconnectGlobalSocket();
+  
+  // Cleanup managers
+  if (this.chatManager) {
+    this.chatManager.destroy();
+    this.chatManager = null;
+  }
+  
+  if (this.friendsManager) {
+    this.friendsManager.destroy();
+    this.friendsManager = null;
+  }
+  
   localStorage.removeItem('jwt_token');
   localStorage.removeItem('user_data');
   console.log("logout");
@@ -2143,21 +2275,28 @@ private getFriendsPage(): Page {
   return {
     title: "PONG Game - Friends",
     content: `
-      <div class="content-card">
-        <h2>👥 Friends</h2>
-        <div style="margin-top: 1rem;">
-          <div style="display: flex; align-items: center; padding: 1rem; background: #f9fafb; border-radius: 0.5rem; margin-bottom: 0.5rem;">
-            <div style="width: 40px; height: 40px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 1rem;">JD</div>
-            <div style="flex: 1;">
-              <div style="font-weight: 600; color: #111827;">John Doe</div>
-              <div style="font-size: 0.875rem; color: #10b981;">● Online</div>
-            </div>
-            <button style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 0.5rem; cursor: pointer;">Challenge</button>
-          </div>
-        </div>
-      </div>
+      <div id="friends-app-container"></div>
     `,
-    init: () => console.log("👥 Friends page loaded"),
+    init: async () => {
+      console.log("👥 Friends page loaded");
+      
+      // Cleanup previous instance
+      if (this.friendsManager) {
+        this.friendsManager.destroy();
+        this.friendsManager = null;
+      }
+
+      // Initialize Friends Manager
+      this.friendsManager = new FriendsManager('friends-app-container');
+      this.friendsManager.init({
+        id: this.user.id,
+        username: this.user.username,
+        email: this.user.email,
+        avatar: this.user.avatar
+      }).catch(error => {
+        console.error('Failed to initialize friends:', error);
+      });
+    },
   };
 }
 

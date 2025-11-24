@@ -33,15 +33,24 @@ export class ChatManager {
     this.currentUser = user;
 
     try {
-      if (typeof io === 'undefined') {
-        throw new Error('Socket.IO library not loaded. Please refresh the page.');
-      }
-
       this.setupUIHandlers();
-      await this.connectSocket();
+      
+      // Load data
       await this.loadFriends();
       await this.loadFriendRequests();
       await this.loadChatRooms();
+
+      // Try to connect socket for chat-specific events (messages, rooms, etc)
+      if (typeof io !== 'undefined') {
+        try {
+          await this.connectSocket();
+        } catch (error) {
+          console.warn('⚠️ Chat socket connection failed:', error);
+          // Continue anyway - basic functionality works with global socket
+        }
+      }
+      
+      console.log('✅ Chat Manager initialized');
     } catch (error) {
       console.error('❌ Chat initialization failed:', error);
       this.ui.showError('Failed to initialize chat: ' + (error as Error).message);
@@ -676,6 +685,29 @@ export class ChatManager {
     setTimeout(() => {
       this.connectSocket().catch(console.error);
     }, delay);
+  }
+
+  /**
+   * Handle friend status change from global socket
+   */
+  handleFriendStatusChange(userId: number, status: 'online' | 'offline'): void {
+    this.ui.updateFriendStatus(userId, status);
+  }
+
+  /**
+   * Handle friend request from global socket
+   */
+  async handleFriendRequest(data: any): Promise<void> {
+    this.ui.showNotification(`${data.senderUsername || 'Someone'} sent you a friend request`);
+    await this.loadFriendRequests();
+  }
+
+  /**
+   * Handle friend added from global socket
+   */
+  async handleFriendAdded(data: any): Promise<void> {
+    this.ui.showSuccess(`You are now friends with ${data.friend?.username || 'user'}`);
+    await this.loadFriends();
   }
 
   /**

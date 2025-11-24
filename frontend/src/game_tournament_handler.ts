@@ -215,7 +215,7 @@ export function createTournamentListener(
         ${winner.name}${winner.isMe ? " (You)" : ""}
       </h1>
       <p class="text-2xl text-gray-400">${winner.isMe ? "🎉 You are the Champion! 🎉" : "Tournament Champion"}</p>
-      <p class="mt-8 text-gray-500">Returning to lobby in 10 seconds...</p>
+      <p class="mt-8 text-gray-500">Returning to lobby in 5 seconds...</p>
     </div>
   `;
 
@@ -398,25 +398,29 @@ export function createTournamentListener(
           }
         } else {
           isEliminated = true;
-          container.innerHTML = `
-            <div class="flex flex-col items-center justify-center min-h-full py-8">
-              <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-8">🏆 GRAND FINAL 🏆</h1>
-              <div class="bg-gray-800/60 rounded-2xl p-8 border border-yellow-500/30 backdrop-blur-sm max-w-xl w-full mx-4">
-                <div class="flex items-center justify-between gap-6">
-                  <div class="flex flex-col items-center flex-1">
-                    <img src="${f1.avatar}" class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
-                    <span class="mt-3 font-bold text-lg text-white">${f1.name}</span>
-                  </div>
-                  <div class="text-4xl font-black text-yellow-400 animate-pulse">VS</div>
-                  <div class="flex flex-col items-center flex-1">
-                    <img src="${f2.avatar}" class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
-                    <span class="mt-3 font-bold text-lg text-white">${f2.name}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="mt-8 text-gray-500">You were eliminated. Watching the final...</div>
-            </div>
-          `;
+          container.innerHTML = createEliminatedHTML();
+
+          // container.innerHTML = `
+          //   <div class="flex flex-col items-center justify-center min-h-full py-8">
+          //     <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-8">🏆 GRAND FINAL 🏆</h1>
+          //     <div class="bg-gray-800/60 rounded-2xl p-8 border border-yellow-500/30 backdrop-blur-sm max-w-xl w-full mx-4">
+          //       <div class="flex items-center justify-between gap-6">
+          //         <div class="flex flex-col items-center flex-1">
+          //           <img src="${f1.avatar}" class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
+          //           <span class="mt-3 font-bold text-lg text-white">${f1.name}</span>
+          //         </div>
+          //         <div class="text-4xl font-black text-yellow-400 animate-pulse">VS</div>
+          //         <div class="flex flex-col items-center flex-1">
+          //           <img src="${f2.avatar}" class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
+          //           <span class="mt-3 font-bold text-lg text-white">${f2.name}</span>
+          //         </div>
+          //       </div>
+          //     </div>
+          //     <div class="mt-8 text-gray-500">You were eliminated. Watching the final...</div>
+          //   </div>
+          // `;
+          localStorage.removeItem("activeTournamentId");
+          navigateCallback("dashboard/game/tournament");
         }
         break;
       }
@@ -425,12 +429,17 @@ export function createTournamentListener(
         cleanupTournamentMatch();
         const winner = await resolveUser(msg.payload.winner);
 
-        container.innerHTML = createWinnerHTML(winner);
+        if (winner.id === userId.toString()){
+          container.innerHTML = createWinnerHTML(winner);
 
         setTimeout(() => {
           localStorage.removeItem("activeTournamentId");
           navigateCallback("dashboard/game/tournament");
-        }, 10000);
+        }, 5000);
+        }  else {
+          localStorage.removeItem("activeTournamentId");
+          navigateCallback("dashboard/game/tournament");
+        }
         break;
       }
     }

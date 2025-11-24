@@ -113,14 +113,6 @@ export function isPlaying(playerId: string): boolean {
 }
 
 
-export function isPlayerInTournament(playerId: string): boolean {
-    for (const tournament of tournaments) {
-
-    }
-    return false;
-
-}
-
 export function playerInOtherRoom(playerId: string, roomId: string): boolean {
     if (findGameRoomByPlayer(playerId) == null)
         return false;
@@ -145,13 +137,6 @@ export function getTournamentByRoomId(gameId: string) {
 }
 
 
-// export function assertRoomConsistency(room) {
-//     if (!room.gameId) throw new Error("missing gameId");
-//     if (room.status === "ongoing" && room.loop == null) throw new Error("ongoing but no loop");
-//     if (room.status !== "ongoing" && room.loop != null) throw new Error("loop running when not ongoing");
-//     if (room.p2 === null && room.mode !== "local" && room.status === "ongoing")
-//         throw new Error("ongoing without p2");
-// }
 interface GameConfig {
     type: string;
     payload: {

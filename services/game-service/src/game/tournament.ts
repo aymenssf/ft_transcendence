@@ -62,40 +62,6 @@ export function handleTournamentRoundWinner(gameRoom: GameRoom) {
     }
 }
 
-
-// export function handleTournamentRoundWinner(gameRoom: GameRoom) {
-//     const tournament = getTournamentByRoomId(gameRoom.gameId);
-//     if (!tournament) return;
-
-//     gameRoom.status = GAME_ROOM_STATUS.FINISHED;
-
-//     if (tournament.status === TOURNAMENT_STATUS.FINAL) {
-//         tournament.winner = gameRoom.winner;
-//         tournament.status = TOURNAMENT_STATUS.FINISHED;
-//         return;
-//     }
-
-//     const [semi1, semi2] = tournament.rounds;
-//     if (!semi1 || !semi2) return;
-
-//     if (semi1.status === GAME_ROOM_STATUS.FINISHED && semi2.status === GAME_ROOM_STATUS.FINISHED) {
-//         tournament.status = TOURNAMENT_STATUS.FINAL;
-
-//         const winner1 = semi1.winner;
-//         const winner2 = semi2.winner;
-//         if (!winner1 || !winner2) return;
-
-//         const winner1_sock = findSocketForPlayer(semi1, winner1);
-//         const winner2_sock = findSocketForPlayer(semi2, winner2);
-
-//         const finalRoom = createGameRoom(winner1, winner2, winner1_sock, GAME_ROOM_MODE.TOURNAMENT);
-//         if (winner2_sock) finalRoom.sockets.add(winner2_sock);
-
-//         tournament.rounds.push(finalRoom);
-//         notifyTournamentPlayers(tournament.tournamentId, TOURNAMENT_STATUS.FINAL);
-//     }
-// }
-
 function playerAlreadyInTournament(playerId: string) {
     for (const tournament of tournaments.values()) {
         if (tournament.status !== TOURNAMENT_STATUS.FINISHED && tournament.players.includes(playerId))

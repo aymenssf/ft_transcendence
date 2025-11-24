@@ -9,6 +9,7 @@ let gameId: string = "";
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 let keyupHandler: ((e: KeyboardEvent) => void) | null = null;
 let gameUpdateListener: ((msg: any) => void) | null = null;
+let finalGameConfig: any = null;
 
 const getElement = (id: string) => document.getElementById(id);
 
@@ -32,6 +33,7 @@ async function fetchUserDetails(userId: string): Promise<{ username: string; ava
   }
 }
 
+// --- Input Handling ---
 function setupInput(gId: string, pId: string) {
   const moves = { up: false, down: false };
   const send = () => sendMessage("game_update", { gameId: gId, playerId: pId, input: { ...moves } });
@@ -59,7 +61,7 @@ export function createTournamentListener(
   let currentRound: "semi" | "final" | null = null;
   let myMatch: { p1: any; p2: any } | null = null;
   let isEliminated = false;
-  let pendingGameId: string | null = null; 
+  let pendingFinalGameId: string | null = null;
 
   const resolveUser = async (pid: string) => {
     const pidStr = String(pid);
@@ -186,7 +188,7 @@ export function createTournamentListener(
             <span class="mt-2 font-bold ${rightPlayer.isMe ? "text-emerald-400" : "text-white"}">${rightPlayer.name}${rightPlayer.isMe ? " (You)" : ""}</span>
           </div>
         </div>
-        ${showReadyButton 
+        ${showReadyButton
           ? `<button id="final-ready-btn" class="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-bold text-xl rounded-xl hover:scale-105 transition-transform shadow-lg cursor-pointer">
               🏆 READY FOR FINAL! 🏆
             </button>`
@@ -213,7 +215,7 @@ export function createTournamentListener(
         ${winner.name}${winner.isMe ? " (You)" : ""}
       </h1>
       <p class="text-2xl text-gray-400">${winner.isMe ? "🎉 You are the Champion! 🎉" : "Tournament Champion"}</p>
-      <p class="mt-8 text-gray-500">Returning to lobby in 10 seconds...</p>
+      <p class="mt-8 text-gray-500">Returning to lobby in 5 seconds...</p>
     </div>
   `;
 
@@ -261,7 +263,7 @@ export function createTournamentListener(
 
   return async (msg: any) => {
     console.log("📨 Tournament message received:", msg.type);
-    
+
     const container = getElement("lobby-container");
     if (!container) {
       console.error("❌ lobby-container not found!");
@@ -271,22 +273,28 @@ export function createTournamentListener(
     if (msg.type === "game_config") {
       console.log("🎮 Game config received!");
       const config = msg.payload;
-      
       if (config && myMatch) {
-        initGame(config, myMatch.p1, myMatch.p2);
-        
-        console.log("📤 Sending player_ready:", { gameId: config.gameId, playerId: userIdStr });
-        sendMessage("player_ready", { gameId: config.gameId, playerId: userIdStr });
-        
-        const waitingOverlay = document.getElementById("waiting-overlay");
-        if (waitingOverlay) {
-          waitingOverlay.style.display = "none";
-          console.log("✅ Game started! Overlay hidden.");
+        if (currentRound === "semi") {
+          initGame(config, myMatch.p1, myMatch.p2);
+
+          console.log("📤 Sending player_ready:", { gameId: config.gameId, playerId: userIdStr });
+          sendMessage("player_ready", { gameId: config.gameId, playerId: userIdStr });
+
+          const waitingOverlay = document.getElementById("waiting-overlay");
+          if (waitingOverlay) {
+            waitingOverlay.style.display = "none";
+            console.log("✅ Semi-final game started!");
+          }
+        }
+        else if (currentRound === "final") {
+          finalGameConfig = msg.payload;
+          pendingFinalGameId = finalGameConfig.gameId;
+          console.log("🏆 Final game config stored for later. GameId:", config.gameId);
         }
       }
       return;
     }
-    
+
     if (msg.type === "game_start") {
       console.log("🚀 Game started!");
       const waitingOverlay = document.getElementById("waiting-overlay");
@@ -350,29 +358,69 @@ export function createTournamentListener(
 
           await runCountdown(container, 8);
 
-          container.innerHTML = createGameViewHTML(f1, f2);
-          console.log("📺 Final game view shown. Waiting for game_config...");
+          container.innerHTML = createGameViewHTML(f1, f2, true);
+          console.log("📺 Final game view rendered with button.");
+
+          if (pendingFinalGameId) {
+            console.log("🎮 Setting up final ready button with stored gameId:", pendingFinalGameId);
+
+            setTimeout(() => {
+              const readyBtn = document.getElementById("final-ready-btn") as HTMLButtonElement;
+              if (readyBtn) {
+                console.log("✅ Final button found!");
+
+                readyBtn.onclick = (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log("🚀 FINAL READY BUTTON CLICKED!");
+
+                  const configToUse = { gameId: pendingFinalGameId, ...gameConfig };
+                  if (finalGameConfig && myMatch) {
+                    initGame(finalGameConfig, myMatch.p1, myMatch.p2);
+                  }
+                  console.log("📤 Sending player_ready:", { gameId: pendingFinalGameId, playerId: userIdStr });
+                  sendMessage("player_ready", { gameId: pendingFinalGameId, playerId: userIdStr });
+
+                  const waitingOverlay = document.getElementById("waiting-overlay");
+                  if (waitingOverlay) waitingOverlay.style.display = "none";
+
+                  return false;
+                };
+
+                readyBtn.onmouseenter = () => console.log("🖱️ Mouse on button");
+                console.log("✅ Button handler attached!");
+              } else {
+                console.error("❌ Button not found!");
+              }
+            }, 100);
+          } else {
+            console.warn("⚠️ No pendingFinalGameId yet, button will be setup when game_config arrives");
+          }
         } else {
           isEliminated = true;
-          container.innerHTML = `
-            <div class="flex flex-col items-center justify-center min-h-full py-8">
-              <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-8">🏆 GRAND FINAL 🏆</h1>
-              <div class="bg-gray-800/60 rounded-2xl p-8 border border-yellow-500/30 backdrop-blur-sm max-w-xl w-full mx-4">
-                <div class="flex items-center justify-between gap-6">
-                  <div class="flex flex-col items-center flex-1">
-                    <img src="${f1.avatar}" class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
-                    <span class="mt-3 font-bold text-lg text-white">${f1.name}</span>
-                  </div>
-                  <div class="text-4xl font-black text-yellow-400 animate-pulse">VS</div>
-                  <div class="flex flex-col items-center flex-1">
-                    <img src="${f2.avatar}" class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
-                    <span class="mt-3 font-bold text-lg text-white">${f2.name}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="mt-8 text-gray-500">You were eliminated. Watching the final...</div>
-            </div>
-          `;
+          container.innerHTML = createEliminatedHTML();
+
+          // container.innerHTML = `
+          //   <div class="flex flex-col items-center justify-center min-h-full py-8">
+          //     <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-8">🏆 GRAND FINAL 🏆</h1>
+          //     <div class="bg-gray-800/60 rounded-2xl p-8 border border-yellow-500/30 backdrop-blur-sm max-w-xl w-full mx-4">
+          //       <div class="flex items-center justify-between gap-6">
+          //         <div class="flex flex-col items-center flex-1">
+          //           <img src="${f1.avatar}" class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
+          //           <span class="mt-3 font-bold text-lg text-white">${f1.name}</span>
+          //         </div>
+          //         <div class="text-4xl font-black text-yellow-400 animate-pulse">VS</div>
+          //         <div class="flex flex-col items-center flex-1">
+          //           <img src="${f2.avatar}" class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
+          //           <span class="mt-3 font-bold text-lg text-white">${f2.name}</span>
+          //         </div>
+          //       </div>
+          //     </div>
+          //     <div class="mt-8 text-gray-500">You were eliminated. Watching the final...</div>
+          //   </div>
+          // `;
+          localStorage.removeItem("activeTournamentId");
+          navigateCallback("dashboard/game/tournament");
         }
         break;
       }
@@ -381,12 +429,17 @@ export function createTournamentListener(
         cleanupTournamentMatch();
         const winner = await resolveUser(msg.payload.winner);
 
-        container.innerHTML = createWinnerHTML(winner);
+        if (winner.id === userId.toString()){
+          container.innerHTML = createWinnerHTML(winner);
 
         setTimeout(() => {
           localStorage.removeItem("activeTournamentId");
           navigateCallback("dashboard/game/tournament");
-        }, 10000);
+        }, 5000);
+        }  else {
+          localStorage.removeItem("activeTournamentId");
+          navigateCallback("dashboard/game/tournament");
+        }
         break;
       }
     }

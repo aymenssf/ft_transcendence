@@ -1,4 +1,5 @@
 // src/gameModels.ts
+import { GAME_ROOM_MODE } from '../helpers/consts.js'
 import { GameRoom } from '../utils/types.js'
 import prisma from "./prisma.js"
 
@@ -93,6 +94,7 @@ export const GameModel = {
 
 
 export async function saveGameRoom(gameRoom: GameRoom) {
+    if (gameRoom?.mode === GAME_ROOM_MODE.LOCAL) return;
     return await prisma.match.upsert({
         where: { gameId: gameRoom.gameId },
         update: {

@@ -136,4 +136,13 @@
   .game-card-desc {
     @apply text-base text-gray-400;
   }
+  .auth-divider {
+    @apply flex items-center my-6 w-full;
+  }
+  .auth-divider-line {
+    @apply flex-grow h-px bg-gray-700;
+  }
+  .auth-divider-text {
+    @apply px-3 text-gray-500 text-sm font-bold;
+  }
 }   

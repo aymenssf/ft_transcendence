@@ -8,10 +8,18 @@ export async function gameModelRoutes(fastify: FastifyInstance) {
         return await GameModel.getAllMatches()
     })
 
-    fastify.get('/matches/:id', async (req) => {
-        const { id } = req.params as { id: string }
-        return await GameModel.getMatchById(id)
-    })
+    fastify.get('/matches/:id', async (req, reply) => {
+        const { id } = req.params as { id: string };
+
+        const matchId = Number(id);
+
+        if (isNaN(matchId)) {
+            return reply.status(400).send({ error: "Invalid match ID" });
+        }
+
+        return await GameModel.getMatchById(matchId);
+    });
+
 
     fastify.get('/matches/user/:id', async (req) => {
         const { id } = req.params as { id: string };

@@ -8,7 +8,7 @@ export const GameModel = {
         return await prisma.match.findMany()
     },
 
-    async getMatchById(id: string) {
+    async getMatchById(id: number) {
         return await prisma.match.findUnique({ where: { id } })
     },
 
@@ -18,7 +18,7 @@ export const GameModel = {
         })
     },
 
-    async deleteMatch(id: string) {
+    async deleteMatch(id: number) {
         return await prisma.match.delete({ where: { id } })
     },
 

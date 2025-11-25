@@ -12,7 +12,7 @@ import "@fastify/websocket";
 import jwt from "@fastify/jwt"
 import { handleTournamentRoundWinner, notifyTournamentPlayers } from './tournament.js';
 import { saveGameRoom } from '../model/gameModels.js';
-
+import WebSocket from "ws"
 interface SocketQuery {
     token: string;
 }
@@ -121,7 +121,7 @@ export function cancelTournamentIfPlayerDisconnected(playerId: string) {
         }
 
         if (playerFound) {
-            tournament.status = TOURNAMENT_STATUS.FINISHED;
+            tournament.status = TOURNAMENT_STATUS.CANCELED;
             tournaments.delete(tournament.tournamentId);
 
             for (const room of tournament.rounds) {
@@ -132,20 +132,32 @@ export function cancelTournamentIfPlayerDisconnected(playerId: string) {
                     room.loop = null;
                 }
 
-                for (const socket of room.sockets) {
-                    if (socket?.readyState === WebSocket.OPEN) {
-                        socket?.send(
-                            JSON.stringify({
-                                type: "tournament_canceled",
-                                payload: {
-                                    tournamentId: tournament.tournamentId,
-                                    reason: "player_disconnect" + playerId,
-                                },
-                            })
-                        );
-                    }
+                room.status = GAME_ROOM_STATUS.FINISHED;
+                games.delete(room.gameId);
+            }
+
+            const uniqueSockets = new Set<WebSocket>();
+
+            for (const room of tournament.rounds) {
+                for (const s of room.sockets) {
+                    if (s) uniqueSockets.add(s);
                 }
             }
+
+            const data = JSON.stringify({
+                type: "tournament_canceled",
+                payload: {
+                    tournamentId: tournament.tournamentId,
+                    reason: "player_disconnect : " + playerId,
+                },
+            });
+
+            for (const sock of uniqueSockets) {
+                if (sock.readyState === WebSocket.OPEN) {
+                    sock.send(data);
+                }
+            }
+
 
             console.log(
                 `Tournament ${tournament.tournamentId} canceled due to disconnect of player ${playerId}`
@@ -161,7 +173,11 @@ function handlePlayerLeaveMatch(playerId: string, payload: any) {
     const gameRoom = games.get(payload.gameId);
 
     if (!gameRoom) return;
-
+    if (gameRoom.status === GAME_ROOM_STATUS.FINISHED) 
+    {
+        console.log("Game already finished, player leave safely ...");
+        return;
+    }
     if (gameRoom.p1 !== playerId && gameRoom.p2 !== playerId) return;
 
     const opponentId = gameRoom.p1 === playerId ? gameRoom.p2 : gameRoom.p1;

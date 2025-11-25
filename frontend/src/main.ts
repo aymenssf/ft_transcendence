@@ -1048,7 +1048,8 @@ private gettournamentpage(): Page {
   return {
     title: "PONG Game - Tournament",
     content: `
-      <div class="w-full h-full">
+<div class="w-full h-full p-4 lg:p-8">
+        
         <div class="flex items-center gap-6 mb-8">
           <a href="/dashboard/game" id="back-button-tournament" class="nav-link px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-base font-medium transition-colors">← Back</a>
           <h2 class="text-3xl font-bold text-white">Tournaments</h2>
@@ -1107,7 +1108,7 @@ private gettournamentpage(): Page {
       </style>
     `,
     init: () => {
-       // ... (Keep existing init logic)
+
        console.log("🏆 Tournament Selection page loaded");
        cleanupGame(this.user.id, false);
        setupNavigationHandlers(this.user.id, "back-button-tournament", (path) => this.loadPage(path));
@@ -1257,74 +1258,80 @@ private getremotepage(): Page {
   return {
     title: "PONG Game - Online Match",
     content: `
-      <div class="local-game-container" style="margin-top:5rem;">
-        <div class="game-header">
-          <a href="/dashboard/game" id="back-button-remote" class="back-button nav-link">← Back</a>
-          <h2 style="display:inline-block; margin-left:1rem;">Online Match</h2>
+      <div class="page-container">
+        
+        <div class="flex items-center gap-6">
+          <a href="/dashboard/game" id="back-button-remote" class="btn-secondary px-6 py-2">← Back</a>
+          <h2 class="text-3xl font-bold text-white">Online Match</h2>
         </div>
 
-        <div class="local-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
-          <!-- Player 1 (You) -->
-          <div style="text-align:center; width:180px;">
-            <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
-            <div id="r-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
-            <div style="font-size:0.875rem; color:#10b981; margin-top:0.25rem;">● Online</div>
+        <div class="game-stage">
+          
+          <div class="player-panel">
+            <div class="relative">
+              <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}" 
+                   alt="Player" class="player-avatar-lg border-emerald-500 shadow-emerald-500/20">
+              <div class="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-gray-900 rounded-full"></div>
+            </div>
+            <div class="text-center mb-2">
+              <div id="r-name" class="player-name">${this.currentUser || 'Player'}</div>
+              <div class="text-emerald-400 text-sm font-bold mt-1">YOU</div>
+            </div>
+            <div class="status-badge-online">ONLINE</div>
           </div>
 
-          <!-- Game Area -->
-          <div style="flex:1;">
-            <!-- ✅ Score at TOP -->
-            <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
-              <div>Score: <span id="remote-score" style="color:#fbbf24;">0 - 0</span></div>
+          <div class="game-center-area">
+            
+            <div class="game-controls-bar justify-center">
+              <div class="text-4xl font-mono font-bold text-white tracking-widest flex items-center gap-6">
+                <div>Score: <span id="remote-score" style="color:#fbbf24;">0 - 0</span></div>
+              </div>
             </div>
 
-            <!-- Canvas -->
-            <div id="game-container"></div>
+            <div id="game-container" class="game-canvas-box">
+               <div class="text-gray-600 text-sm">Find an opponent to start</div>
+            </div>
 
-            <!-- Button at BOTTOM -->
-            <div style="text-align:center; margin-top:1.5rem;">
-              <button id="start-remote-game" class="btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
-                🌐 Find Opponent
+            <div class="w-full flex flex-col items-center gap-4">
+              
+              <button id="start-remote-game" class="btn-primary w-full md:w-auto md:px-16 text-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all duration-300">
+                <span>🌐</span> FIND OPPONENT
               </button>
-              <div style="margin-top:1rem; color:#9ca3af; font-size:0.95rem;">
-                Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> / <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
+
+              <div id="matchmaking-status" class="hidden items-center gap-2 text-yellow-400 bg-gray-800 px-4 py-2 rounded-full border border-yellow-500/30 animate-pulse">
+                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span class="text-xs font-bold tracking-wide">SEARCHING...</span>
+              </div>
+
+              <div class="text-xs text-gray-500 font-mono bg-gray-800 px-3 py-1 rounded border border-gray-700">
+                Controls: [W] / [S]
               </div>
             </div>
           </div>
 
-          <!-- Player 2 (Opponent) -->
-          <div style="text-align:center; width:180px;">
-            <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent" style="width:120px;height:120px;border-radius:50%;border:4px solid #6b7280;opacity:0.5;box-shadow:0 4px 12px rgba(107,114,128,0.3);" onerror="this.src='../images/avatars/2.jpg'">
-            <div id="opponent-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#9ca3af;">Waiting...</div>
-            <div id="serch"style="font-size:0.875rem; color:#6b7280; margin-top:0.25rem;">Searching...</div>
+          <div class="player-panel">
+            <div class="relative">
+              <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent" 
+                   class="hidden w-32 h-32 rounded-full border-4 border-blue-500 object-cover shadow-lg mb-2">
+              
+              <div id="opponent-placeholder" class="opponent-placeholder">?</div>
+            </div>
+            
+            <div class="text-center mb-2">
+              <div id="opponent-name" class="player-name text-gray-500">Waiting...</div>
+              <div class="text-blue-400 text-sm font-bold mt-1">OPPONENT</div>
+            </div>
+            
+            <div id="serch" class="status-badge-waiting">WAITING</div>
           </div>
-        </div>
 
-        <!-- Matchmaking Status -->
-        <div id="matchmaking-status" style="display:none; margin-top:2rem; text-align:center; padding:1.5rem; background:#1f2937; border-radius:0.75rem; animation:pulse 2s infinite;">
-          <div style="font-size:1.3rem; color:#10b981; margin-bottom:0.5rem; font-weight:600;">
-            🔍 Searching for opponent...
-          </div>
-          <div style="color:#9ca3af; font-size:1rem;">
-            This may take a few moments
-          </div>
         </div>
       </div>
-
-      <style>
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
-        }
-        kbd {
-          font-family: monospace;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-      </style>
     `,
     init: () => {
       console.log("🌐 Remote game page loaded");
       cleanupGame(this.user.id, false);
+
       setupNavigationHandlers(
         this.user.id,
         "back-button-remote",
@@ -1333,14 +1340,23 @@ private getremotepage(): Page {
 
       const startButton = document.getElementById('start-remote-game') as HTMLButtonElement;
       const matchmakingStatus = document.getElementById('matchmaking-status');
+      const opponentPlaceholder = document.getElementById('opponent-placeholder');
+      const searchStatusText = document.getElementById('serch');
 
       if (startButton) {
         const startHandler = () => {
-          startButton.innerText = '🔍 Searching...';
-          startButton.disabled = true;
+          startButton.innerText = 'CANCEL SEARCH'; 
+          startButton.classList.replace('btn-primary', 'btn-secondary');
 
-          if (matchmakingStatus) {
-            matchmakingStatus.style.display = 'block';
+          if (matchmakingStatus) matchmakingStatus.classList.remove('hidden');
+          if (matchmakingStatus) matchmakingStatus.classList.add('flex');
+
+          if (opponentPlaceholder) opponentPlaceholder.classList.add('searching-pulse');
+          
+          if (searchStatusText) {
+            searchStatusText.innerText = "SEARCHING...";
+            searchStatusText.classList.remove('status-badge-waiting');
+            searchStatusText.classList.add('text-yellow-400', 'border-yellow-500/30', 'bg-yellow-500/10');
           }
 
           sendMessage("join_random", {});
@@ -1350,8 +1366,38 @@ private getremotepage(): Page {
       }
 
       const remoteListener = createRemoteGameListener(this.user.id);
+      
+      const uiAwareListener = (data: any) => {
+         remoteListener(data);
+         
+         // When game/match starts
+         if (data.type === 'game_start' || data.type === 'match_found') {
+             const matchmakingStatus = document.getElementById('matchmaking-status');
+             const opponentPlaceholder = document.getElementById('opponent-placeholder');
+             const opponentAvatar = document.getElementById('opponent-avatar');
+             const searchStatusText = document.getElementById('serch');
+
+             // ✅ UPDATE BUTTON TO READY STATE
+             if (startButton) {
+               startButton.innerHTML = '<span>⚔️</span> I AM READY';
+               startButton.disabled = false; 
+               startButton.classList.replace('btn-secondary', 'btn-primary'); // Switch back to primary color
+               // Note: Any 'Ready' click logic needs to be attached here or handled by the existing listener
+             }
+
+             if(matchmakingStatus) matchmakingStatus.classList.add('hidden');
+             if(opponentPlaceholder) opponentPlaceholder.classList.add('hidden');
+             if(opponentAvatar) opponentAvatar.classList.remove('hidden');
+             
+             if(searchStatusText) {
+                 searchStatusText.innerText = "CONNECTED";
+                 searchStatusText.className = "status-badge-online !text-blue-400 !border-blue-500/30 !bg-blue-500/10";
+             }
+         }
+      };
+
       setupGameListeners(
-        remoteListener,
+        uiAwareListener,
         'remote-score',
         this.user.id,
         (path: string) => this.loadPage(path),
@@ -1366,66 +1412,83 @@ private getlocalpage(): Page {
   return {
     title: "PONG Game - Local Match",
     content: `
-      <div class="local-game-container" style="margin-top:5rem;">
-        <div class="game-header">
-          <a href="dashboard/game" id="back-button" class="back-button nav-link">← Back</a>
-          <h2 style="display:inline-block; margin-left:1rem;">Local Match (2 Players)</h2>
+      <div class="page-container">
+        
+        <div class="flex items-center gap-6">
+          <a href="/dashboard/game" id="back-button" class="btn-secondary px-6 py-2">← Back</a>
+          <h2 class="text-3xl font-bold text-white">Local PvP</h2>
         </div>
 
-        <div class="local-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
-          <!-- Player 1 -->
-          <div style="text-align:center; width:180px;">
-            <div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);display:flex;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 4px 12px rgba(59,130,246,0.4);">
-              <div style="font-size:3rem; font-weight:700; color:white;">1</div>
+        <div class="game-stage">
+          
+          <div class="player-panel">
+            <div class="relative">
+              <div class="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-6xl font-bold text-white shadow-lg shadow-blue-500/30 border-4 border-gray-800 mb-4">
+                1
+              </div>
             </div>
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">Player 1</div>
-            <div style="font-size:0.875rem; color:#3b82f6; margin-top:0.25rem; font-weight:600;">
-              <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;margin:0 2px;">W</kbd>
-              <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;margin:0 2px;">S</kbd>
+            <div class="text-center mb-4">
+              <div class="player-name">Player 1</div>
+              <div class="text-blue-400 text-sm font-bold mt-1">WASD Controls</div>
             </div>
-          </div>
-
-          <!-- Game Area -->
-          <div style="flex:1;">
-            <!-- ✅ Score at TOP -->
-            <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
-              <div>Score: <span id="local-score" style="color:#fbbf24;">0 - 0</span></div>
-            </div>
-
-            <!-- Canvas -->
-            <div id="game-container"></div>
-
-            <!-- Button at BOTTOM -->
-            <div style="text-align:center; margin-top:1.5rem;">
-              <button id="start-local-game" class="btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
-                ▶️ Start Game
-              </button>
-              <div style="margin-top:1rem; color:#9ca3af; font-size:0.95rem;">
-                Local multiplayer on same device
+            
+            <div class="flex gap-2">
+              <div class="flex flex-col items-center gap-1">
+                <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">W</span>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Up</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">S</span>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Down</span>
               </div>
             </div>
           </div>
 
-          <!-- Player 2 -->
-          <div style="text-align:center; width:180px;">
-            <div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);display:flex;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 4px 12px rgba(239,68,68,0.4);">
-              <div style="font-size:3rem; font-weight:700; color:white;">2</div>
+          <div class="game-center-area">
+            
+            <div class="game-controls-bar justify-center">
+              <div class="text-4xl font-mono font-bold text-white tracking-widest flex items-center gap-4">
+                <div><span id="local-score" style="color:#fbbf24;">0 - 0</span></div> 
+              </div>
             </div>
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">Player 2</div>
-            <div style="font-size:0.875rem; color:#ef4444; margin-top:0.25rem; font-weight:600;">
-              <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;margin:0 2px;">↑</kbd>
-              <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;margin:0 2px;">↓</kbd>
+
+            <div id="game-container" class="game-canvas-box">
+               <div class="text-gray-600 text-sm">Press Start to Load Game</div>
+            </div>
+
+            <div class="w-full flex flex-col items-center gap-2">
+              <button id="start-local-game" class="btn-primary w-full md:w-auto md:px-16 text-lg shadow-blue-500/20">
+                ▶️ START MATCH
+              </button>
+              <p class="text-xs text-gray-500">Local multiplayer on the same device</p>
             </div>
           </div>
+
+          <div class="player-panel">
+            <div class="relative">
+              <div class="w-32 h-32 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-6xl font-bold text-white shadow-lg shadow-red-500/30 border-4 border-gray-800 mb-4">
+                2
+              </div>
+            </div>
+            <div class="text-center mb-4">
+              <div class="player-name">Player 2</div>
+              <div class="text-red-400 text-sm font-bold mt-1">Arrow Controls</div>
+            </div>
+
+            <div class="flex gap-2">
+              <div class="flex flex-col items-center gap-1">
+                <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">↑</span>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Up</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">↓</span>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Down</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
-
-      <style>
-        kbd {
-          font-family: monospace;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-      </style>
     `,
     init: () => {
       console.log("🎮 Local page loaded");
@@ -1437,9 +1500,14 @@ private getlocalpage(): Page {
         (path: string) => this.loadPage(path)
       );
 
-      const startButton = document.getElementById('start-local-game');
+      const startButton = document.getElementById('start-local-game') as HTMLButtonElement;
+      
       if (startButton) {
         const startHandler = () => {
+          startButton.innerText = '⚔️ Game Running';
+          startButton.disabled = true;
+          startButton.classList.add('opacity-50', 'cursor-not-allowed', 'scale-95');
+          
           sendMessage("join_local", {});
         };
         startButton.addEventListener('click', startHandler);
@@ -1463,73 +1531,71 @@ private getaipage(): Page {
   return {
     title: "PONG Game - AI Match",
     content: `
-      <div class="local-game-container" style="margin-top:5rem;">
-        <div class="game-header">
-          <a href="/dashboard/game" id="back-button-ai" class="back-button nav-link">← Back</a>
-          <h2 style="display:inline-block; margin-left:1rem;">Play vs AI</h2>
+      <div class="page-container">
+        
+        <div class="flex items-center gap-6">
+          <a href="/dashboard/game" id="back-button-ai" class="btn-secondary px-6 py-2">← Back</a>
+          <h2 class="text-3xl font-bold text-white">VS Artificial Intelligence</h2>
         </div>
 
-        <div class="local-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
-          <!-- Player -->
-          <div style="text-align:center; width:180px;">
-            <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
-            <div style="font-size:0.875rem; color:#10b981; margin-top:0.25rem;">● Ready</div>
+        <div class="game-stage">
+          
+          <div class="player-panel">
+            <div class="relative">
+              <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" class="player-avatar-lg border-emerald-500 shadow-emerald-500/20">
+              <div class="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-gray-900 rounded-full"></div>
+            </div>
+            <div class="text-center">
+              <div class="player-name">${this.currentUser || 'Player'}</div>
+              <div class="text-emerald-400 text-sm font-bold mt-1">Human</div>
+            </div>
+            <div class="player-status text-emerald-400 border-emerald-500/30 bg-emerald-500/10">READY</div>
           </div>
 
-          <!-- Game Area -->
-          <div style="flex:1;">
-            <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; padding:1rem; background:#1f2937; border-radius:0.5rem;" id="ai_butin">
-              <div>
-                <label for="ai-difficulty" style="color:#9ca3af; margin-right:0.75rem; font-weight:600;">Difficulty:</label>
-                <select id="ai-difficulty" style="padding:0.5rem 1rem; border-radius:6px; color:#111827; font-weight:600; border:2px solid #3b82f6; cursor:pointer;">
+          <div class="game-center-area">
+            
+            <div class="game-controls-bar">
+              
+              <div id="ai-difficulty-wrapper" class="flex items-center gap-4 transition-opacity duration-500">
+                <label class="text-gray-400 text-sm font-bold">DIFFICULTY:</label>
+                <select id="ai-difficulty" class="bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-1 text-sm focus:border-emerald-500 outline-none">
                   <option value="easy">🟢 Easy</option>
                   <option value="medium" selected>🟡 Medium</option>
                   <option value="hard">🔴 Hard</option>
                 </select>
               </div>
-              <div style="color:#9ca3af; font-size:0.9rem;">
-                Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> / <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
+              
+              <div class="text-3xl font-mono font-bold text-white tracking-widest flex-1 text-center">
+              <div><span id="ai-score" style="color:#fbbf24;">0 - 0</span></div> 
+              </div>
+
+              <div class="text-xs text-gray-500 font-mono bg-black/30 px-3 py-1 rounded">
+                [W] UP / [S] DOWN
               </div>
             </div>
 
-            <!-- ✅ Score at TOP -->
-            <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
-              <div>Score: <span id="ai-score" style="color:#fbbf24;">0 - 0</span></div>
+            <div id="game-container" class="game-canvas-box">
+               <div class="text-gray-600 text-sm">Press Start to Load Game</div>
             </div>
 
-            <!-- Canvas -->
-            <div id="game-container"></div>
-
-            <!-- Button at BOTTOM -->
-            <div style="text-align:center; margin-top:1.5rem;">
-              <button id="start-ai-game" class="btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
-                🤖 Start vs AI
-              </button>
-            </div>
+            <button id="start-ai-game" class="btn-primary w-full md:w-auto md:px-12 text-lg shadow-emerald-500/20 transition-all duration-500">
+              🤖 START MATCH
+            </button>
           </div>
 
-          <!-- AI Opponent -->
-          <div style="text-align:center; width:180px;">
-            <div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);display:flex;align-items:center;justify-content:center;font-size:3.5rem;margin:0 auto;box-shadow:0 4px 12px rgba(139,92,246,0.4);animation:ai-pulse 2s infinite;">
-              🤖
+          <div class="player-panel">
+            <div class="relative">
+              <div class="player-avatar-lg ai-avatar-glow border-purple-500">🤖</div>
             </div>
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">AI Opponent</div>
-            <div style="font-size:0.875rem; color:#8b5cf6; margin-top:0.25rem;">Adaptive AI</div>
+            <div class="text-center">
+              <div class="player-name">PongBot 3000</div>
+              <div class="text-purple-400 text-sm font-bold mt-1">CPU</div>
+            </div>
+            <div class="player-status text-purple-400 border-purple-500/30 bg-purple-500/10">WAITING</div>
           </div>
+
         </div>
       </div>
-
-      <style>
-        @keyframes ai-pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
-        kbd {
-          font-family: monospace;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-      </style>
     `,
     init: () => {
       console.log("🤖 AI Game page loaded");
@@ -1543,12 +1609,20 @@ private getaipage(): Page {
 
       const startButton = document.getElementById('start-ai-game') as HTMLButtonElement;
       const difficultySelect = document.getElementById('ai-difficulty') as HTMLSelectElement;
+      const difficultyWrapper = document.getElementById('ai-difficulty-wrapper'); // ✅ Get the wrapper
 
       if (startButton) {
         const startHandler = () => {
           const difficulty = difficultySelect?.value || 'medium';
-          startButton.innerText = '🔍 Finding AI...';
+          
+          startButton.innerText = '🎮 Game Running';
           startButton.disabled = true;
+          startButton.classList.add('opacity-50', 'cursor-not-allowed', 'scale-95');
+          
+          if (difficultyWrapper) {
+            difficultyWrapper.style.display = 'none'; 
+          }
+
           sendMessage("join_ai-opponent", { difficulty });
         };
         startButton.addEventListener('click', startHandler);
@@ -1567,7 +1641,6 @@ private getaipage(): Page {
     }
   };
 }
-
 private getLoginPage(): Page {
   return {
     title: "PONG Game - Login",
@@ -1688,7 +1761,6 @@ private getLoginPage(): Page {
       init: () => {
         console.log("📝 Register page loaded");
 
-        // Handle avatar upload and preview
         let selectedAvatarFile: File | null = null;
         const avatarUpload = document.getElementById('avatar-upload') as HTMLInputElement;
         const avatarPreview = document.getElementById('avatar-preview') as HTMLImageElement;

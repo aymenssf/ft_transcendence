@@ -575,24 +575,20 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     console.log(`📄 Loaded page: ${page}`);
   }
 
-// In AppRouter class
 
 private toggleSidebar(): void {
   const sidebar = document.getElementById('dashboard-sidebar');
   const overlay = document.getElementById('sidebar-overlay');
   
   if (sidebar) {
-    // Simple toggle of the 'open' class we defined in CSS
     sidebar.classList.toggle('open');
   }
   
   if (overlay) {
-    // Toggle the 'show' class for the overlay
     overlay.classList.toggle('show');
   }
 }
 
-// In AppRouter.ts
 
 private renderDashboardLayout(): void {
   this.container.innerHTML = `
@@ -652,10 +648,9 @@ private renderDashboardLayout(): void {
   this.setupDashboardEvents();
 }
 
-// Helper for Nav Links
 private renderNavLink(href: string, icon: string, text: string): string {
   return `
-    <a href="${href}" class="nav-item nav-links" data-page="${icon}">
+    <a href="${href}" class="nav-item nav-link" data-page="${icon}">
       <img src="../images/${icon}.svg" alt="${text}">
       <span class="text-base font-semibold">${text}</span>
     </a>
@@ -1573,10 +1568,10 @@ private getaipage(): Page {
   };
 }
 
-  private getLoginPage(): Page {
-    return {
-      title: "PONG Game - Login",
-      content: `
+private getLoginPage(): Page {
+  return {
+    title: "PONG Game - Login",
+    content: `
       <nav class="public-navbar">
         <div class="flex items-center gap-3">
           <img src="./images/logo.svg" class="h-8 w-8">
@@ -1598,62 +1593,53 @@ private getaipage(): Page {
             <button type="submit" class="btn-primary w-full justify-center">Sign In</button>
           </form>
 
-          <div id="login-42-container" class="mt-6"></div>
+          <div id="login-42-container" class="w-full mt-6"></div>
 
           <div class="mt-8 text-center border-t border-gray-700 pt-6">
             <p class="text-gray-400 mb-4">Don't have an account?</p>
             <a href="/register" class="btn-secondary w-full">Create Account</a>
           </div>
-          <div class="mt-4 text-center"><a href="/" class="text-xs text-gray-500 hover:text-white">← Home</a></div>
+          
+          <div class="mt-4 text-center">
+            <a href="/" class="text-xs text-gray-500 hover:text-white transition-colors">← Back to Home</a>
+          </div>
         </div>
       </section>
-      `,
-      init: () => {
-        console.log("🔑 Login page loaded");
-        const form = document.getElementById("login-form");
-        if (form) {
-          form.addEventListener("submit", (e) => {
-            e.preventDefault();
-            const username = (document.getElementById("username") as HTMLInputElement).value;
-            const password = (document.getElementById("password") as HTMLInputElement).value;
-            (async () => {
-              await this.performLogin(username, password);
-            })();
-          });
-        }
+    `,
+    init: () => {
+      // ... (Keep your existing init logic unchanged) ...
+      console.log("🔑 Login page loaded");
+      const form = document.getElementById("login-form");
+      if (form) {
+        form.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const username = (document.getElementById("username") as HTMLInputElement).value;
+          const password = (document.getElementById("password") as HTMLInputElement).value;
+          (async () => { await this.performLogin(username, password); })();
+        });
+      }
 
-        // ✅ Add 42 intra button
-        const loginCard = document.querySelector('.login-card');
-        if (loginCard) {
-          // Find the form and insert after it
-          const form = document.getElementById('login-form');
-          if (form) {
-            // Create container for 42 button
-            const container = document.createElement('div');
-            container.id = 'login-42-container';
+      const container = document.getElementById('login-42-container');
+      if (container) {
+        const divider = document.createElement('div');
+        // Using the class we added to style.css
+        divider.className = "auth-divider"; 
+        // Or manual tailwind if you didn't add that class:
+        // divider.className = "flex items-center my-4 w-full";
+        divider.innerHTML = `<div class="flex-grow h-px bg-gray-700"></div><span class="px-3 text-gray-500 text-sm font-bold">OR</span><div class="flex-grow h-px bg-gray-700"></div>`;
+        container.appendChild(divider);
 
-            // Add divider
-            const divider = document.createElement('div');
-            divider.style.cssText = 'margin: 1.5rem 0; text-align: center; color: #9ca3af; font-size: 0.9rem;';
-            divider.innerHTML = '— or —';
-            container.appendChild(divider);
-
-            // Insert after form
-            form.parentNode?.insertBefore(container, form.nextSibling);
-
-            // Add 42 intra button
-            create42IntraButton(container, {
-              text: '🎓 Sign in with 42 intra',
-              onClick: () => {
-                console.log('🚀 Starting 42 intra OAuth login...');
-                Auth42Handler.initiateLogin('/dashboard');
-              }
-            });
+        create42IntraButton(container, {
+          text: 'Sign in with 42 Intra',
+          onClick: () => {
+            console.log('🚀 Starting 42 intra OAuth login...');
+            Auth42Handler.initiateLogin('/dashboard');
           }
-        }
-      },
-    };
-  }
+        });
+      }
+    },
+  };
+}
 
   private getRegisterPage(): Page {
     return {

@@ -68,6 +68,7 @@ class AppRouter {
   private currentUser: string | null = null;
   private postLoginRedirect: string | null = null;
   private user: User = {username:"", passworde:"",email:"", avatar:"../images/avatre/1jpg",usernametournament : "" ,id:0};
+  private friend: User = {username:"", passworde:"",email:"", avatar:"../images/avatre/1jpg",usernametournament : "" ,id:0};
   private chatManager: ChatManager | null = null;
   private friendsManager: FriendsManager | null = null;
   private globalSocket: any = null;
@@ -85,7 +86,8 @@ class AppRouter {
     "dashboard/game/local",
     "dashboard/game/remote",
     "dashboard/game/tournament",
-    "dashboard/game/tournament/lobby"
+    "dashboard/game/tournament/lobby",
+    "dashboard/game/friend_game"
   ]
   private publicPages = ["/","home", "login", "register"];
   private protectedPages = [
@@ -99,7 +101,8 @@ class AppRouter {
     "dashboard/game/local",
     "dashboard/game/remote",
     "dashboard/game/tournament",
-    "dashboard/game/tournament/lobby"
+    "dashboard/game/tournament/lobby",
+    "dashboard/game/friend_game"
   ];
 
 constructor(containerId: string) {
@@ -294,7 +297,6 @@ private async checkAuth(): Promise<void> {
       await this.fetchUserDetails(payload.userId);
     }
 
-    // Connect global socket for real-time updates
     await this.connectGlobalSocket();
   } catch (err) {
     console.warn('checkAuth failed', err);
@@ -395,9 +397,7 @@ private async connectGlobalSocket(): Promise<void> {
   }
 }
 
-/**
- * Disconnect global Socket.IO
- */
+
 private disconnectGlobalSocket(): void {
   if (this.globalSocket) {
     this.globalSocket.disconnect();
@@ -407,7 +407,6 @@ private disconnectGlobalSocket(): void {
 }
 
 public async performLogout(): Promise<void> {
-  // Disconnect global socket first (will trigger offline status)
   this.disconnectGlobalSocket();
   
   // Cleanup managers
@@ -573,155 +572,113 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     const sidebar = document.getElementById('dashboard-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
 
-    // if (sidebarToggle && sidebar && overlay) {
-    // const toggleSidebar = (): void => {
-    //     const sidebar: HTMLElement | null = document.getElementById('dashboard-sidebar');
-    //     const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
-    //     const body: HTMLElement = document.body;
-
-    //     if (sidebar) {
-    //         sidebar.classList.toggle('open');
-    //     }
-    //     if (overlay) {
-    //         overlay.classList.toggle('active');
-    //     }
-    //     body.classList.toggle('sidebar-open');
-    // };
-
-    // const toggleButton: HTMLElement | null = document.getElementById('sidebar-toggle');
-    // const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
-
-    // if (toggleButton) {
-    //     toggleButton.addEventListener('click', toggleSidebar);
-    // }
-
-    // if (overlay) {
-    //     overlay.addEventListener('click', toggleSidebar);
-    // }
-
-    // const navLinks: NodeListOf<Element> = document.querySelectorAll('.nav-link');
-    // navLinks.forEach((link: Element) => {
-    //     link.addEventListener('click', () => {
-    //         if (window.innerWidth <= 1024) {
-    //             toggleSidebar();
-    //         }
-    //     });
-    // });
-    // }
-
     console.log(`📄 Loaded page: ${page}`);
   }
 
-private toggleSidebar(): void {
-    const sidebar: HTMLElement | null = document.getElementById('dashboard-sidebar');
-    const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
-    const body: HTMLElement = document.body;
+// In AppRouter class
 
-    if (sidebar) {
-        sidebar.classList.toggle('open');
-    }
-    if (overlay) {
-        overlay.classList.toggle('active');
-    }
+private toggleSidebar(): void {
+  const sidebar = document.getElementById('dashboard-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  
+  if (sidebar) {
+    // Simple toggle of the 'open' class we defined in CSS
+    sidebar.classList.toggle('open');
+  }
+  
+  if (overlay) {
+    // Toggle the 'show' class for the overlay
+    overlay.classList.toggle('show');
+  }
 }
 
+// In AppRouter.ts
 
 private renderDashboardLayout(): void {
-  console.log(`user info:`, this.user);
   this.container.innerHTML = `
-    <div class="dashboard-wrapper">
-
-      <!-- Mobile Sidebar Toggle Button -->
-      <button id="sidebar-toggle" class="sidebar-toggle lg:hidden">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
+    <div class="layout-wrapper">
+      
+      <button id="sidebar-toggle" class="mobile-toggle-btn">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
 
-      <!-- Sidebar Overlay (Mobile) - Click to close -->
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-      <!-- Sidebar Brand (Top Left) -->
-      <div class="sidebar-brand">
-        <img src="../images/logo.svg" alt="PONG Logo">
-        <h2>PONG Game</h2>
-      </div>
+      <aside class="layout-sidebar" id="dashboard-sidebar">
+        
+        <div id="logo-btn" class="sidebar-header">
+          <img src="../images/logo.svg" alt="PONG" class="sidebar-logo-img">
+          <h2 class="text-xl font-bold tracking-wider text-white">PONG GAME</h2>
+        </div>
 
-      <div class="sidebar-username">
-        <img class="user-avatar_D" src="${this.user.avatar}">
-        <span class="header-username">${this.user.username || "Player"}</span>
-      </div>
-      
-      <button id="logout-btn" class="logout-btn fixed top-5 right-4 z-[9999] px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm border border-red-500/30" style="margin-top: 60px;">🚪 Logout</button>
-
-      <!-- Sidebar (Collapsible on mobile) -->
-      <aside class="sidebar-card" id="dashboard-sidebar">
         <nav class="sidebar-nav">
-          <a href="/dashboard" class="nav-link nav-links" data-page="dashboard">
-            <img src="../images/dashboard.svg" alt="Dashboard" width="24" height="24" style="margin-right: 8px;">
-            Dashboard
-          </a>
-          <a href="/dashboard/game" class="nav-link nav-links" data-page="game">
-            <img src="../images/game.svg" alt="Game" width="24" height="24" style="margin-right: 8px;">
-            Game
-          </a>
-          <a href="/dashboard/chat" class="nav-link nav-links" data-page="chat">
-            <img src="../images/chat.svg" alt="Chat" width="24" height="24" style="margin-right: 8px;">
-            Chat
-          </a>
-          <a href="/dashboard/friends" class="nav-link nav-links" data-page="friends">
-            <img src="../images/friends.svg" alt="Friends" width="24" height="24" style="margin-right: 8px;">
-            Friends
-          </a>
-          <a href="/dashboard/settings" class="nav-link nav-links" data-page="settings">
-            <img src="../images/settings.svg" alt="Settings" width="24" height="24" style="margin-right: 8px;">
-            Settings
-          </a>
+          ${this.renderNavLink('/dashboard', 'dashboard', 'Dashboard')}
+          ${this.renderNavLink('/dashboard/game', 'game', 'Game Mode')}
+          ${this.renderNavLink('/dashboard/chat', 'chat', 'Chat')}
+          ${this.renderNavLink('/dashboard/friends', 'friends', 'Friends')}
+          ${this.renderNavLink('/dashboard/settings', 'settings', 'Settings')}
         </nav>
+
+        <div class="sidebar-footer">
+           <div class="relative">
+             <button id="user-menu-btn" class="user-profile-btn">
+               <img class="sidebar-user-img" src="${this.user.avatar}">
+               
+               <div class="flex-1 text-left overflow-hidden">
+                 <p class="text-base font-bold text-white truncate">${this.user.username || "Player"}</p>
+                 <div class="flex items-center gap-2 mt-0.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <p class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Online</p>
+                 </div>
+               </div>
+             </button>
+             
+             <div id="user-dropdown" class="hidden absolute bottom-full left-0 w-full mb-2 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50"> 
+               <button id="logout-btn" class="btn-danger">
+                 <span>Logout</span> 
+               </button>
+             </div>
+           </div>
+        </div>
       </aside>
 
-      <!-- Main Content Area -->
-      <main class="dashboard-content" id="dashboard-main-content">
-        <div class="content-wrapper"></div>
+      <main class="layout-main" id="dashboard-main-content">
+         <div class="content-wrapper h-full w-full"></div>
       </main>
-
     </div>
   `;
 
-  this.contentContainer = document.getElementById('dashboard-main-content');
+  this.contentContainer = document.querySelector('#dashboard-main-content .content-wrapper');
+  this.setupDashboardEvents();
+}
 
-  // Setup logout button
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await this.performLogout();
-    });
-  }
+// Helper for Nav Links
+private renderNavLink(href: string, icon: string, text: string): string {
+  return `
+    <a href="${href}" class="nav-item nav-links" data-page="${icon}">
+      <img src="../images/${icon}.svg" alt="${text}">
+      <span class="text-base font-semibold">${text}</span>
+    </a>
+  `;
+}
 
-  // Setup sidebar toggle
+private setupDashboardEvents() {
   const toggleButton = document.getElementById('sidebar-toggle');
   const overlay = document.getElementById('sidebar-overlay');
-  const navLinks = document.querySelectorAll('.nav-links');
-
   if (toggleButton && overlay) {
-    // Toggle on button click
     toggleButton.addEventListener('click', () => this.toggleSidebar());
-
-    // Close on overlay click
     overlay.addEventListener('click', () => this.toggleSidebar());
-
-    // Close sidebar when clicking nav links on mobile
-    navLinks.forEach((link) => {
-      link.addEventListener('click', () => {
-        if (window.innerWidth < 1024) {
-          this.toggleSidebar();
-        }
-      });
-    });
   }
-
-  console.log(`📄 Loaded dashboard layout`);
+  const userMenuBtn = document.getElementById("user-menu-btn");
+  const userDropdown = document.getElementById("user-dropdown");
+  if (userMenuBtn && userDropdown) {
+    userMenuBtn.addEventListener("click", (e) => { e.stopPropagation(); userDropdown.classList.toggle("hidden"); });
+    document.addEventListener("click", () => { userDropdown.classList.add("hidden"); });
+  }
+  const logoBtn = document.getElementById("logo-btn");
+  if (logoBtn) { logoBtn.addEventListener("click", async (e) => { e.preventDefault(); }); }
+  const logoutBtn = document.getElementById("logout-btn");
+  if (logoutBtn) { logoutBtn.addEventListener("click", async (e) => { e.preventDefault(); await this.performLogout(); }); }
 }
 
   private getPageData(page: string): Page {
@@ -753,6 +710,8 @@ private renderDashboardLayout(): void {
         return this.getremotepage();
       case "dashboard/game/tournament/lobby":
         return this.getTournamentLobbyPage();
+       case "dashboard/game/friend_game":
+        return this.getFriendsgamePage();
       default:
         return this.get404Page();
     }
@@ -765,174 +724,226 @@ private getHomePage(): Page {
   return {
     title: "PONG Game - Home",
     content: `
-<nav class="pong-navbar">
-  <div class="navbar-container">
-    <div class="navbar-content">
-      <!-- Logo -->
-      <div class="nav-Links nav-link pong-logo">
-        <img src="./images/logo.svg" alt="Pong Logo">
-        <span class="logo-text">PONG Game</span>
-      </div>
-      <div class="nav-link">
-        <a href="/login" class="login-btn nav-link">
-          <img src="./images/login.svg" alt="Login Icon">
-          <span class="login-text">Login</span>
-        </a>
-        <a href="/register" class="reg-btn nav-link">
-          <span class="login-text">Register</span>
-        </a>
-      </div>
-    </div>
-  </div>
-</nav>
+      <nav class="public-navbar">
+        <div class="flex items-center gap-3">
+          <img src="./images/logo.svg" alt="Pong Logo" class="h-10 w-10">
+          <span class="text-xl font-bold text-white tracking-wider">PONG GAME</span>
+        </div>
+        <div class="flex gap-4">
+          <a href="/login" class="btn-secondary py-2 px-6 text-sm">Login</a>
+          <a href="/register" class="btn-primary py-2 px-6 text-sm">Register</a>
+        </div>
+      </nav>
 
-      <section class="home-dashboard">
-        <div class="intro-section">
-          <h1 class="home-title">Welcome to <span class="highlight">PONG Game</span></h1>
-          <p class="home-subtitle">
-            The ultimate real-time pong experience. Connect, play, and compete worldwide.
-          </p>
-          <div class="home-buttons">
-            <a href="/register" class="btn-primary nav-link">Get Started</a>
-            <a href="/login" class="btn-secondary nav-link">Login</a>
+      <section class="hero-section">
+        <div class="text-center max-w-3xl mx-auto mb-16 mt-10">
+          <h1 class="text-hero">Welcome to <span class="text-gradient">PONG</span></h1>
+          <p class="text-gray-400 text-xl mb-10 leading-relaxed">The ultimate real-time multiplayer experience.</p>
+          <div class="flex flex-wrap justify-center gap-6">
+            <a href="/register" class="btn-primary text-lg px-8 py-4">Get Started</a>
+            <a href="/login" class="btn-secondary text-lg px-8 py-4">Sign In</a>
           </div>
         </div>
-        <div class="cards-grid">
+
+        <div class="features-grid">
           <div class="feature-card">
-            <img src="./images/online-svg.svg" alt="Online Play" class="card-icon" />
-            <h3>Play Online</h3>
-            <p>Challenge friends or random opponents in real-time Pong matches.</p>
+            <div class="bg-gray-900 p-4 rounded-full mb-6 border border-gray-700"><img src="./images/online-svg.svg" class="w-12 h-12 opacity-80" /></div>
+            <h3 class="text-xl font-bold text-white mb-3">Play Online</h3>
+            <p class="text-gray-400">Challenge friends or random opponents.</p>
           </div>
           <div class="feature-card">
-            <img src="./images/leader-borde.svg" alt="Trophy" class="card-icon" />
-            <h3>Leaderboards</h3>
-            <p>Track your rank and compete to reach the top players.</p>
+            <div class="bg-gray-900 p-4 rounded-full mb-6 border border-gray-700"><img src="./images/leader-borde.svg" class="w-12 h-12 opacity-80" /></div>
+            <h3 class="text-xl font-bold text-white mb-3">Leaderboards</h3>
+            <p class="text-gray-400">Track your rank and compete for the top.</p>
           </div>
           <div class="feature-card">
-            <img src="./images/chat.svg" alt="Chat & Social" class="card-icon" />
-            <h3>Chat & Social</h3>
-            <p>Connect with players worldwide through real-time chat and messaging.</p>
+            <div class="bg-gray-900 p-4 rounded-full mb-6 border border-gray-700"><img src="./images/chat.svg" class="w-12 h-12 opacity-80" /></div>
+            <h3 class="text-xl font-bold text-white mb-3">Social Hub</h3>
+            <p class="text-gray-400">Chat and connect with players worldwide.</p>
           </div>
         </div>
       </section>
     `,
     init: () => console.log("🏠 Home page loaded"),
-    };
+  };
+}
+
+private getFriendsgamePage() : Page {
+  return {
+    title : "Friends game",
+    content : `
+     <div class="Friends-game-container" style="margin-top:5rem;">
+        <div class="game-header">
+          <a href="/dashboard/game" id="back-button-friend" class="back-button nav-link">← Back</a>
+          <h2 style="display:inline-block; margin-left:1rem;">Friends Match</h2>
+        </div>
+
+        <div class="Friends-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
+          <!-- Player 1 (You) -->
+          <div style="text-align:center; width:180px;">
+            <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
+            <div id="r-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
+            <div style="font-size:0.875rem; color:#10b981; margin-top:0.25rem;">● Online</div>
+          </div>
+
+          <!-- Game Area -->
+          <div style="flex:1;">
+            <!-- ✅ Score at TOP -->
+            <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
+              <div>Score: <span id="remote-score" style="color:#fbbf24;">0 - 0</span></div>
+            </div>
+
+            <!-- Canvas -->
+            <div id="game-container"></div>
+
+            <!-- Button at BOTTOM -->
+            <div style="text-align:center; margin-top:1.5rem;">
+              <button id="start-remote-game" class="btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
+                ENTER the Match
+              </button>
+              <div style="margin-top:1rem; color:#9ca3af; font-size:0.95rem;">
+                Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> / <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
+              </div>
+            </div>
+          </div>
+
+          <!-- Player 2 (Opponent) -->
+          <div style="text-align:center; width:180px;">
+            <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent" style="width:120px;height:120px;border-radius:50%;border:4px solid #6b7280;opacity:0.5;box-shadow:0 4px 12px rgba(107,114,128,0.3);" onerror="this.src='../images/avatars/2.jpg'">
+            <div id="opponent-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#9ca3af;">Waiting...</div>
+            <div id="serch"style="font-size:0.875rem; color:#6b7280; margin-top:0.25rem;">Wating...</div>
+          </div>
+        </div>
+
+        <!-- Matchmaking Status -->
+        <div id="matchmaking-status" style="display:none; margin-top:2rem; text-align:center; padding:1.5rem; background:#1f2937; border-radius:0.75rem; animation:pulse 2s infinite;">
+          <div style="font-size:1.3rem; color:#10b981; margin-bottom:0.5rem; font-weight:600;">
+            🔍 Wating for your friend...
+          </div>
+          <div style="color:#9ca3af; font-size:1rem;">
+            This may take a few moments
+          </div>
+        </div>
+      </div>
+
+      <style>
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        kbd {
+          font-family: monospace;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+      </style>
+    `,
+    init: () => {
+          console.log("Load Friends Match");
+          const friendId = localStorage.getItem('friend_id');
+          if (!friendId) {
+            alert("Fale to enter Friend game");
+            this.navigateTo(`/dashboard/friends}`);
+            return;
+          }
+        cleanupGame(this.user.id, false);
+        setupNavigationHandlers(
+          this.user.id,
+          "back-button-friend",
+          (path: string) => this.loadPage(path)
+        );
+
+        const startButton = document.getElementById('start-local-game');
+        if (startButton) {
+          const startHandler = () => {
+            sendMessage("join_local", {});
+          };
+          startButton.addEventListener('click', startHandler);
+          addCleanupListener(() => startButton.removeEventListener('click', startHandler));
+        }
+
+        const localListener = createLocalGameListener(this.user.id);
+        setupGameListeners(
+          localListener,
+          'local-score',
+          this.user.id,
+          (path: string) => this.loadPage(path),
+          false,
+          false
+        );
+    },
   }
+}
 
 private getTournamentLobbyPage(): Page {
     return {
       title: "Tournament Lobby",
       content: `
-        <div class="lobby-page">
-          <!-- Background -->
-          <div class="lobby-bg-blobs">
-            <div class="absolute top-[10%] left-[10%] w-96 h-96 bg-emerald-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float1"></div>
-            <div class="absolute bottom-[20%] right-[10%] w-80 h-80 bg-purple-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float2"></div>
-            <div class="absolute top-[40%] right-[30%] w-72 h-72 bg-cyan-600/20 rounded-full mix-blend-screen filter blur-3xl opacity-30 animate-float3"></div>
-          </div>
-
-          <div class="lobby-container" id="lobby-container">
-            <!-- Header -->
-            <div class="lobby-header">
-              <button id="leave-tournament-btn" class="back-button group">
+        <div class="h-screen flex flex-col pt-16 bg-gray-900" id="lobby-container"> <div class="w-full max-w-7xl mx-auto px-4 flex-1 flex flex-col h-[calc(100vh-5rem)]">
+            <div class="flex items-center justify-between mb-6 shrink-0">
+              <button id="leave-tournament-btn" class="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors group">
                 <span class="group-hover:-translate-x-1 transition-transform">←</span>
                 <span>Leave Lobby</span>
               </button>
-              <div class="flex items-center gap-3">
-                <span class="text-3xl">🏆</span>
-                <h2 class="text-2xl font-bold text-gradient">Tournament Lobby</h2>
-              </div>
-              <div class="w-[100px] hidden sm:block"></div>
-            </div>
+              <h2 class="text-xl font-bold text-white tracking-wide">🏆 TOURNAMENT LOBBY</h2>
+              <div class="w-[120px]"></div> </div>
 
-            <div class="lobby-layout">
-              <!-- LEFT SIDEBAR -->
-              <div class="lobby-sidebar">
-                <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-4 shrink-0">
-                  <h3 class="text-lg font-semibold text-white flex items-center gap-2">
-                    👥 <span class="text-gray-200">Players List</span>
-                  </h3>
-                  <div id="lobby-status" class="lobby-status-badge">Loading...</div>
+            <div class="flex-1 grid grid-cols-12 gap-6 min-h-0 pb-6">
+              
+              <div class="col-span-12 md:col-span-3 bg-gray-800 rounded-xl border border-gray-700 flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-gray-700 bg-gray-850 flex justify-between items-center">
+                   <h3 class="font-bold text-gray-200">Players</h3>
+                   <span id="player-count-display" class="text-xs font-mono text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">0/4</span>
                 </div>
-                <div id="bracket-container" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar"></div>
+                <div id="bracket-container" class="flex-1 overflow-y-auto p-3 space-y-2"></div>
               </div>
 
-              <!-- RIGHT MAIN AREA -->
-              <div class="lobby-main">
+              <div class="col-span-12 md:col-span-9 relative bg-gray-900/50 rounded-xl border border-gray-700 overflow-hidden flex flex-col justify-center items-center">
 
-                <!-- 1. WAITING SCREEN -->
-                <div id="lobby-waiting-screen" class="lobby-waiting-screen">
-                  <div class="relative mb-8">
-                    <div class="absolute inset-0 bg-emerald-500/30 rounded-full animate-ping"></div>
-                    <div class="lobby-waiting-icon"><span class="text-6xl">⏳</span></div>
+                <div id="lobby-waiting-screen" class="text-center p-8">
+                  <div class="inline-block p-6 rounded-full bg-gray-800 mb-6 animate-pulse">
+                    <span class="text-5xl">⏳</span>
                   </div>
                   <h2 class="text-3xl font-bold text-white mb-2">Waiting for Players</h2>
-                  <div class="flex items-center gap-3 mb-6">
-                    <div class="h-px w-12 bg-gradient-to-r from-transparent to-gray-500"></div>
-                    <p id="player-count-display" class="text-2xl font-mono font-bold text-emerald-400">0 / 4 Joined</p>
-                    <div class="h-px w-12 bg-gradient-to-l from-transparent to-gray-500"></div>
-                  </div>
-                  <div class="lobby-info-card">
-                    <div class="flex items-start gap-4">
-                      <span class="text-2xl">ℹ️</span>
-                      <div class="text-left">
-                        <h4 class="text-white font-semibold mb-1">Tournament Rules</h4>
-                        <p class="text-gray-400 text-sm leading-relaxed">The tournament will automatically start once <strong class="text-emerald-400">4 players</strong> have joined the lobby.</p>
-                      </div>
-                    </div>
-                  </div>
+                  <p class="text-gray-500">The bracket will generate automatically when 4 players join.</p>
                 </div>
 
-                <!-- 2. BRACKET VIEW -->
-                <div id="view-bracket" class="fullscreen-layer" style="display: none;">
-                   <h1 id="bracket-round-title" class="round-title">SEMI-FINALS</h1>
-                   <div id="big-bracket-content" class="big-bracket-container"></div>
-                   <div class="mt-12 text-gray-400 animate-pulse">
-                      Next match starting in <span id="timer-count" class="text-white font-bold">8</span>s...
+                <div id="view-bracket" class="absolute inset-0 bg-gray-900 z-10 flex flex-col items-center justify-center" style="display: none;">
+                   <h1 id="bracket-round-title" class="text-3xl font-bold text-emerald-400 mb-8 tracking-widest">SEMI-FINALS</h1>
+                   <div id="big-bracket-content" class="w-full max-w-4xl px-4"></div>
+                   <div class="mt-12 text-gray-400">
+                      Next match starting in <span id="timer-count" class="text-white font-bold text-xl ml-2">8</span>s...
                    </div>
                 </div>
 
-                <!-- 3. GAME VIEW -->
                 <div id="view-game" class="fixed inset-0 z-50 bg-gray-900" style="display: none;">
+                    <div class="absolute top-0 w-full h-16 bg-gray-900/90 backdrop-blur border-b border-gray-800 flex justify-between items-center px-8 z-20">
+                       <div class="text-white font-bold text-xl" id="game-round-label">MATCH</div>
+                       <div class="font-mono text-3xl font-bold text-emerald-400 tracking-widest" id="tournament-score">0 - 0</div>
+                       <div class="w-[100px]"></div>
+                    </div>
 
-                   <!-- Game Header (Fixed Top-2) -->
-                   <div class="absolute top-2 w-full p-4 flex justify-between items-center z-20 pointer-events-none">
-                      <div class="text-white font-bold text-xl" id="game-round-label">MATCH</div>
-                      <div class="bg-gray-800/80 px-6 py-2 rounded-full border border-white/10 shadow-lg">
-                         <span id="tournament-score" class="text-2xl font-mono text-emerald-400 font-bold">0 - 0</span>
-                      </div>
-                      <div class="w-[100px]"></div>
-                   </div>
+                    <div id="ready-overlay" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
+                       <div id="game-match-info" class="flex items-center gap-12 mb-10 scale-125"></div>
+                       <button id="game-ready-btn" class="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xl rounded-lg shadow-lg shadow-emerald-900/50 transform hover:scale-105 transition-all">
+                         I AM READY! ⚔️
+                       </button>
+                    </div>
 
-                   <!-- Ready Overlay -->
-                   <div id="ready-overlay" class="ready-overlay flex flex-col gap-8 bg-black/80">
-                      <div id="game-match-info" class="flex items-center gap-16 mb-6 scale-110"></div>
-                      <button id="game-ready-btn" class="ready-btn-large">I AM READY! ⚔️</button>
-                   </div>
+                    <div class="absolute inset-0 flex items-center justify-center pt-16">
+                       <div class="maintain-aspect-ratio-9-6 max-w-[800px] w-full relative">
+                           <div class="absolute top-1/2 -left-24 -translate-y-1/2 flex flex-col items-center">
+                              <img id="game-p1-avatar" class="w-16 h-16 rounded-full border-2 border-gray-500 shadow-lg object-cover">
+                              <span id="game-p1-name" class="mt-2 text-sm font-bold text-gray-300 bg-gray-800 px-2 py-1 rounded">P1</span>
+                           </div>
+                           
+                           <div id="game-container" class="w-full h-full shadow-2xl shadow-black"></div>
 
-                   <!-- Strict Ratio Container (Scaled Down to 700px) -->
-                   <div class="game-stage-wrapper">
-                      <div class="maintain-aspect-ratio-9-6 max-w-[700px]"> <!-- ✅ Resized here -->
-
-                          <!-- Left Player Info -->
-                          <div class="player-info-float left">
-                              <img id="game-p1-avatar" src="" class="w-20 h-20 rounded-full border-4 border-gray-600 shadow-lg object-cover">
-                              <span id="game-p1-name" class="mt-2 font-bold text-white bg-black/50 px-3 rounded text-center">P1</span>
-                          </div>
-
-                          <!-- CANVAS -->
-                          <div id="game-container" class="w-full h-full"></div>
-
-                          <!-- Right Player Info -->
-                          <div class="player-info-float right">
-                              <img id="game-p2-avatar" class="w-20 h-20 rounded-full border-4 border-gray-600 shadow-lg object-cover">
-                              <span id="game-p2-name" class="mt-2 font-bold text-white bg-black/50 px-3 rounded text-center">P2</span>
-                          </div>
-
-                      </div>
-                   </div>
-
+                           <div class="absolute top-1/2 -right-24 -translate-y-1/2 flex flex-col items-center">
+                              <img id="game-p2-avatar" class="w-16 h-16 rounded-full border-2 border-gray-500 shadow-lg object-cover">
+                              <span id="game-p2-name" class="mt-2 text-sm font-bold text-gray-300 bg-gray-800 px-2 py-1 rounded">P2</span>
+                           </div>
+                       </div>
+                    </div>
                 </div>
 
               </div>
@@ -941,6 +952,7 @@ private getTournamentLobbyPage(): Page {
         </div>
       `,
       init: () => {
+        // ... (Keep existing logic exactly same as provided in your code)
         console.log("🏟️ Tournament Lobby Initialized");
         const tId = localStorage.getItem('activeTournamentId');
         if(!tId) { this.navigateTo("dashboard/game/tournament"); return; }
@@ -978,17 +990,17 @@ private getTournamentLobbyPage(): Page {
             const players = await Promise.all(promises);
 
             bracketEl.innerHTML = players.map(p => `
-                <div class="bg-gray-800/50 p-2 rounded-lg flex items-center gap-3 border border-white/5">
-                    <img src="${p.avatar}" class="w-8 h-8 rounded-full border border-emerald-500/30 object-cover">
+                <div class="bg-gray-700/50 p-3 rounded flex items-center gap-3 border border-gray-600">
+                    <img src="${p.avatar}" class="w-8 h-8 rounded-full bg-gray-600 object-cover">
                     <span class="text-gray-200 text-sm font-medium truncate">${p.username}</span>
                 </div>
             `).join('');
 
             const slotsLeft = 4 - players.length;
             if (slotsLeft > 0) {
-                const emptySlots = Array(slotsLeft).fill(0).map(() => `
-                    <div class="bg-gray-800/20 p-2 rounded-lg flex items-center gap-3 border border-white/5 border-dashed opacity-50">
-                        <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs">?</div>
+                const emptySlots = Array(slotsLeft).fill(0).map((_, i) => `
+                    <div class="bg-transparent p-3 rounded flex items-center gap-3 border border-dashed border-gray-600 opacity-50">
+                        <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-500">${i + 1 + players.length}</div>
                         <span class="text-gray-500 text-sm italic">Waiting...</span>
                     </div>
                 `).join('');
@@ -1002,7 +1014,7 @@ private getTournamentLobbyPage(): Page {
                if(res.ok) {
                    const d = await res.json();
                    const pList = d.players || [];
-                   if (playerCountEl) playerCountEl.innerText = `${pList.length} / 4 Joined`;
+                   if (playerCountEl) playerCountEl.innerText = `${pList.length}/4`;
                    updateLobbySidebar(pList);
                } else {
                    alert("Tournament expired.");
@@ -1037,192 +1049,214 @@ private getTournamentLobbyPage(): Page {
   }
 
 
-  private gettournamentpage(): Page {
-    return {
-      title: "PONG Game - Tournament",
-      content: `
-        <div class="tournament-container" style="margin-top:5rem;">
-          <div class="game-header">
-            <a href="/dashboard/game" id="back-button-tournament" class="back-button nav-link">← Back</a>
-            <h2 style="display:inline-block; margin-left:1rem;">🏆 Tournament Mode</h2>
-          </div>
+private gettournamentpage(): Page {
+  return {
+    title: "PONG Game - Tournament",
+    content: `
+      <div class="w-full h-full">
+        <div class="flex items-center gap-6 mb-8">
+          <a href="/dashboard/game" id="back-button-tournament" class="nav-link px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-base font-medium transition-colors">← Back</a>
+          <h2 class="text-3xl font-bold text-white">Tournaments</h2>
+        </div>
 
-          <div style="margin-top:2rem; display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
-            <!-- LEFT SIDE: Create -->
-            <div style="background:#1f2937; border-radius:0.75rem; padding:2rem;">
-              <h3 style="color:#fbbf24; font-size:1.3rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:0.5rem;">➕ Create New Tournament</h3>
-              <div>
-                <label style="display:block; color:#e5e7eb; margin-bottom:0.5rem; font-weight:600;">Tournament Name</label>
-                <input id="tournament-title-input" type="text" placeholder="Enter tournament name..." maxlength="50" style="width:100%; padding:0.75rem; border-radius:0.5rem; border:2px solid #3b82f6; background:#111827; color:#e5e7eb; font-size:1rem; margin-bottom:1.5rem;" />
-                <button id="create-tournament-btn" class="btn-primary" style="width:100%; padding:1rem; font-size:1.1rem;">🏆 Create Tournament</button>
-                <p style="margin-top:1rem; color:#9ca3af; font-size:0.875rem; text-align:center;">You'll be the first player automatically</p>
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 w-full">
+          <div class="xl:col-span-1">
+            <div class="bg-gray-800 rounded-2xl border border-gray-700 p-8 h-full">
+              <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                 <span>➕</span> Create New
+              </h3>
+              
+              <div class="space-y-6">
+                <div>
+                  <label class="block text-sm text-gray-400 uppercase font-semibold mb-2">Tournament Name</label>
+                  <input id="tournament-title-input" type="text" placeholder="e.g. Champions Cup" maxlength="20" 
+                         class="w-full bg-gray-900 border border-gray-600 rounded-xl px-5 py-4 text-white text-lg focus:border-emerald-500 focus:outline-none transition-colors" />
+                </div>
+                
+                <button id="create-tournament-btn" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg rounded-xl transition-all shadow-lg shadow-emerald-900/20">
+                  Create & Join
+                </button>
+                <p class="text-sm text-center text-gray-500">Max 4 players per tournament</p>
               </div>
             </div>
+          </div>
 
-            <!-- RIGHT SIDE: List -->
-            <div style="background:#1f2937; border-radius:0.75rem; padding:2rem;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-                <h3 style="color:#10b981; font-size:1.3rem; margin:0;">🎮 Available Tournaments</h3>
-                <button id="refresh-tournaments-btn" style="padding:0.5rem 1rem; background:#3b82f6; color:white; border:none; border-radius:0.5rem; cursor:pointer; font-size:0.9rem;">🔄 Refresh</button>
+          <div class="xl:col-span-2">
+            <div class="bg-gray-800 rounded-2xl border border-gray-700 p-8 h-[600px] flex flex-col">
+              <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">Active Lobbies</h3>
+                <button id="refresh-tournaments-btn" class="text-base text-emerald-400 hover:text-emerald-300 font-medium px-4 py-2 rounded hover:bg-gray-700 transition-colors">
+                  🔄 Refresh List
+                </button>
               </div>
 
-              <div id="tournaments-list" style="max-height:400px; overflow-y:auto;">
-                <div id="tournaments-loading" style="text-align:center; padding:2rem; color:#9ca3af;">
-                  <div style="font-size:2rem; margin-bottom:0.5rem;">⏳</div>Loading tournaments...
+              <div id="tournaments-list" class="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                <div id="tournaments-loading" class="text-center py-20 text-gray-500 text-lg">
+                  Loading tournaments...
                 </div>
-                <div id="tournaments-empty" style="display:none; text-align:center; padding:2rem; color:#9ca3af;">
-                  <div style="font-size:2rem; margin-bottom:0.5rem;">🏜️</div>No tournaments available<br><span style="font-size:0.875rem;">Create one to get started!</span>
+                <div id="tournaments-empty" class="hidden text-center py-20 text-gray-500 flex flex-col items-center justify-center h-full">
+                  <span class="text-6xl mb-4 opacity-50">🏜️</span>
+                  <span class="text-lg">No active tournaments found.</span>
                 </div>
                 <div id="tournaments-container"></div>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <style>
-          #tournaments-list::-webkit-scrollbar { width: 8px; }
-          #tournaments-list::-webkit-scrollbar-track { background: #111827; border-radius: 4px; }
-          #tournaments-list::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
-          #tournaments-list::-webkit-scrollbar-thumb:hover { background: #2563eb; }
-        </style>
-      `,
-      init: () => {
-        console.log("🏆 Tournament Selection page loaded");
-        cleanupGame(this.user.id, false);
-        setupNavigationHandlers(this.user.id, "back-button-tournament", (path) => this.loadPage(path));
+      <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+      </style>
+    `,
+    init: () => {
+       // ... (Keep existing init logic)
+       console.log("🏆 Tournament Selection page loaded");
+       cleanupGame(this.user.id, false);
+       setupNavigationHandlers(this.user.id, "back-button-tournament", (path) => this.loadPage(path));
 
-        const titleInput = document.getElementById("tournament-title-input") as HTMLInputElement;
-        const createBtn = document.getElementById("create-tournament-btn") as HTMLButtonElement;
-        const refreshBtn = document.getElementById("refresh-tournaments-btn") as HTMLButtonElement;
-        const listContainer = document.getElementById("tournaments-container")!;
-        const loadingState = document.getElementById("tournaments-loading")!;
-        const emptyState = document.getElementById("tournaments-empty")!;
+       const titleInput = document.getElementById("tournament-title-input") as HTMLInputElement;
+       const createBtn = document.getElementById("create-tournament-btn") as HTMLButtonElement;
+       const refreshBtn = document.getElementById("refresh-tournaments-btn") as HTMLButtonElement;
+       const listContainer = document.getElementById("tournaments-container")!;
+       const loadingState = document.getElementById("tournaments-loading")!;
+       const emptyState = document.getElementById("tournaments-empty")!;
 
-        const fetchTournaments = async () => {
-          try {
-            loadingState.style.display = "block"; emptyState.style.display = "none"; listContainer.innerHTML = "";
-            const res = await fetch('/tournaments/tournaments', { method: 'GET', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }});
-            if (!res.ok) throw new Error("Failed");
-            const tournaments = await res.json();
-            loadingState.style.display = "none";
+       const fetchTournaments = async () => {
+         try {
+           loadingState.style.display = "block"; emptyState.style.display = "none"; listContainer.innerHTML = "";
+           const res = await fetch('/tournaments/tournaments', { method: 'GET', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }});
+           if (!res.ok) throw new Error("Failed");
+           const tournaments = await res.json();
+           loadingState.style.display = "none";
 
-            if (tournaments.length === 0) { emptyState.style.display = "block"; return; }
+           if (tournaments.length === 0) { emptyState.style.display = "flex"; return; }
 
-            tournaments.forEach((t: any) => {
-              const card = document.createElement("div");
-              card.style.cssText = `background: #374151; margin-bottom: 1rem; padding: 1rem; border-radius: 0.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid #4b5563; transition: transform 0.2s;`;
-              card.onmouseover = () => card.style.transform = "translateX(5px)";
-              card.onmouseout = () => card.style.transform = "translateX(0)";
+           tournaments.forEach((t: any) => {
+             const card = document.createElement("div");
+             card.className = "bg-gray-900/50 hover:bg-gray-900 border border-gray-700 p-5 rounded-xl flex justify-between items-center transition-all group";
 
-              let count = 0;
-              if (t.numPlayers !== undefined) count = t.numPlayers;
-              else if (Array.isArray(t.players)) count = t.players.length;
+             let count = 0;
+             if (t.numPlayers !== undefined) count = t.numPlayers;
+             else if (Array.isArray(t.players)) count = t.players.length;
 
-              card.innerHTML = `
-                <div>
-                  <div style="color: #e5e7eb; font-weight: bold; font-size: 1.1rem;">${t.title}</div>
-                  <div style="color: #9ca3af; font-size: 0.9rem;">Players: <span style="color: #10b981;">${count}/4</span></div>
-                </div>
-              `;
+             card.innerHTML = `
+               <div class="flex items-center gap-6">
+                 <div class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-2xl">🏆</div>
+                 <div>
+                   <div class="text-gray-200 font-bold text-lg group-hover:text-white">${t.title}</div>
+                   <div class="text-sm text-gray-500">Players: <span class="${count >= 4 ? 'text-red-400' : 'text-emerald-400'} font-bold">${count}/4</span></div>
+                 </div>
+               </div>
+             `;
 
-              const joinBtn = document.createElement("button");
-              joinBtn.innerText = count >= 4 ? "Full ⛔" : "Join ➡️";
-              joinBtn.style.cssText = `background: ${count >= 4 ? '#ef4444' : '#10b981'}; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; ${count >= 4 ? 'opacity:0.5;cursor:not-allowed;' : ''}`;
+             const joinBtn = document.createElement("button");
+             joinBtn.innerText = count >= 4 ? "Full" : "Join Lobby";
+             joinBtn.className = count >= 4 
+               ? "px-6 py-3 text-sm font-bold bg-gray-700 text-gray-400 rounded-lg cursor-not-allowed"
+               : "px-6 py-3 text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors shadow-md";
 
-              if (count < 4) {
-                joinBtn.onclick = async () => {
-                  try {
-                    const joinRes = await fetch('/tournaments/tournaments/join', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId: t.id || t.tournamentId }) });
-                    if (joinRes.ok) {
-                      localStorage.setItem('activeTournamentId', t.id || t.tournamentId);
-                      this.navigateTo("dashboard/game/tournament/lobby");
-                    } else { alert("Failed to join."); fetchTournaments(); }
-                  } catch {}
-                };
-              }
-              card.appendChild(joinBtn);
-              listContainer.appendChild(card);
-            });
-          } catch { loadingState.innerHTML = `<span style="color:#ef4444">Failed to load.</span>`; }
-        };
+             if (count < 4) {
+               joinBtn.onclick = async () => {
+                 try {
+                   const joinRes = await fetch('/tournaments/tournaments/join', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId: t.id || t.tournamentId }) });
+                   if (joinRes.ok) {
+                     localStorage.setItem('activeTournamentId', t.id || t.tournamentId);
+                     this.navigateTo("dashboard/game/tournament/lobby");
+                   } else { alert("Failed to join."); fetchTournaments(); }
+                 } catch {}
+               };
+             }
+             card.appendChild(joinBtn);
+             listContainer.appendChild(card);
+           });
+         } catch { loadingState.innerHTML = `<span style="color:#ef4444">Failed to load.</span>`; }
+       };
 
-        const createTournament = async () => {
-          const title = titleInput.value.trim();
-          if (!title) { alert("Enter name"); return; }
-          createBtn.disabled = true; createBtn.innerText = "Creating...";
-          try {
-            const res = await fetch('/tournaments/tournaments/create', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
-            if (res.ok) {
-              const data = await res.json();
-              localStorage.setItem('activeTournamentId', data.tournamentId || data.id);
-              this.navigateTo("dashboard/game/tournament/lobby");
-            } else { alert("Failed"); createBtn.disabled = false; createBtn.innerText = "🏆 Create Tournament"; }
-          } catch { createBtn.disabled = false; createBtn.innerText = "🏆 Create Tournament"; }
-        };
+       const createTournament = async () => {
+         const title = titleInput.value.trim();
+         if (!title) { alert("Enter name"); return; }
+         createBtn.disabled = true; createBtn.innerText = "Creating...";
+         try {
+           const res = await fetch('/tournaments/tournaments/create', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+           if (res.ok) {
+             const data = await res.json();
+             localStorage.setItem('activeTournamentId', data.tournamentId || data.id);
+             this.navigateTo("dashboard/game/tournament/lobby");
+           } else { alert("Failed"); createBtn.disabled = false; createBtn.innerText = "Create & Join"; }
+         } catch { createBtn.disabled = false; createBtn.innerText = "Create & Join"; }
+       };
 
-        const listListener = (msg: any) => {
-          if (["tournament_created", "tournament_deleted", "tournament_player-joined"].includes(msg.type)) fetchTournaments();
-        };
+       const listListener = (msg: any) => {
+         if (["tournament_created", "tournament_deleted", "tournament_player-joined"].includes(msg.type)) fetchTournaments();
+       };
 
-        addMessageListener(listListener);
-        addCleanupListener(() => removeMessageListener(listListener));
-        createBtn.addEventListener("click", createTournament);
-        addCleanupListener(() => createBtn.removeEventListener("click", createTournament));
-        refreshBtn.addEventListener("click", fetchTournaments);
-        addCleanupListener(() => refreshBtn.removeEventListener("click", fetchTournaments));
+       addMessageListener(listListener);
+       addCleanupListener(() => removeMessageListener(listListener));
+       createBtn.addEventListener("click", createTournament);
+       addCleanupListener(() => createBtn.removeEventListener("click", createTournament));
+       refreshBtn.addEventListener("click", fetchTournaments);
+       addCleanupListener(() => refreshBtn.removeEventListener("click", fetchTournaments));
 
-        fetchTournaments();
-      }
-    };
-  }
+       fetchTournaments();
+    }
+  };
+}
+
 
 private getGamePage(): Page {
   return {
-    title: "PONG Game - Select Mode",
+    title: "Select Mode",
     content: `
-      <section class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-6 py-12 bg-gray-900 rounded-2xl shadow-lg max-w-5xl mx-auto" style="margin-top: 5rem;">
-        <h1 class="text-3xl md:text-4xl font-bold text-greenLight mb-10 text-center">
-          🏓 Choose Your Game Mode
-        </h1>
+    <div class="page-container">
+      <div>
+        <h1 class="text-title-lg">Select Game Mode</h1>
+        <p class="text-subtitle">Choose how you want to play</p>
+      </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 w-full">
-          <!-- AI Game -->
-          <div class="mode-card group">
-            <img src="./images/ai-game.svg" alt="AI Game" class="mode-icon" />
-            <h3 class="mode-title">Play vs AI</h3>
-            <p class="mode-desc">Challenge a smart AI opponent — great for quick solo fun.</p>
-            <a href="dashboard/game/ai" class="mode-btn nav-link">Play</a>
+      <div class="game-mode-grid">
+        
+        <a href="dashboard/game/ai" class="game-mode-card nav-link">
+          <div class="game-mode-icon-bg">
+             <img src="./images/ai-game.svg" class="game-mode-img" />
           </div>
+          <h3 class="game-card-title">Play vs AI</h3>
+          <p class="game-card-desc">Train against the computer</p>
+        </a>
 
-          <!-- Local Game -->
-          <div class="mode-card group">
-            <img src="./images/local.svg" alt="Local Game" class="mode-icon" />
-            <h3 class="mode-title">Local Game</h3>
-            <p class="mode-desc">Two players on the same computer — perfect for friendly duels.</p>
-            <a href="dashboard/game/local" class="mode-btn nav-link">Play</a>
+        <a href="dashboard/game/local" class="game-mode-card nav-link">
+          <div class="game-mode-icon-bg">
+             <img src="./images/local.svg" class="game-mode-img" />
           </div>
+          <h3 class="game-card-title">Local PvP</h3>
+          <p class="game-card-desc">2 Players on one device</p>
+        </a>
 
-          <!-- Remote Game -->
-          <div class="mode-card group">
-            <img src="./images/remote-game.svg" alt="Online Game" class="mode-icon" />
-            <h3 class="mode-title">Online Match</h3>
-            <p class="mode-desc">Compete with friends or random players around the world.</p>
-            <a href="dashboard/game/remote" class="mode-btn nav-link">Play</a>
+        <a href="dashboard/game/remote" class="game-mode-card nav-link">
+          <div class="game-mode-icon-bg">
+             <img src="./images/remote-game.svg" class="game-mode-img" />
           </div>
+          <h3 class="game-card-title">Online Match</h3>
+          <p class="game-card-desc">Find a random opponent</p>
+        </a>
 
-          <!-- Tournament -->
-          <div class="mode-card group">
-            <img src="./images/tournament.svg" alt="Tournament" class="mode-icon" />
-            <h3 class="mode-title">Tournament</h3>
-            <p class="mode-desc">Join tournaments and climb the ranks to prove your skill.</p>
-            <a href="dashboard/game/tournament" class="mode-btn nav-link">Play</a>
+        <a href="dashboard/game/tournament" class="game-mode-card nav-link">
+           <div class="game-mode-icon-bg">
+             <img src="./images/tournament.svg" class="game-mode-img" />
           </div>
-        </div>
-      </section>
+          <h3 class="game-card-title">Tournament</h3>
+          <p class="game-card-desc">Join a bracket & win</p>
+        </a>
+
+      </div>
+    </div>
     `,
     init: () => console.log("🎮 Game mode selection loaded"),
   };
 }
+
 
 private getremotepage(): Page {
   return {
@@ -1543,45 +1577,36 @@ private getaipage(): Page {
     return {
       title: "PONG Game - Login",
       content: `
-<nav class="pong-navbar">
-  <div class="navbar-container">
-    <div class="navbar-content">
-      <!-- Logo -->
-      <div class="nav-Links pong-logo">
-        <img src="./images/logo.svg" alt="Pong Logo">
-        <span class="logo-text">PONG Game</span>
-      </div>
+      <nav class="public-navbar">
+        <div class="flex items-center gap-3">
+          <img src="./images/logo.svg" class="h-8 w-8">
+          <span class="font-bold text-white tracking-wider">PONG</span>
+        </div>
+        <a href="/register" class="text-sm font-bold text-emerald-400 hover:text-emerald-300">Create Account →</a>
+      </nav>
 
-      <!-- Navigation Links -->
-      <div class="nav-link pong-logo">
-        <a href="/register" class="login-btn nav-link">
-          <span class="login-text">Register</span>
-        </a>
-      </div>
-    </div>
-  </div>
-</nav>
+      <section class="auth-section">
+        <div class="auth-card">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Welcome Back</h1>
+            <p class="text-gray-400">Sign in to your account</p>
+          </div>
 
-<section class="login-section">
-  <div class="login-card">
-    <h1>Welcome Back</h1>
-    <p>Sign in to your account</p>
+          <form id="login-form" class="space-y-6">
+            <input type="text" id="username" placeholder="Username" class="input-std" />
+            <input type="password" id="password" placeholder="Password" class="input-std" />
+            <button type="submit" class="btn-primary w-full justify-center">Sign In</button>
+          </form>
 
-    <form id="login-form" class="input-form">
-      <input type="text" id="username" placeholder="Username" class="input-field" />
-      <input type="password" id="password" placeholder="Password" class="input-field" />
-      <button type="submit" class="submit-btn">Sign In</button>
-    </form>
+          <div id="login-42-container" class="mt-6"></div>
 
-    <div class="mt-4 nav-link">
-      <p>Don’t have an account?</p>
-      <a href="/register" class="link-btn nav-link">Create One</a>
-    </div>
-
-    <a href="/" class="back-btn nav-link">← Back to Home</a>
-  </div>
-</section>
-
+          <div class="mt-8 text-center border-t border-gray-700 pt-6">
+            <p class="text-gray-400 mb-4">Don't have an account?</p>
+            <a href="/register" class="btn-secondary w-full">Create Account</a>
+          </div>
+          <div class="mt-4 text-center"><a href="/" class="text-xs text-gray-500 hover:text-white">← Home</a></div>
+        </div>
+      </section>
       `,
       init: () => {
         console.log("🔑 Login page loaded");
@@ -1634,71 +1659,45 @@ private getaipage(): Page {
     return {
       title: "PONG Game - Register",
       content: `
-<nav class="pong-navbar">
-  <div class="navbar-container">
-    <div class="navbar-content">
-      <!-- Logo -->
-      <div class="nav-Links nav-link pong-logo">
-        <img src="./images/logo.svg" alt="Pong Logo">
-        <span class="logo-text">PONG Game</span>
-      </div>
-
-      <!-- Navigation Links -->
-      <div class="nav-link">
-        <a href="/login" class="login-btn nav-link">
-          <img src="./images/login.svg" alt="Login Icon">
-          <span class="login-text">Login</span>
-        </a>
-      </div>
-    </div>
-  </div>
-</nav>
-
-<section class="register-section">
-  <div class="register-card">
-    <h1>Create Account</h1>
-    <form id="register-form" class="input-form">
-      <input type="text" id="new-username" placeholder="Username" required class="input-field">
-      <input type="email" id="email" placeholder="Email" required class="input-field">
-      <input type="password" id="new-password" placeholder="Password" required class="input-field">
-      <input type="text" id="usernameTournament" placeholder="Tournament Username (optional)" class="input-field">
-
-      <!-- Avatar Upload (Optional) -->
-      <div style="margin: 1rem 0;">
-        <label style="display: block; margin-bottom: 0.5rem; color: #6b7280; font-size: 0.9rem;">
-          Profile Picture (optional)
-        </label>
-        <div style="display: flex; align-items: center; gap: 1rem;">
-          <img id="avatar-preview" src="/avatar/default_avatar/default_avatar.jpg"
-               style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #e5e7eb;">
-          <label for="avatar-upload" style="cursor: pointer; padding: 0.5rem 1rem; background: #3b82f6; color: white; border-radius: 0.375rem; font-size: 0.875rem; transition: background 0.2s;">
-            Choose Image
-          </label>
-          <input type="file" id="avatar-upload" accept="image/*" style="display: none;">
-          <button type="button" id="remove-avatar" style="display: none; padding: 0.5rem 1rem; background: #ef4444; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer;">
-            Remove
-          </button>
+      <nav class="public-navbar">
+        <div class="flex items-center gap-3">
+          <img src="./images/logo.svg" class="h-8 w-8"><span class="font-bold text-white">PONG</span>
         </div>
-        <p style="margin-top: 0.5rem; font-size: 0.75rem; color: #9ca3af;">
-          Upload a profile picture or use the default avatar
-        </p>
-      </div>
+        <a href="/login" class="text-sm font-bold text-emerald-400">Sign In →</a>
+      </nav>
 
-      <button type="submit" class="submit-btn">Register</button>
-    </form>
+      <section class="auth-section">
+        <div class="auth-card">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Create Account</h1>
+            <p class="text-gray-400">Join the arena today</p>
+          </div>
 
-    <!-- 42 Intra Button will be inserted here by JavaScript -->
-    <div id="register-42-container"></div>
+          <form id="register-form" class="space-y-5">
+            <input type="text" id="new-username" placeholder="Username" required class="input-std">
+            <input type="email" id="email" placeholder="Email Address" required class="input-std">
+            <input type="password" id="new-password" placeholder="Password" required class="input-std">
+            <input type="text" id="usernameTournament" placeholder="Tournament Name (Optional)" class="input-std">
 
-    <p>
-      Already have an account?
-      <a href="/login" class="nav-link">Sign In</a>
-    </p>
-    <a href="/" class="back-btn nav-link">← Back to Home</a>
-    </div>
+            <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700 flex items-center gap-4">
+               <img id="avatar-preview" src="/avatar/default_avatar/default_avatar.jpg" class="w-16 h-16 rounded-full object-cover border-2 border-gray-600">
+               <div class="flex flex-col gap-2">
+                  <label for="avatar-upload" class="btn-secondary text-xs py-2 px-4">Choose Image</label>
+                  <input type="file" id="avatar-upload" accept="image/*" class="hidden">
+                  <button type="button" id="remove-avatar" class="hidden text-xs text-red-400 underline">Remove</button>
+               </div>
+            </div>
 
-</section>
+            <button type="submit" class="btn-primary w-full justify-center">Register</button>
+          </form>
 
+          <div id="register-42-container" class="mt-6"></div>
+          <div class="mt-6 text-center">
+             <p class="text-gray-400 text-sm">Have an account? <a href="/login" class="text-emerald-400 hover:underline">Sign In</a></p>
+             <div class="mt-4"><a href="/" class="text-xs text-gray-500 hover:text-white">← Home</a></div>
+          </div>
+        </div>
+      </section>
       `,
       init: () => {
         console.log("📝 Register page loaded");
@@ -1907,143 +1906,51 @@ private getSettingsPage(): Page {
   return {
     title: "PONG Game - Settings",
     content: `
-      <div class="content-card" style="margin-top: 5rem;">
-        <h2>⚙️ Settings</h2>
-        <form id="settings-form" style="margin-top: 1.5rem;">
-            <!-- Username -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-username" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-              Username
-              </label>
-              <input
-                type="text"
-                id="settings-username"
-                value="${this.user.username || ''}"
-                placeholder="Enter username"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-              />
+      <div class="page-container">
+        <h2 class="text-title-lg">Account Settings</h2>
+        
+        <form id="settings-form" class="settings-grid">
+          
+          <div class="xl:col-span-2 card-base space-y-6">
+            <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-4">Profile Details</h3>
+            <div>
+              <label class="text-label">Username</label>
+              <input type="text" id="settings-username" value="${this.user.username}" class="input-std">
             </div>
-
-            <!-- Email -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-email" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-              Email
-              </label>
-              <input
-                type="email"
-                id="settings-email"
-                value="${this.user.email || ''}"
-                placeholder="player@example.com"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-              />
+            <div>
+              <label class="text-label">Email</label>
+              <input type="email" id="settings-email" value="${this.user.email}" class="input-std">
             </div>
-
-            <!-- Tournament Username (Optional) -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-tournament" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-                Tournament Username (Optional)
-              </label>
-              <input
-                type="text"
-                id="settings-tournament"
-                placeholder="Tournament display name"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-              />
+            <div>
+              <label class="text-label">Tournament Name</label>
+              <input type="text" id="settings-tournament" placeholder="Display Name" class="input-std">
             </div>
+            <button type="submit" class="btn-primary w-full mt-4">Save Changes</button>
+            <div id="settings-status" class="hidden text-center p-3 rounded-lg mt-2"></div>
+          </div>
 
-          <!-- Avatar URL (Optional) -->
-<div style="margin-bottom: 1.5rem;">
-  <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-    Change Your Avatar
-              </label>
-  <!-- Current Avatar Display -->
-  <div style="margin-bottom: 1rem;">
-    <small style="color: #6b7280; font-size: 0.875rem; display: block; margin-bottom: 0.5rem;">
-      Current Avatar:
-    </small>
-    <img id="settings-current-avatar"
-         src="${this.user.avatar || '/avatar/default_avatar/default_avatar.jpg'}"
-         alt="Current Avatar"
-         style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #e5e7eb;">
-  </div>
+          <div class="xl:col-span-1 card-base flex flex-col items-center">
+            <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-4 w-full mb-6">Avatar</h3>
+            
+            <img id="settings-current-avatar" src="${this.user.avatar}" class="settings-avatar-preview">
 
-  <!-- Upload Custom Avatar -->
-  <div style="margin-bottom: 1.5rem;">
-    <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem; font-size: 0.9rem;">
-      📤 Upload Custom Avatar
-    </label>
+            <input type="file" id="settings-avatar-file" class="hidden">
+            <button type="button" id="settings-choose-avatar-btn" class="btn-secondary w-full">Upload New</button>
 
-    <div id="settings-avatar-preview-container" style="display: none; margin-bottom: 1rem;">
-      <img id="settings-avatar-preview" src="" alt="Avatar preview"
-           style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #10b981;">
-      <div style="margin-top: 0.5rem;">
-        <small style="color: #059669; font-weight: 600;">✓ New avatar selected</small>
+            <div class="w-full border-t border-gray-700 my-6"></div>
+            <p class="text-gray-400 text-sm mb-2">Or select default:</p>
+            
+            <div id="avatar-options" class="avatar-selection-grid">
+               <img src="../images/avatars/1.jpg" class="avatar-thumb" data-value="../images/avatars/1.jpg">
+               <img src="../images/avatars/2.jpg" class="avatar-thumb" data-value="../images/avatars/2.jpg">
+               <img src="../images/avatars/3.jpg" class="avatar-thumb" data-value="../images/avatars/3.jpg">
+               <img src="../images/avatars/4.jpg" class="avatar-thumb" data-value="../images/avatars/4.jpg">
+            </div>
+            <input type="hidden" id="settings-avatar" value="${this.user.avatar}">
+          </div>
+
+        </form>
       </div>
-    </div>
-
-    <input type="file" id="settings-avatar-file" accept="image/*" style="display: none;">
-
-    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-      <button
-        type="button"
-        id="settings-choose-avatar-btn"
-        style="padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; transition: background 0.3s;"
-        onmouseover="this.style.background='#2563eb'"
-        onmouseout="this.style.background='#3b82f6'"
-      >
-        📁 Choose Image
-      </button>
-      <button
-        type="button"
-        id="settings-remove-avatar-btn"
-        style="padding: 0.5rem 1rem; background: #ef4444; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; transition: background 0.3s; display: none;"
-        onmouseover="this.style.background='#dc2626'"
-        onmouseout="this.style.background='#ef4444'"
-      >
-        ❌ Remove
-      </button>
-    </div>
-    <small style="color: #6b7280; font-size: 0.75rem; display: block; margin-top: 0.5rem;">
-      Accepted formats: JPEG, PNG, GIF, WebP. Max size: 5MB
-    </small>
-  </div>
-
-  <!-- OR divider -->
-  <div style="text-align: center; margin: 1.5rem 0; color: #9ca3af; font-weight: 600; font-size: 0.875rem;">
-    — OR —
-  </div>
-
-  <!-- Predefined Avatars -->
-  <div style="margin-bottom: 1rem;">
-    <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem; font-size: 0.9rem;">
-      🎨 Choose Predefined Avatar
-    </label>
-    <div id="avatar-options">
-      <img src="../images/avatars/1.jpg" alt="Avatar 1" class="avatar-option" data-value="../images/avatars/1.jpg">
-      <img src="../images/avatars/2.jpg" alt="Avatar 2" class="avatar-option" data-value="../images/avatars/2.jpg">
-      <img src="../images/avatars/3.jpg" alt="Avatar 3" class="avatar-option" data-value="../images/avatars/3.jpg">
-      <img src="../images/avatars/4.jpg" alt="Avatar 4" class="avatar-option" data-value="../images/avatars/4.jpg">
-    </div>
-  </div>
-
-  <!-- Hidden field to send selected avatar path -->
-  <input type="hidden" id="settings-avatar" name="avatar" value="${this.user.avatar || ''}" />
-</div>
-
-          <!-- Save Button -->
-          <button
-            type="submit"
-            style="padding: 0.75rem 1.5rem; background: #10b981; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.3s;"
-            onmouseover="this.style.background='#059669'"
-            onmouseout="this.style.background='#10b981'"
-          >
-            💾 Save Changes
-          </button>
-
-          <!-- Status Message -->
-          <div id="settings-status" style="margin-top: 1rem; padding: 0.75rem; border-radius: 0.5rem; display: none;"></div>
-          </form>
-        </div>
     `,
 init: () => {
   console.log("⚙️ Settings page loaded");
@@ -2246,60 +2153,102 @@ init: () => {
 
 
 
-  private getDashboardPage(): Page {
-    return {
-      title: "PONG Game - Dashboard",
-      content: `
-               <div class="content-card">
-          <h2>Welcome back, ${this.user.username || 'Player'}! 👋</h2>
-          <p>Ready to play some Pong? Check out your stats below.</p>
+private getDashboardPage(): Page {
+  return {
+    title: "Dashboard",
+    content: `
+      <div class="page-container">
+        <div class="card-base">
+          <h2 class="text-title-lg">Hello, ${this.user.username || 'Player'}</h2>
+          <p class="text-subtitle">Welcome back to the arena.</p>
         </div>
-
-        <!-- The Stat Cards now flow horizontally in a grid -->
         <div class="stats-grid">
-
-          <!-- Stat Card 1 -->
-          <div class="stat-card">
-            <h3>Games Played</h3>
-            <div class="stat-value" id="total">Loading...</div>
-          </div>
-
-          <!-- Stat Card 2 -->
-          <div class="stat-card">
-            <h3>Wins</h3>
-            <div class="stat-value" id="wins">Loading...</div>
-          </div>
-
-          <!-- Stat Card 3 -->
-          <div class="stat-card">
-            <h3>Losses</h3>
-            <div class="stat-value" id="losses">Loading...</div>
-          </div>
-
-           <!-- Stat Card 4 -->
-           <div class="stat-card">
-            <h3>Average Score</h3>
-            <div class="stat-value" id="avgScore">Loading...</div>
-          </div>
-
-          <!-- Stat Card 5 (The Graph Card) -->
-          <!-- This card takes 2 columns on mobile (col-span-2) but only 1 on larger screens (md:col-span-1) -->
-          <div class="stat-card col-span-2 md:col-span-1">
-            <h3>Win Rate Visual</h3>
-            <div id="winRateGraph" class="mt-4 flex justify-center">
-              <!-- SVG will be injected here by TypeScript -->
-            </div>
-            <div class="text-center mt-2 text-xl font-bold" id="winRateText">Loading...</div>
-          </div>
-
+          <div class="stat-card"><h3 class="text-label">Played</h3><div class="text-5xl font-bold text-white" id="total">-</div></div>
+          <div class="stat-card"><h3 class="text-label">Wins</h3><div class="text-5xl font-bold text-emerald-400" id="wins">-</div></div>
+          <div class="stat-card"><h3 class="text-label">Losses</h3><div class="text-5xl font-bold text-red-400" id="losses">-</div></div>
+          <div class="stat-card"><h3 class="text-label">Avg</h3><div class="text-5xl font-bold text-blue-400" id="avgScore">-</div></div>
         </div>
-      `,
-      init: () => {
-        console.log("📊 Dashboard page loaded");
-        this.fetchAndDisplayStats();
-      },
-    };
+        <div class="card-base">
+          <h2 class="text-2xl font-bold text-white mb-6 border-b border-gray-700 pb-4">Match History</h2>
+          <div id="match-history">Loading...</div>
+        </div>
+      </div>
+    `,
+    init: () => { this.fetchAndDisplayStats(); this.fetchAndDisplayMatchHistory(); },
+  };
 }
+
+
+
+private modeAvatars: Record<string, string> = {
+    tournament: "../images/tournament.svg",
+    random: "../images/remote-game.svg",
+    ai_opponent: "../images/ai-game.svg",
+    friend: "../images/game.svg",
+    default: "../images/game.svg"
+};
+
+
+private async fetchAndDisplayMatchHistory() {
+    const container = document.getElementById("match-history") as HTMLElement;
+
+    try {
+        const res = await fetch(`/tournaments/matches/user/${this.user.id}`);
+        if (!res.ok) {
+            container.innerHTML = "Failed to load match history.";
+            return;
+        }
+
+        const matches = await res.json();
+
+        if (!matches.length) {
+            container.innerHTML = "No matches played yet.";
+            return;
+        }
+
+        matches.sort((a: any, b: any) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        container.innerHTML = matches.map((m: any) => {
+            const youAreP1 = m.p1 === String(this.user.id);
+            const yourScore = youAreP1 ? m.p1Score : m.p2Score;
+            const opponentScore = youAreP1 ? m.p2Score : m.p1Score;
+            const result = m.winner === String(this.user.id) ? "WIN" : "LOSS";
+            const mode = m.mode || "unknown";
+            const avatarSrc = this.modeAvatars[mode] || this.modeAvatars.default;
+
+            return `
+                <div class="match-item ${result === "WIN" ? "win" : "loss"}">
+
+                    <div class="flex items-center gap-3">
+                        <img
+                            src="${avatarSrc}"
+                            class="w-10 h-10 opacity-90"
+                        />
+
+                        <div class="flex flex-col">
+                            <strong class="text-lg">${result}</strong>
+                            <span class="text-sm text-gray-300">${mode.toUpperCase()}</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 text-gray-200">
+                        Score: ${yourScore} : ${opponentScore}
+                    </div>
+
+                    <small class="text-gray-400 mt-1 block">${new Date(m.createdAt).toLocaleString()}</small>
+
+                </div>
+            `;
+        }).join("");
+
+    } catch (e) {
+        console.error("Error loading match history:", e);
+        container.innerHTML = "Error loading match history.";
+    }
+}
+
 
 private async fetchAndDisplayStats() {
     try {
@@ -2311,89 +2260,26 @@ private async fetchAndDisplayStats() {
         const data = await res.json();
         console.log("User stats fetched:", data);
 
-        // 1. Update text stats (your existing logic)
         (document.getElementById("avgScore") as HTMLElement).innerHTML = String(data.avgScore || 'N/A');
         (document.getElementById("losses") as HTMLElement).innerHTML = String(data.losses || 'N/A');
         (document.getElementById("total") as HTMLElement).innerHTML = String(data.total || 'N/A');
         (document.getElementById("wins") as HTMLElement).innerHTML = String(data.wins || 'N/A');
-
-        // 2. Generate and display the visual graph
-        const winRateGraphContainer = document.getElementById("winRateGraph");
-        const winRateText = document.getElementById("winRateText");
-
-        if (winRateGraphContainer && winRateText) {
-            const winPercentage = parseFloat(data.winRate) || 0; // Assuming winRate is a percentage string like "68%"
-
-            // Clean up the input (if "68%", convert to 68)
-            const numericRate = data.winRate.includes('%') ? parseFloat(data.winRate) : data.winRate;
-
-            winRateText.innerHTML = `${numericRate}% Win Rate`;
-
-            // Create and append the SVG element
-            const svgGraph = this.createCircleGraph(numericRate);
-            winRateGraphContainer.appendChild(svgGraph);
-        }
 
     } catch (e) {
         console.error("Error fetching stats:", e);
     }
 }
 
-/**
- * Creates an SVG circular progress bar element dynamically using TypeScript.
- * @param percentage The percentage value (0-100) to display.
- * @returns The SVG element.
- */
-private createCircleGraph(percentage: number): SVGElement {
-    const size = 120;
-    const strokeWidth = 10;
-    const radius = (size / 2) - (strokeWidth / 2);
-    const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (percentage / 100) * circumference;
-
-    // Create the main SVG element
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("width", String(size));
-    svg.setAttribute("height", String(size));
-    svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
-    // Optional: Add Tailwind classes for rotation to start from the top
-    svg.classList.add("transform", "-rotate-90");
-
-    // Create the background circle
-    const bgCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    bgCircle.setAttribute("cx", String(size / 2));
-    bgCircle.setAttribute("cy", String(size / 2));
-    bgCircle.setAttribute("r", String(radius));
-    bgCircle.setAttribute("fill", "none");
-    bgCircle.setAttribute("stroke", "#e5e7eb"); // Tailwind gray-200
-    bgCircle.setAttribute("stroke-width", String(strokeWidth));
-
-    // Create the progress circle
-    const progressCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    progressCircle.setAttribute("cx", String(size / 2));
-    progressCircle.setAttribute("cy", String(size / 2));
-    progressCircle.setAttribute("r", String(radius));
-    progressCircle.setAttribute("fill", "none");
-    progressCircle.setAttribute("stroke", "#10b981"); // Tailwind emerald-500
-    progressCircle.setAttribute("stroke-width", String(strokeWidth));
-    progressCircle.setAttribute("stroke-dasharray", String(circumference));
-    progressCircle.setAttribute("stroke-dashoffset", String(offset));
-    progressCircle.setAttribute("stroke-linecap", "round");
-    // Optional: Add a subtle transition effect using Tailwind's arbitrary properties (if configured)
-    // progressCircle.style.transition = 'stroke-dashoffset 0.5s ease-in-out';
-
-    // Append circles to the SVG
-    svg.appendChild(bgCircle);
-    svg.appendChild(progressCircle);
-
-    return svg;
-}
 
 
 private getChatPage(): Page {
   return {
     title: "PONG Game - Chat",
-    content: `<div id="chat-app-container"></div>`,
+    content: `
+      <div class="app-container">
+         <div id="chat-app-container" class="w-full h-full bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl"></div>
+      </div>
+    `,
     init: async () => {
       console.log("💬 Chat page loaded");
 
@@ -2428,7 +2314,9 @@ private getFriendsPage(): Page {
   return {
     title: "PONG Game - Friends",
     content: `
-      <div id="friends-app-container"></div>
+      <div class="app-container">
+         <div id="friends-app-container" class="w-full h-full bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl"></div>
+      </div>
     `,
     init: async () => {
       console.log("👥 Friends page loaded");

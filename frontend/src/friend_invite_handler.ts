@@ -1,4 +1,3 @@
-// friend_invite_handler.ts
 import { addMessageListener, removeMessageListener, sendMessage } from "./game_soket.js";
 
 interface FriendInvite {
@@ -12,9 +11,7 @@ interface FriendInvite {
 let inviteListener: ((msg: any) => void) | null = null;
 let activeInviteModal: HTMLDivElement | null = null;
 
-/**
- * Fetch user details for the invite
- */
+
 async function fetchInviterDetails(userId: string): Promise<{ username: string; avatar: string }> {
   try {
     const token = localStorage.getItem('jwt_token');
@@ -39,16 +36,12 @@ async function fetchInviterDetails(userId: string): Promise<{ username: string; 
   };
 }
 
-/**
- * Create and show the invite modal
- */
+
 function showInviteModal(invite: FriendInvite, username: string, avatar: string, onAccept: () => void, onDecline: () => void) {
-  // Remove existing modal if any
   if (activeInviteModal) {
     activeInviteModal.remove();
   }
 
-  // Create modal
   const modal = document.createElement('div');
   modal.className = 'friend-invite-modal';
   modal.innerHTML = `
@@ -92,7 +85,6 @@ function showInviteModal(invite: FriendInvite, username: string, avatar: string,
   document.body.appendChild(modal);
   activeInviteModal = modal;
 
-  // Setup button handlers
   const acceptBtn = modal.querySelector('#invite-accept-btn') as HTMLButtonElement;
   const declineBtn = modal.querySelector('#invite-decline-btn') as HTMLButtonElement;
   const closeBtn = modal.querySelector('#invite-close-btn') as HTMLButtonElement;
@@ -118,7 +110,6 @@ function showInviteModal(invite: FriendInvite, username: string, avatar: string,
     onDecline();
   };
 
-  // Click outside to close
   const overlay = modal.querySelector('.friend-invite-overlay');
   if (overlay) {
     overlay.addEventListener('click', () => {
@@ -127,7 +118,6 @@ function showInviteModal(invite: FriendInvite, username: string, avatar: string,
     });
   }
 
-  // Auto-decline countdown
   let countdown = 30;
   const countdownEl = modal.querySelector('#invite-countdown');
   const countdownInterval = setInterval(() => {
@@ -141,11 +131,8 @@ function showInviteModal(invite: FriendInvite, username: string, avatar: string,
   }, 1000);
 }
 
-/**
- * Initialize the friend invite listener
- */
+
 export function initFriendInviteListener(navigateToGame?: (roomId: string) => void) {
-  // Remove existing listener if any
   if (inviteListener) {
     removeMessageListener(inviteListener);
   }
@@ -156,34 +143,27 @@ export function initFriendInviteListener(navigateToGame?: (roomId: string) => vo
 
       const invite: FriendInvite = msg;
 
-      // Fetch inviter details
       const { username, avatar } = await fetchInviterDetails(invite.from);
 
-      // Show invite modal
       showInviteModal(
         invite,
         username,
         avatar,
-        // On Accept
         () => {
           console.log("✅ Accepted invite to room:", invite.roomId);
 
-          // Send acceptance to server
           sendMessage("accept_invite", {
             roomId: invite.roomId,
             from: invite.from
           });
 
-          // Navigate to game if callback provided
           if (navigateToGame) {
             navigateToGame(invite.roomId);
           }
         },
-        // On Decline
         () => {
           console.log("❌ Declined invite from:", invite.from);
 
-          // Send decline to server
           sendMessage("decline_invite", {
             roomId: invite.roomId,
             from: invite.from
@@ -197,9 +177,7 @@ export function initFriendInviteListener(navigateToGame?: (roomId: string) => vo
   console.log("👂 Friend invite listener initialized");
 }
 
-/**
- * Cleanup function
- */
+
 export function cleanupFriendInviteListener() {
   if (inviteListener) {
     removeMessageListener(inviteListener);
@@ -214,9 +192,7 @@ export function cleanupFriendInviteListener() {
   console.log("🧹 Friend invite listener cleaned up");
 }
 
-/**
- * Send a friend invite
- */
+
 export function sendFriendInvite(friendUserId: string) {
   sendMessage("send_invite", { to: friendUserId });
   console.log("📤 Sent invite to:", friendUserId);

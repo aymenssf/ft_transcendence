@@ -13,6 +13,7 @@ export const TOURNAMENT_STATUS = {
     SEMI_FINAL: "semifinals",
     FINAL: "final",
     FINISHED: "finished",
+    CANCELED: "canceled"
 } as const;
 
 export type TournamentStatus = (typeof TOURNAMENT_STATUS)[keyof typeof TOURNAMENT_STATUS];

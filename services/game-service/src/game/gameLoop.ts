@@ -121,6 +121,7 @@ function checkBallCollision(ball: GameBall, paddles: GamePaddles) {
 
 export function startGame(room: GameRoom) {
 
+    if (room.status === GAME_ROOM_STATUS.FINISHED) return ;
     room.sockets.forEach(sock => {
         sock?.send(JSON.stringify(createInitialGameState(room.gameId, room.mode)));
     });
@@ -163,6 +164,8 @@ export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
             if (gameRoom.loop) {
                 clearInterval(gameRoom.loop);
                 gameRoom.loop = null;
+                gameRoom.winner = winner;
+                gameRoom.status = GAME_ROOM_STATUS.FINISHED;
                 saveGameRoom(gameRoom);
             }
         }

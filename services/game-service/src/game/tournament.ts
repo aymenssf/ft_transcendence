@@ -35,6 +35,7 @@ export function handleTournamentRoundWinner(gameRoom: GameRoom) {
         tournament.status = TOURNAMENT_STATUS.FINISHED;
 
         notifyTournamentPlayers(tournament.tournamentId, TOURNAMENT_STATUS.FINISHED);
+        tournaments.delete(tournament.tournamentId);
         return;
     }
 
@@ -194,6 +195,8 @@ function startTournament(tournamentId: string) {
     // if (tournament.rounds[0].status !== GAME_ROOM_STATUS.FINISHED && tournament.rounds[1].status !== GAME_ROOM_STATUS.FINISHED)
     notifyTournamentPlayers(tournamentId, TOURNAMENT_STATUS.SEMI_FINAL);
     setTimeout(() => {
+        if (tournament.status === TOURNAMENT_STATUS.CANCELED || tournament.status === TOURNAMENT_STATUS.FINISHED)
+            return ;
         if (tournament.rounds[0].status !== GAME_ROOM_STATUS.FINISHED) startGame(tournament.rounds[0]);
         if (tournament.rounds[1].status !== GAME_ROOM_STATUS.FINISHED) startGame(tournament.rounds[1]);
     }, 10000);

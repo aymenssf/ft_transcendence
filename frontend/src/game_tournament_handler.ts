@@ -478,6 +478,12 @@ export function createTournamentListener(
         }
         break;
       }
+      case "tournament_canceled" : {
+        cleanupTournamentMatch();
+        localStorage.removeItem("activeTournamentId");
+        alert("Tournament canceled : because one of the players Disconnected.");
+        navigateCallback("dashboard/game/tournament");
+      }
     }
   };
 }

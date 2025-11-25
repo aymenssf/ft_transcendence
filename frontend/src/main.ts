@@ -1984,7 +1984,7 @@ private getSettingsPage(): Page {
               <input type="text" id="settings-tournament" placeholder="Display Name" class="input-std">
             </div>
             <button type="submit" class="btn-primary w-full mt-4">Save Changes</button>
-            <div id="settings-status" class="hidden text-center p-3 rounded-lg mt-2"></div>
+            <div id="settings-status" class="hidden text-center p-3 rounded-lg mt-2 font-bold"></div>
           </div>
 
           <div class="xl:col-span-1 card-base flex flex-col items-center">
@@ -1994,6 +1994,14 @@ private getSettingsPage(): Page {
 
             <input type="file" id="settings-avatar-file" class="hidden">
             <button type="button" id="settings-choose-avatar-btn" class="btn-secondary w-full">Upload New</button>
+            
+            <div id="settings-avatar-preview-container" class="hidden w-full mt-4 flex items-center justify-between bg-gray-900 p-2 rounded-lg border border-emerald-500">
+               <div class="flex items-center gap-2">
+                 <img id="settings-upload-preview" src="" class="w-8 h-8 rounded-full object-cover">
+                 <span class="text-xs text-emerald-400">New image selected</span>
+               </div>
+               <button type="button" id="settings-remove-avatar-btn" class="text-red-400 hover:text-red-300 text-lg font-bold px-2">×</button>
+            </div>
 
             <div class="w-full border-t border-gray-700 my-6"></div>
             <p class="text-gray-400 text-sm mb-2">Or select default:</p>
@@ -2004,208 +2012,194 @@ private getSettingsPage(): Page {
                <img src="../images/avatars/3.jpg" class="avatar-thumb" data-value="../images/avatars/3.jpg">
                <img src="../images/avatars/4.jpg" class="avatar-thumb" data-value="../images/avatars/4.jpg">
             </div>
+            
             <input type="hidden" id="settings-avatar" value="${this.user.avatar}">
           </div>
 
         </form>
       </div>
     `,
-init: () => {
-  console.log("⚙️ Settings page loaded");
+    init: () => {
+      console.log("⚙️ Settings page loaded");
 
-  const form = document.getElementById('settings-form') as HTMLFormElement;
-  const statusDiv = document.getElementById('settings-status') as HTMLDivElement;
-  const avatarOptions = document.querySelectorAll<HTMLImageElement>(".avatar-option");
-  const avatarInput = document.getElementById("settings-avatar") as HTMLInputElement;
-  const profileAvatar = document.querySelector('.user-avatar') as HTMLImageElement; // main avatar in UI
-  // --- Custom Avatar Upload Elements ---
-  const fileInput = document.getElementById('settings-avatar-file') as HTMLInputElement;
-  const chooseBtn = document.getElementById('settings-choose-avatar-btn') as HTMLButtonElement;
-  const removeBtn = document.getElementById('settings-remove-avatar-btn') as HTMLButtonElement;
-  const previewContainer = document.getElementById('settings-avatar-preview-container') as HTMLDivElement;
-  const previewImg = document.getElementById('settings-avatar-preview') as HTMLImageElement;
-  const currentAvatarImg = document.getElementById('settings-current-avatar') as HTMLImageElement;
+      const form = document.getElementById('settings-form') as HTMLFormElement;
+      const statusDiv = document.getElementById('settings-status') as HTMLDivElement;
+      
+      // ✅ FIX: Select by '.avatar-thumb' to match HTML/CSS
+      const avatarOptions = document.querySelectorAll<HTMLImageElement>(".avatar-thumb");
+      const avatarInput = document.getElementById("settings-avatar") as HTMLInputElement;
+      const currentAvatarImg = document.getElementById('settings-current-avatar') as HTMLImageElement;
+      
+      // Upload Elements
+      const fileInput = document.getElementById('settings-avatar-file') as HTMLInputElement;
+      const chooseBtn = document.getElementById('settings-choose-avatar-btn') as HTMLButtonElement;
+      const removeBtn = document.getElementById('settings-remove-avatar-btn') as HTMLButtonElement;
+      const previewContainer = document.getElementById('settings-avatar-preview-container') as HTMLDivElement;
+      const uploadPreviewImg = document.getElementById('settings-upload-preview') as HTMLImageElement;
 
-  let uploadedAvatarPath: string | null = null;
+      let uploadedAvatarPath: string | null = null;
 
-  // --- Custom Avatar Upload Logic ---
-  if (chooseBtn && fileInput) {
-    chooseBtn.addEventListener('click', () => {
-      fileInput.click();
-    });
+      // 1. Handle File Upload
+      if (chooseBtn && fileInput) {
+        chooseBtn.addEventListener('click', () => fileInput.click());
 
-    fileInput.addEventListener('change', async (e) => {
-      const target = e.target as HTMLInputElement;
-      const file = target.files?.[0];
+        fileInput.addEventListener('change', async (e) => {
+          const target = e.target as HTMLInputElement;
+          const file = target.files?.[0];
+          if (!file) return;
 
-      if (!file) return;
+          const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+          if (!validTypes.includes(file.type)) { alert('Invalid file type'); return; }
+          if (file.size > 5 * 1024 * 1024) { alert('Max size 5MB'); return; }
 
-      // Validate file type
-      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-      if (!validTypes.includes(file.type)) {
-        alert('❌ Invalid file type. Please upload JPEG, PNG, GIF, or WebP image.');
-        fileInput.value = '';
-        return;
-      }
+          // Show mini preview
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result && uploadPreviewImg) {
+              uploadPreviewImg.src = e.target.result as string;
+              previewContainer.classList.remove('hidden');
+            }
+          };
+          reader.readAsDataURL(file);
 
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('❌ File too large. Maximum size is 5MB.');
-        fileInput.value = '';
-        return;
-      }
+          // Upload immediately
+          const formData = new FormData();
+          formData.append('avatar', file);
 
-      // Show preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          previewImg.src = e.target.result as string;
-          previewContainer.style.display = 'block';
-          removeBtn.style.display = 'inline-block';
-        }
-      };
-      reader.readAsDataURL(file);
+          try {
+            const token = localStorage.getItem('jwt_token');
+            const response = await fetch('/api/upload-avatar', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+              body: formData
+            });
 
-      // Upload file to server
-      const formData = new FormData();
-      formData.append('avatar', file);
+            if (!response.ok) throw new Error('Upload failed');
+            const data = await response.json();
+            uploadedAvatarPath = data.avatar;
+            console.log('✅ Avatar uploaded:', uploadedAvatarPath);
 
-      try {
-        const token = localStorage.getItem('jwt_token');
-        const response = await fetch('/api/upload-avatar', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
+            // Remove selection from defaults
+            avatarOptions.forEach(o => o.classList.remove("selected"));
+            
+            // Update main preview
+            if(currentAvatarImg) currentAvatarImg.src = uploadedAvatarPath!;
+            
+          } catch (error) {
+            console.error(error);
+            alert('Failed to upload avatar.');
+          }
         });
 
-        if (!response.ok) {
-          throw new Error('Upload failed');
+        // Remove uploaded file
+        if (removeBtn) {
+          removeBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            previewContainer.classList.add('hidden');
+            uploadedAvatarPath = null;
+            // Revert preview to current user avatar
+            if(currentAvatarImg) currentAvatarImg.src = this.user.avatar;
+          });
         }
-
-        const data = await response.json();
-        uploadedAvatarPath = data.avatar;
-        console.log('✅ Avatar uploaded:', uploadedAvatarPath);
-
-        // Clear predefined avatar selection
-        avatarOptions.forEach(o => o.classList.remove("selected"));
-
-      } catch (error) {
-        console.error('❌ Avatar upload error:', error);
-        alert('Failed to upload avatar. Please try again.');
-        fileInput.value = '';
-        previewContainer.style.display = 'none';
-        removeBtn.style.display = 'none';
       }
-    });
 
-    // Remove uploaded avatar
-    if (removeBtn) {
-      removeBtn.addEventListener('click', () => {
-        fileInput.value = '';
-        previewContainer.style.display = 'none';
-        removeBtn.style.display = 'none';
-        uploadedAvatarPath = null;
-        console.log('🗑️ Uploaded avatar removed');
-      });
+      // 2. Handle Default Avatar Selection
+      if (avatarOptions && avatarInput) {
+        // Highlight current avatar on load
+        avatarOptions.forEach(o => {
+            if(o.dataset.value === this.user.avatar) o.classList.add('selected');
+        });
+
+        avatarOptions.forEach(option => {
+          option.addEventListener("click", () => {
+            // Remove selected class from all
+            avatarOptions.forEach(o => o.classList.remove("selected"));
+            // Add to clicked
+            option.classList.add("selected");
+            
+            // Update hidden input
+            const newVal = option.dataset.value || "";
+            avatarInput.value = newVal;
+            
+            // Update visual preview
+            currentAvatarImg.src = newVal;
+
+            // Clear upload if exists
+            if (uploadedAvatarPath) {
+              uploadedAvatarPath = null;
+              fileInput.value = '';
+              previewContainer.classList.add('hidden');
+            }
+          });
+        });
+      }
+
+      // 3. Handle Form Submit
+      if (form) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+
+          const username = (document.getElementById('settings-username') as HTMLInputElement).value.trim();
+          const email = (document.getElementById('settings-email') as HTMLInputElement).value.trim();
+          const tournament = (document.getElementById('settings-tournament') as HTMLInputElement).value.trim();
+
+          // Decide which avatar to use
+          let finalAvatar = '';
+          if (uploadedAvatarPath) {
+            finalAvatar = uploadedAvatarPath;
+          } else {
+            finalAvatar = avatarInput.value; 
+          }
+
+          const updates: any = {};
+          if (username && username !== this.currentUser) updates.username = username;
+          if (email && email !== this.user.email) updates.email = email;
+          if (tournament) updates.usernameTournament = tournament;
+          // Only add avatar to updates if it is different
+          if (finalAvatar && finalAvatar !== this.user.avatar) updates.avatar = finalAvatar;
+
+          // UI Feedback
+          if (Object.keys(updates).length === 0) {
+            statusDiv.classList.remove('hidden', 'bg-green-500/20', 'text-green-400', 'bg-blue-500/20', 'text-blue-400');
+            statusDiv.classList.add('block', 'bg-yellow-500/20', 'text-yellow-400');
+            statusDiv.textContent = '⚠️ No changes detected';
+            return;
+          }
+
+          statusDiv.classList.remove('hidden', 'bg-yellow-500/20', 'text-yellow-400', 'bg-red-500/20', 'text-red-400');
+          statusDiv.classList.add('block', 'bg-blue-500/20', 'text-blue-400');
+          statusDiv.textContent = '⏳ Updating profile...';
+
+          const success = await this.updateUserProfile(updates);
+
+          if (success) {
+            // Update local state
+            if (updates.username) this.currentUser = updates.username;
+            if (updates.email) this.user.email = updates.email;
+            if (updates.usernameTournament) this.user.usernametournament = updates.usernameTournament;
+            if (updates.avatar) {
+              this.user.avatar = updates.avatar;
+              // Update sidebar avatar immediately if element exists
+              const sidebarAvatar = document.querySelector('.sidebar-user-img') as HTMLImageElement;
+              if(sidebarAvatar) sidebarAvatar.src = updates.avatar;
+            }
+
+            // Cleanup UI
+            uploadedAvatarPath = null;
+            fileInput.value = '';
+            previewContainer.classList.add('hidden');
+
+            statusDiv.classList.remove('bg-blue-500/20', 'text-blue-400');
+            statusDiv.classList.add('bg-green-500/20', 'text-green-400');
+            statusDiv.textContent = '✅ Profile updated successfully!';
+          } else {
+            statusDiv.classList.remove('bg-blue-500/20', 'text-blue-400');
+            statusDiv.classList.add('bg-red-500/20', 'text-red-400');
+            statusDiv.textContent = '❌ Failed to update profile.';
+          }
+        });
+      }
     }
-  }
-
-  // --- Avatar selection logic (predefined avatars) ---
-  if (avatarOptions && avatarInput) {
-    avatarOptions.forEach(option => {
-      option.addEventListener("click", () => {
-        // Remove selection from others
-        avatarOptions.forEach(o => o.classList.remove("selected"));
-        // Mark clicked one as selected
-        option.classList.add("selected");
-        // Update hidden input value
-        avatarInput.value = option.dataset.value || "";
-        // Clear uploaded avatar if predefined is selected
-        if (uploadedAvatarPath) {
-          uploadedAvatarPath = null;
-          fileInput.value = '';
-          previewContainer.style.display = 'none';
-          removeBtn.style.display = 'none';
-        }
-        // Optionally update live avatar preview
-        if (profileAvatar) profileAvatar.src = avatarInput.value;
-      });
-    });
-
-    const currentAvatar = avatarInput.value;
-    avatarOptions.forEach(o => {
-      if (o.dataset.value === currentAvatar) o.classList.add("selected");
-    });
-  }
-
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const username = (document.getElementById('settings-username') as HTMLInputElement).value.trim();
-      const email = (document.getElementById('settings-email') as HTMLInputElement).value.trim();
-      const tournament = (document.getElementById('settings-tournament') as HTMLInputElement).value.trim();
-
-      // Determine avatar: prioritize uploaded avatar, then predefined selection
-      let finalAvatar = '';
-      if (uploadedAvatarPath) {
-        finalAvatar = uploadedAvatarPath;
-      } else if (avatarInput?.value.trim()) {
-        finalAvatar = avatarInput.value.trim();
-      }
-
-      // Build update object (only include changed fields)
-      const updates: any = {};
-      if (username && username !== this.currentUser) updates.username = username;
-      if (email && email !== this.user.email) updates.email = email;
-      if (tournament) updates.usernameTournament = tournament;
-      if (finalAvatar && finalAvatar !== this.user.avatar) updates.avatar = finalAvatar;
-
-      if (Object.keys(updates).length === 0) {
-        statusDiv.style.display = 'block';
-        statusDiv.style.background = '#fef3c7';
-        statusDiv.style.color = '#92400e';
-        statusDiv.textContent = '⚠️ No changes detected';
-        return;
-      }
-      statusDiv.style.display = 'block';
-      statusDiv.style.background = '#dbeafe';
-      statusDiv.style.color = '#1e40af';
-      statusDiv.textContent = '⏳ Updating profile...';
-
-
-      const success = await this.updateUserProfile(updates);
-
-      if (success) {
-        if (updates.username) this.currentUser = updates.username;
-        if (updates.email) this.user.email = updates.email;
-        if (updates.usernameTournament) this.user.usernametournament = updates.usernameTournament;
-        if (updates.avatar) {
-          this.user.avatar = updates.avatar;
-          if (profileAvatar) profileAvatar.src = updates.avatar; // update avatar in UI
-          if (currentAvatarImg) currentAvatarImg.src = updates.avatar; // update current avatar display
-        }
-
-        // Clear uploaded avatar state
-        uploadedAvatarPath = null;
-        fileInput.value = '';
-        previewContainer.style.display = 'none';
-        removeBtn.style.display = 'none';
-
-        statusDiv.style.background = '#d1fae5';
-        statusDiv.style.color = '#065f46';
-        statusDiv.textContent = '✅ Profile updated successfully!';
-      } else {
-        statusDiv.style.background = '#fee2e2';
-        statusDiv.style.color = '#991b1b';
-        statusDiv.textContent = '❌ Failed to update profile. Please try again.';
-      }
-    });
-  }
-}
-
   };
 }
 

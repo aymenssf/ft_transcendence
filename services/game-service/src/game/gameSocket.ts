@@ -69,10 +69,10 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
             });
 
             connection.socket.on('close', () => {
-                console.log("ws close error");
-                handleSocketClose(playerId);
+                console.log(`WS closed for player ${playerId}`);
                 leaveTournament(playerId);
-                handlePlayerDisconnect(playerId);
+                cancelTournamentIfPlayerDisconnected(playerId);
+                handlePlayerDisconnect(playerId, "disconnect");
                 playersSockets.delete(playerId);
             });
 
@@ -88,6 +88,74 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
 
     });
 }
+
+
+export function cancelTournamentIfPlayerDisconnected(playerId: string) {
+    for (const tournament of tournaments.values()) {
+        if (tournament.status === TOURNAMENT_STATUS.WAITING || tournament.status === TOURNAMENT_STATUS.FINISHED)
+            continue;
+
+        let playerFound = false;
+
+        if (tournament.status === TOURNAMENT_STATUS.FINAL) {
+            const finalRoom = tournament.rounds.at(-1);
+            if (!finalRoom) continue;
+
+            if (finalRoom.p1 === playerId || finalRoom.p2 === playerId) {
+                playerFound = true;
+            }
+        }
+        else {
+            const semi1 = tournament.rounds[0];
+            const semi2 = tournament.rounds[1];
+
+            if (!semi1 || !semi2) continue;
+
+            if (
+                playerId === semi1.p1 ||
+                playerId === semi1.p2 ||
+                playerId === semi2.p1 ||
+                playerId === semi2.p2
+            )
+                playerFound = true;
+        }
+
+        if (playerFound) {
+            tournament.status = TOURNAMENT_STATUS.FINISHED;
+            tournaments.delete(tournament.tournamentId);
+
+            for (const room of tournament.rounds) {
+                if (!room) continue;
+
+                if (room.loop) {
+                    clearInterval(room.loop);
+                    room.loop = null;
+                }
+
+                for (const socket of room.sockets) {
+                    if (socket?.readyState === WebSocket.OPEN) {
+                        socket?.send(
+                            JSON.stringify({
+                                type: "tournament_canceled",
+                                payload: {
+                                    tournamentId: tournament.tournamentId,
+                                    reason: "player_disconnect" + playerId,
+                                },
+                            })
+                        );
+                    }
+                }
+            }
+
+            console.log(
+                `Tournament ${tournament.tournamentId} canceled due to disconnect of player ${playerId}`
+            );
+
+            return;
+        }
+    }
+}
+
 
 function handlePlayerLeaveMatch(playerId: string, payload: any) {
     const gameRoom = games.get(payload.gameId);
@@ -220,9 +288,7 @@ function handlePlayerLeave(playerId: string) {
                 console.warn(`[WARN] Unknown game type for room ${roomId}`);
         }
 
-        // Clean up references
         games.delete(roomId);
-        // playersSockets.delete(playerId);
 
         break;
     }
@@ -259,7 +325,7 @@ function leavePlayerFromWaitingTournaments(playerId: string) {
     }
 }
 
-function cleanupRoom(roomId: string) {
+export function cleanupRoom(roomId: string) {
     const room = games.get(roomId);
     if (!room) return;
 
@@ -285,12 +351,14 @@ function handleSocketClose(playerId: string) {
 
     if (opponentId && opponentId !== "local") {
         const opponentSocket = playersSockets.get(opponentId);
-        if (opponentSocket && opponentSocket.readyState === 1) {
-            opponentSocket.send(JSON.stringify({
+        if (opponentSocket?.readyState === 1) {
+            opponentSocket?.send(JSON.stringify({
                 type: "game_finish",
                 payload: { winner: opponentId, reason: "disconnect" }
             }));
         }
+        if (gameRoom.mode === GAME_ROOM_MODE.AI_OPPONENT)
+            Array.from(gameRoom.sockets)[1]?.close();
     }
 
     if (gameRoom.loop) clearInterval(gameRoom.loop);

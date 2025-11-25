@@ -35,6 +35,7 @@ export function handleTournamentRoundWinner(gameRoom: GameRoom) {
         tournament.status = TOURNAMENT_STATUS.FINISHED;
 
         notifyTournamentPlayers(tournament.tournamentId, TOURNAMENT_STATUS.FINISHED);
+        tournaments.delete(tournament.tournamentId);
         return;
     }
 

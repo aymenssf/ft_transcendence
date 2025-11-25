@@ -89,8 +89,8 @@
   
 
   .public-navbar { @apply fixed top-0 w-full z-50 bg-gray-900/90 backdrop-blur border-b border-gray-800 h-20 flex items-center justify-between px-6 lg:px-12; }
-  .hero-section { @apply min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white pt-20 px-4; }
-  .auth-section { @apply min-h-screen flex items-center justify-center bg-gray-900 px-4 py-20; }
+  .hero-section { @apply min-h-screen flex flex-col items-center justify-center text-white pt-20 px-4; }
+  .auth-section { @apply min-h-screen flex items-center justify-center px-4 py-20; }
   .feature-card { @apply card-base flex flex-col items-center text-center hover:scale-105 transition-transform duration-300; }
   .auth-card { @apply card-base max-w-lg mx-auto; }
   .features-grid { @apply grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto pb-20 w-full; }

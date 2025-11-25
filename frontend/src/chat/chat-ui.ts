@@ -93,6 +93,9 @@ export class ChatUI {
                 <button id="chat-view-profile-btn" class="hidden px-3 py-2 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-lg transition-colors text-sm">
                   👤 Profile
                 </button>
+                <button id="chat-invite-game-btn" class="hidden px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors text-sm border border-emerald-500/30">
+                  🎮 Game
+                </button>
                 <button id="chat-block-user-btn" class="hidden px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm border border-red-500/30">
                   🚫 Block
                 </button>
@@ -196,6 +199,15 @@ export class ChatUI {
       const userId = btn?.getAttribute('data-user-id');
       if (userId) {
         this.showUserProfile(parseInt(userId));
+      }
+    });
+
+    // Game invite button in chat header
+    document.getElementById('chat-invite-game-btn')?.addEventListener('click', () => {
+      const btn = document.getElementById('chat-invite-game-btn');
+      const userId = btn?.getAttribute('data-user-id');
+      if (userId) {
+        this.messageHandlers.get('gameInvite')?.(parseInt(userId));
       }
     });
 
@@ -951,11 +963,13 @@ export class ChatUI {
 
     // Get action buttons
     const profileBtn = document.getElementById('chat-view-profile-btn');
+    const gameBtn = document.getElementById('chat-invite-game-btn');
     const blockBtn = document.getElementById('chat-block-user-btn');
     const deleteBtn = document.getElementById('chat-delete-room-btn');
 
     // First, hide all buttons by default
     if (profileBtn) profileBtn.classList.add('hidden');
+    if (gameBtn) gameBtn.classList.add('hidden');
     if (blockBtn) blockBtn.classList.add('hidden');
     if (deleteBtn) deleteBtn.classList.add('hidden');
 
@@ -965,6 +979,10 @@ export class ChatUI {
       if (profileBtn) {
         profileBtn.classList.remove('hidden');
         profileBtn.setAttribute('data-user-id', targetUserId.toString());
+      }
+      if (gameBtn) {
+        gameBtn.classList.remove('hidden');
+        gameBtn.setAttribute('data-user-id', targetUserId.toString());
       }
       if (blockBtn) {
         blockBtn.classList.remove('hidden');
@@ -1331,17 +1349,81 @@ export class ChatUI {
    * Show game invite notification
    */
   showGameInviteNotification(invite: GameInvite): void {
-    const notification = document.getElementById('game-invite-notification');
-    const message = document.getElementById('game-invite-message');
+    console.log('🎮 ChatUI: Showing game invitation modal:', invite);
+    
+    const { id, senderId, senderUsername } = invite;
+    
+    // Remove any existing modal
+    document.querySelectorAll('.game-invite-modal').forEach(el => el.remove());
+    
+    // Create notification modal
+    const modal = document.createElement('div');
+    modal.className = 'game-invite-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-2xl">
+        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">🎮 Game Invitation</h3>
+        <p class="mb-6 text-gray-700 dark:text-gray-300">${this.escapeHtml(senderUsername)} invited you to play a game!</p>
+        <div class="flex gap-4">
+          <button id="accept-game-invite-btn-${id}" class="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors">
+            Accept
+          </button>
+          <button id="decline-game-invite-btn-${id}" class="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors">
+            Decline
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const removeModal = () => modal.remove();
+    
+    // Accept button
+    document.getElementById(`accept-game-invite-btn-${id}`)?.addEventListener('click', async () => {
+      removeModal();
+      try {
+        const response = await fetch('/chat/api/game/accept', {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify({ invitationId: id })
+        });
 
-    if (!notification || !message) return;
+        if (!response.ok) {
+          throw new Error('Failed to accept invitation');
+        }
 
-    message.textContent = `${invite.senderUsername} invited you to play Pong!`;
-    notification.classList.remove('hidden');
-
+        const data = await response.json();
+        console.log('✅ Game invitation accepted:', data);
+        this.showSuccess('Redirecting to game...');
+        
+        // Redirect to game with room ID
+        setTimeout(() => {
+          window.location.hash = `#dashboard/game/friend_game?room=${data.gameRoomId}`;
+        }, 500);
+      } catch (error) {
+        console.error('❌ Failed to accept game invitation:', error);
+        this.showError('Failed to accept game invitation');
+      }
+    });
+    
+    // Decline button
+    document.getElementById(`decline-game-invite-btn-${id}`)?.addEventListener('click', async () => {
+      removeModal();
+      try {
+        await fetch('/chat/api/game/decline', {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify({ invitationId: id })
+        });
+        console.log('❌ Game invitation declined');
+      } catch (error) {
+        console.error('❌ Failed to decline game invitation:', error);
+      }
+    });
+    
     // Auto-hide after 30 seconds
     setTimeout(() => {
-      notification.classList.add('hidden');
+      removeModal();
     }, 30000);
   }
 
@@ -1437,6 +1519,17 @@ export class ChatUI {
       "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, m => map[m]);
+  }
+
+  /**
+   * Get authentication headers
+   */
+  private getAuthHeaders(): HeadersInit {
+    const token = localStorage.getItem('jwt_token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
   }
 
   /**

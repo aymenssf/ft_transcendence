@@ -55,6 +55,9 @@ export class ChatManager {
 
     this.cleanupGlobalSocketListeners(globalSocket);
 
+    // Only listen for chat-specific events here
+    // Game invitation events are handled by main.ts global socket
+    
     globalSocket.on('friend-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
       console.log('👥 [ChatManager Global] Friend status changed:', data);
       this.ui.updateFriendStatus(data.userId, data.status);
@@ -63,23 +66,6 @@ export class ChatManager {
     globalSocket.on('user-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
       console.log('👤 [ChatManager Global] User status changed:', data);
       this.ui.updateFriendStatus(data.userId, data.status);
-    });
-
-    globalSocket.on('game-invitation', (data: any) => {
-      console.log('🎮 [ChatManager Global] Game invitation received:', data);
-      this.showGameInvitation(data);
-    });
-
-    globalSocket.on('game-invite-accepted', (data: any) => {
-      console.log('✅ [ChatManager Global] Game invite accepted:', data);
-      console.log('✅ [ChatManager Global] Current page:', window.location.pathname);
-      console.log('✅ [ChatManager Global] About to redirect to game room:', data.gameRoomId);
-      this.handleGameInviteAccepted(data);
-    });
-
-    globalSocket.on('game-invite-declined', (data: any) => {
-      console.log('❌ [ChatManager Global] Game invite declined:', data);
-      this.ui.showError('Your game invitation was declined');
     });
 
     console.log('✅ ChatManager global socket listeners registered');
@@ -529,8 +515,24 @@ export class ChatManager {
     console.log(`User ${data.username} left`);
   }
 
-  private handleGameInvitation(data: GameInvite): void {
+  public handleGameInvitation(data: GameInvite): void {
+    console.log('🎮 [ChatManager] handleGameInvitation called with:', data);
+    console.log('🎮 [ChatManager] Calling ui.showGameInviteNotification');
     this.ui.showGameInviteNotification(data);
+    console.log('🎮 [ChatManager] ui.showGameInviteNotification completed');
+  }
+
+  public handleGameInviteAccepted(data: any): void {
+    console.log('✅ Game invitation accepted:', data);
+    const { gameRoomId } = data;
+    if (gameRoomId) {
+      window.location.hash = `#dashboard/game/friend_game?room=${gameRoomId}`;
+    }
+  }
+
+  public handleGameInviteDeclined(data: any): void {
+    console.log('❌ Game invitation declined');
+    this.ui.showError('Game invitation was declined');
   }
 
   private handleTyping(data: any): void {
@@ -642,15 +644,6 @@ export class ChatManager {
       console.error('Failed to decline game invitation:', error);
       this.ui.showError((error as Error).message || 'Failed to decline game invitation');
     }
-  }
-
-  private handleGameInviteAccepted(data: any): void {
-    console.log('🎉 Game invitation accepted! Room:', data.gameRoomId);
-    this.ui.showSuccess('Your invitation was accepted! Redirecting to game...');
-    
-    setTimeout(() => {
-      window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
-    }, 1000);
   }
 
   private escapeHtml(text: string): string {

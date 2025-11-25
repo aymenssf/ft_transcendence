@@ -464,7 +464,7 @@ export class FriendsManager {
   /**
    * Handle when your game invitation is accepted by the other user
    */
-  private handleGameInviteAccepted(data: any): void {
+  handleGameInviteAccepted(data: any): void {
     console.log('🎉 Game invitation accepted! Room:', data.gameRoomId);
     this.ui.showSuccess('Your invitation was accepted! Redirecting to game...');
     
@@ -504,6 +504,67 @@ export class FriendsManager {
   async handleFriendAdded(data: any): Promise<void> {
     this.ui.showSuccess(`You are now friends with ${data.friend?.username || 'user'}!`);
     await this.loadFriends();
+  }
+
+  /**
+   * Handle game invitation received
+   */
+  async handleGameInvitation(data: any): Promise<void> {
+    console.log('🎮 FriendsManager: Handling game invitation:', data);
+    
+    const { id, senderId, senderUsername } = data;
+    
+    // Show notification modal
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4">
+        <h3 class="text-xl font-bold mb-4">🎮 Game Invitation</h3>
+        <p class="mb-6">${senderUsername} invited you to play a game!</p>
+        <div class="flex gap-4">
+          <button id="accept-game-btn" class="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+            Accept
+          </button>
+          <button id="decline-game-btn" class="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
+            Decline
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const removeModal = () => modal.remove();
+    
+    modal.querySelector('#accept-game-btn')?.addEventListener('click', async () => {
+      removeModal();
+      try {
+        const result = await this.api.acceptGameInvitation(id);
+        console.log('✅ Game invitation accepted:', result);
+        window.location.hash = `#dashboard/game/friend_game?room=${result.gameRoomId}`;
+      } catch (error) {
+        console.error('❌ Failed to accept game invitation:', error);
+        this.ui.showError('Failed to accept game invitation');
+      }
+    });
+    
+    modal.querySelector('#decline-game-btn')?.addEventListener('click', async () => {
+      removeModal();
+      try {
+        await this.api.declineGameInvitation(id);
+        console.log('❌ Game invitation declined');
+      } catch (error) {
+        console.error('❌ Failed to decline game invitation:', error);
+      }
+    });
+  }
+
+  /**
+   * Handle game invite declined
+   */
+  async handleGameInviteDeclined(data: any): Promise<void> {
+    console.log('❌ FriendsManager: Game invite declined');
+    this.ui.showError('Game invitation was declined');
   }
 
   /**

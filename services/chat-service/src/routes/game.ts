@@ -42,14 +42,40 @@ export async function gameRoutes(app: FastifyInstance) {
       const sender = await app.db.findUserById(userId);
 
       const targetSocketId = onlineUsers.get(targetUserId);
+      
+      // Debug logging
+      app.log.info(`🎮 Game invitation: sender=${userId}, target=${targetUserId}`);
+      app.log.info(`🎮 Online users: ${JSON.stringify(Array.from(onlineUsers.entries()))}`);
+      app.log.info(`🎮 Target socket ID: ${targetSocketId}`);
+      
       if (targetSocketId) {
-        app.io.to(targetSocketId).emit('game-invitation', {
+        app.log.info(`🎮 Emitting game-invitation to socket ${targetSocketId}`);
+        const invitationData = {
           id: invitation.id,
           senderId: userId,
-          senderUsername: sender.username,
+          senderUsername: sender?.username || 'Unknown',
+          senderAvatar: sender?.avatar,
           chatRoomId: invitation.chatRoomId,
           created_at: invitation.created_at
-        });
+        };
+        app.log.info(`🎮 Invitation data: ${JSON.stringify(invitationData)}`);
+        
+        // Try multiple methods to ensure delivery
+        const targetSocket = app.io.sockets.sockets.get(targetSocketId);
+        if (targetSocket) {
+          app.log.info(`🎮 Socket instance found, emitting directly`);
+          targetSocket.emit('game-invitation', invitationData);
+          app.log.info(`🎮 Direct emit completed`);
+        } else {
+          app.log.warn(`🎮 Socket instance not found for ID: ${targetSocketId}`);
+        }
+        
+        // Also try room-based emit as backup
+        app.io.to(targetSocketId).emit('game-invitation', invitationData);
+        app.log.info(`🎮 Room-based emit completed`);
+        
+      } else {
+        app.log.warn(`🎮 Target user ${targetUserId} not online, socket ID not found`);
       }
 
       if (chatRoomId) {

@@ -337,6 +337,7 @@ private async connectGlobalSocket(): Promise<void> {
 
     this.globalSocket.on('connect', () => {
       console.log('✅ Global Socket.IO connected');
+      console.log('✅ Socket ID:', this.globalSocket.id);
     });
 
     this.globalSocket.on('disconnect', () => {
@@ -345,6 +346,11 @@ private async connectGlobalSocket(): Promise<void> {
 
     this.globalSocket.on('connect_error', (error: any) => {
       console.warn('⚠️ Global Socket.IO connection error:', error.message);
+    });
+
+    // Debug: Log ALL incoming events
+    this.globalSocket.onAny((eventName: string, ...args: any[]) => {
+      console.log(`🔔 [GLOBAL SOCKET] Event received: ${eventName}`, args);
     });
 
     // Listen for friend status changes globally
@@ -390,6 +396,35 @@ private async connectGlobalSocket(): Promise<void> {
       console.log('✅ Friend added:', data);
       if (this.chatManager) this.chatManager.handleFriendAdded(data);
       if (this.friendsManager) this.friendsManager.handleFriendAdded(data);
+    });
+
+    // Listen for game invitation events
+    this.globalSocket.on('game-invitation', (data: any) => {
+      console.log('🎮 [MAIN.TS] Game invitation received:', data);
+      console.log('🎮 [MAIN.TS] chatManager exists:', !!this.chatManager);
+      console.log('🎮 [MAIN.TS] friendsManager exists:', !!this.friendsManager);
+      
+      if (this.chatManager) {
+        console.log('🎮 [MAIN.TS] Calling chatManager.handleGameInvitation');
+        this.chatManager.handleGameInvitation(data);
+      } else if (this.friendsManager) {
+        console.log('🎮 [MAIN.TS] Calling friendsManager.handleGameInvitation');
+        this.friendsManager.handleGameInvitation(data);
+      } else {
+        console.warn('🎮 [MAIN.TS] No manager available to handle invitation!');
+      }
+    });
+
+    this.globalSocket.on('game-invite-accepted', (data: any) => {
+      console.log('✅ Game invitation accepted:', data);
+      if (this.chatManager) this.chatManager.handleGameInviteAccepted?.(data);
+      else if (this.friendsManager) this.friendsManager.handleGameInviteAccepted?.(data);
+    });
+
+    this.globalSocket.on('game-invite-declined', (data: any) => {
+      console.log('❌ Game invitation declined:', data);
+      if (this.chatManager) this.chatManager.handleGameInviteDeclined?.(data);
+      else if (this.friendsManager) this.friendsManager.handleGameInviteDeclined?.(data);
     });
 
   } catch (error) {

@@ -144,6 +144,34 @@ export class FriendsAPI {
     }
   }
 
+  async acceptGameInvitation(invitationId: number): Promise<{ gameRoomId: string; invitationId: number }> {
+    const response = await fetch(`${this.CHAT_API_URL}/game/accept`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ invitationId })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to accept game invitation');
+    }
+
+    return response.json();
+  }
+
+  async declineGameInvitation(invitationId: number): Promise<void> {
+    const response = await fetch(`${this.CHAT_API_URL}/game/decline`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ invitationId })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to decline game invitation');
+    }
+  }
+
   async removeFriend(friendId: number): Promise<void> {
     const response = await fetch(`${this.CHAT_API_URL}/friends/${friendId}`, {
       method: 'DELETE',

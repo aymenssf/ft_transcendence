@@ -94,7 +94,7 @@ export const GameModel = {
 
 
 export async function saveGameRoom(gameRoom: GameRoom) {
-    if (gameRoom?.mode === GAME_ROOM_MODE.LOCAL) return;
+    if (gameRoom?.mode === GAME_ROOM_MODE.LOCAL || gameRoom?.mode === GAME_ROOM_MODE.TOURNAMENT) return;
     return await prisma.match.upsert({
         where: { gameId: gameRoom.gameId },
         update: {

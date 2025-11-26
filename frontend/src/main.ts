@@ -392,6 +392,34 @@ private async connectGlobalSocket(): Promise<void> {
       if (this.friendsManager) this.friendsManager.handleFriendAdded(data);
     });
 
+    // Listen for game invitations globally
+    this.globalSocket.on('game-invitation', (data: any) => {
+      console.log('🎮 [GLOBAL] Game invitation received:', data);
+      if (this.friendsManager) {
+        this.friendsManager.handleGameInvitation(data);
+      }
+    });
+
+    // Listen for game invite accepted globally (for sender)
+    this.globalSocket.on('game-invite-accepted', (data: any) => {
+      console.log('✅ [GLOBAL] Game invite accepted:', data);
+      if (this.friendsManager) {
+        this.friendsManager.handleGameInviteAccepted(data);
+      } else {
+        // If friends manager isn't active, redirect directly
+        if (data.gameRoomId) {
+          console.log(`🎮 [GLOBAL] Redirecting to game room: ${data.gameRoomId}`);
+          window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
+        }
+      }
+    });
+
+    // Listen for game invite declined globally (for sender)
+    this.globalSocket.on('game-invite-declined', (data: any) => {
+      console.log('❌ [GLOBAL] Game invite declined:', data);
+      alert('Your game invitation was declined');
+    });
+
   } catch (error) {
     console.error('Failed to connect global socket:', error);
   }

@@ -127,27 +127,6 @@ export class FriendsManager {
       this.ui.updateFriendStatus(data.userId, data.status);
     });
 
-    // Listen for game invitations
-    this.socket.on('game-invitation', (data: any) => {
-      console.log('🎮 [FriendsManager Socket] Game invitation received:', data);
-      this.showGameInvitation(data);
-    });
-
-    // Listen for game invite accepted - THIS IS CRITICAL FOR THE SENDER
-    this.socket.on('game-invite-accepted', (data: any) => {
-      console.log('✅ [FriendsManager Socket] Game invite accepted event received!');
-      console.log('   → Data:', JSON.stringify(data, null, 2));
-      console.log('   → Game Room ID:', data.gameRoomId);
-      console.log('   → Current User ID:', this.currentUser?.id);
-      this.handleGameInviteAccepted(data);
-    });
-
-    // Listen for game invite declined
-    this.socket.on('game-invite-declined', (data: any) => {
-      console.log('❌ [FriendsManager Socket] Game invite declined:', data);
-      this.ui.showError('Your game invitation was declined');
-    });
-
     console.log('✅ FriendsManager socket listeners registered');
     console.log('   → Registered listeners:', [
       'friend-status-change',
@@ -156,11 +135,9 @@ export class FriendsManager {
       'friend-request-updated',
       'friend-added',
       'friend-removed',
-      'user-status-change',
-      'game-invitation',
-      'game-invite-accepted',
-      'game-invite-declined'
+      'user-status-change'
     ]);
+    console.log('   → Game invitation listeners handled globally in main.ts');
   }
 
   /**
@@ -179,9 +156,7 @@ export class FriendsManager {
     this.socket.off('friend-added');
     this.socket.off('friend-removed');
     this.socket.off('user-status-change');
-    this.socket.off('game-invitation');
-    this.socket.off('game-invite-accepted');
-    this.socket.off('game-invite-declined');
+    // Note: game invitation listeners are now in main.ts global socket, not cleaned up here
   }
 
   /**
@@ -509,10 +484,13 @@ export class FriendsManager {
 
   /**
    * Handle when your game invitation is accepted by the other user
+   * This is called from the global socket listener in main.ts
    */
-  private handleGameInviteAccepted(data: any): void {
-    console.log('🎉 Game invitation accepted! Room:', data.gameRoomId);
-    console.log('Full data received:', data);
+  handleGameInviteAccepted(data: any): void {
+    console.log('🎉 [FriendsManager] Game invitation accepted! Room:', data.gameRoomId);
+    console.log('   → Full data received:', data);
+    console.log('   → Current user ID:', this.currentUser?.id);
+    console.log('   → Invitation ID:', data.invitationId);
     
     if (!data.gameRoomId) {
       console.error('❌ No gameRoomId in accepted invite data!');
@@ -527,6 +505,15 @@ export class FriendsManager {
     setTimeout(() => {
       window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
     }, 500);
+  }
+
+  /**
+   * Handle game invitation received
+   * This is called from the global socket listener in main.ts
+   */
+  handleGameInvitation(data: any): void {
+    console.log('🎮 [FriendsManager] Showing game invitation from:', data.senderUsername);
+    this.showGameInvitation(data);
   }
 
   /**

@@ -83,7 +83,7 @@ export class ChatUI {
               <div class="flex items-center gap-3">
                 <div class="relative">
                   <img id="chat-avatar" class="w-12 h-12 rounded-full border-2 border-emerald-500 object-cover" src="" alt="">
-                  <span id="chat-status-dot" class="hidden absolute bottom-0 right-0 text-lg">🟢</span>
+                  <span id="chat-status-dot" class="hidden absolute -bottom-1 -right-1 text-sm">🟢</span>
                 </div>
                 <div>
                   <h3 id="chat-title" class="text-white font-bold text-lg">Chat Title</h3>
@@ -92,6 +92,12 @@ export class ChatUI {
               <div class="flex items-center gap-2">
                 <button id="chat-view-profile-btn" class="hidden px-3 py-2 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-lg transition-colors text-sm">
                   👤 Profile
+                </button>
+                <button id="chat-game-invite-btn" class="hidden px-4 py-2 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 hover:from-emerald-500/30 hover:to-blue-500/30 text-emerald-400 rounded-lg transition-all border border-emerald-500/30 hover:border-emerald-500/50 hover:scale-105 active:scale-95 font-medium text-sm shadow-lg">
+                  <span class="flex items-center gap-2">
+                    <span class="text-lg">🎮</span>
+                    <span>Invite to Game</span>
+                  </span>
                 </button>
                 <button id="chat-block-user-btn" class="hidden px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm border border-red-500/30">
                   🚫 Block
@@ -196,6 +202,15 @@ export class ChatUI {
       const userId = btn?.getAttribute('data-user-id');
       if (userId) {
         this.showUserProfile(parseInt(userId));
+      }
+    });
+
+    // Game invitation button in chat header
+    document.getElementById('chat-game-invite-btn')?.addEventListener('click', () => {
+      const btn = document.getElementById('chat-game-invite-btn');
+      const userId = btn?.getAttribute('data-user-id');
+      if (userId) {
+        this.messageHandlers.get('gameInvite')?.(parseInt(userId));
       }
     });
 
@@ -706,7 +721,7 @@ export class ChatUI {
     document.querySelectorAll('.game-invite-accept-btn').forEach(btn => {
       const newBtn = btn.cloneNode(true) as HTMLElement;
       btn.parentNode?.replaceChild(newBtn, btn);
-      
+
       newBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const target = e.target as HTMLButtonElement;
@@ -724,7 +739,7 @@ export class ChatUI {
     document.querySelectorAll('.game-invite-decline-btn').forEach(btn => {
       const newBtn = btn.cloneNode(true) as HTMLElement;
       btn.parentNode?.replaceChild(newBtn, btn);
-      
+
       newBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const target = e.target as HTMLButtonElement;
@@ -760,7 +775,7 @@ export class ChatUI {
 
       const data = await response.json();
       this.showSuccess('Redirecting to game...');
-      
+
       // Redirect to game with room ID
       setTimeout(() => {
         window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
@@ -812,12 +827,12 @@ export class ChatUI {
     // Handle game invitation messages
     if (message.type === 'game_invitation') {
       try {
-        const metadata = typeof message.metadata === 'string' 
-          ? JSON.parse(message.metadata) 
+        const metadata = typeof message.metadata === 'string'
+          ? JSON.parse(message.metadata)
           : message.metadata;
-        
+
         const invitationId = metadata?.invitationId;
-        
+
         if (isOwn) {
           // Sender view - show that you sent an invitation
           return `
@@ -849,13 +864,13 @@ export class ChatUI {
                     </div>
                     <p class="text-sm mb-3">Would you like to play?</p>
                     <div class="flex gap-2" data-invitation-id="${invitationId}">
-                      <button 
+                      <button
                         class="game-invite-accept-btn flex-1 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium"
                         data-invitation-id="${invitationId}"
                       >
                         ✓ Accept
                       </button>
-                      <button 
+                      <button
                         class="game-invite-decline-btn flex-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm font-medium"
                         data-invitation-id="${invitationId}"
                       >
@@ -951,11 +966,13 @@ export class ChatUI {
 
     // Get action buttons
     const profileBtn = document.getElementById('chat-view-profile-btn');
+    const gameInviteBtn = document.getElementById('chat-game-invite-btn');
     const blockBtn = document.getElementById('chat-block-user-btn');
     const deleteBtn = document.getElementById('chat-delete-room-btn');
 
     // First, hide all buttons by default
     if (profileBtn) profileBtn.classList.add('hidden');
+    if (gameInviteBtn) gameInviteBtn.classList.add('hidden');
     if (blockBtn) blockBtn.classList.add('hidden');
     if (deleteBtn) deleteBtn.classList.add('hidden');
 
@@ -965,6 +982,10 @@ export class ChatUI {
       if (profileBtn) {
         profileBtn.classList.remove('hidden');
         profileBtn.setAttribute('data-user-id', targetUserId.toString());
+      }
+      if (gameInviteBtn) {
+        gameInviteBtn.classList.remove('hidden');
+        gameInviteBtn.setAttribute('data-user-id', targetUserId.toString());
       }
       if (blockBtn) {
         blockBtn.classList.remove('hidden');
@@ -984,7 +1005,25 @@ export class ChatUI {
         deleteBtn.classList.remove('hidden');
       }
     }
-  }  /**
+  }
+
+  /**
+   * Update block button status (for syncing with friends list)
+   */
+  updateBlockButtonStatus(userId: number, isBlocked: boolean): void {
+    const blockBtn = document.getElementById('chat-block-user-btn');
+    if (blockBtn && blockBtn.getAttribute('data-user-id') === userId.toString()) {
+      if (isBlocked) {
+        blockBtn.innerHTML = '✓ Unblock';
+        blockBtn.setAttribute('data-action', 'unblock');
+      } else {
+        blockBtn.innerHTML = '🚫 Block';
+        blockBtn.setAttribute('data-action', 'block');
+      }
+    }
+  }
+
+  /**
    * Show user profile modal
    */
   async showUserProfile(userId: number): Promise<void> {
@@ -995,11 +1034,11 @@ export class ChatUI {
           'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch user profile');
       }
-      
+
       const data = await response.json();
       const profile = data.user || data;
 
@@ -1510,7 +1549,7 @@ export class ChatUI {
     if (statusDot) {
       // Remove existing status classes
       statusDot.classList.remove('bg-emerald-500', 'bg-gray-400');
-      
+
       // Add appropriate status class
       if (status === 'online') {
         statusDot.classList.add('bg-emerald-500');

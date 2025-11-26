@@ -28,7 +28,7 @@ export class FriendsManager {
       }
 
       this.setupUIHandlers();
-      
+
       await this.loadFriends();
       await this.loadFriendRequests();
 
@@ -38,7 +38,7 @@ export class FriendsManager {
         console.log('✅ Friends Manager using global socket');
         console.log('   → Socket connected:', globalSocket.connected);
         console.log('   → Socket ID:', globalSocket.id);
-        
+
         // Verify socket is connected, if not, wait for connection
         if (!globalSocket.connected) {
           console.warn('⚠️ Socket not connected yet, waiting for connection...');
@@ -130,7 +130,7 @@ export class FriendsManager {
     console.log('✅ FriendsManager socket listeners registered');
     console.log('   → Registered listeners:', [
       'friend-status-change',
-      'friend-request', 
+      'friend-request',
       'friend-request-sent',
       'friend-request-updated',
       'friend-added',
@@ -208,12 +208,12 @@ export class FriendsManager {
       const friends = await this.api.getFriends();
       console.log('📋 Loaded friends from API:', friends);
       console.log('   → Friend statuses:', friends.map(f => `${f.username}: ${f.status || 'undefined'}`));
-      
+
       // Log each friend's status for debugging
       friends.forEach(friend => {
         console.log(`   → Friend ${friend.username} (ID: ${friend.id}): status = ${friend.status}`);
       });
-      
+
       this.ui.renderFriendsList(friends, this.currentUser?.id || 0);
     } catch (error) {
       console.error('Failed to load friends:', error);
@@ -309,7 +309,7 @@ export class FriendsManager {
     // Find the friend's username
     const friend = this.ui['allFriends'].find((f: any) => f.id === userId);
     const friendName = friend?.username || 'this user';
-    
+
     // Confirm before removing
     if (!confirm(`Are you sure you want to remove ${friendName} from your friends?`)) {
       return;
@@ -333,6 +333,9 @@ export class FriendsManager {
       await this.api.blockUser(userId);
       this.ui.showSuccess('User blocked');
       await this.loadFriends();
+
+      // Emit event for chat manager to sync
+      window.dispatchEvent(new CustomEvent('user-blocked', { detail: { userId, isBlocked: true } }));
     } catch (error) {
       console.error('Failed to block user:', error);
       this.ui.showError('Failed to block user');
@@ -347,6 +350,9 @@ export class FriendsManager {
       await this.api.unblockUser(userId);
       this.ui.showSuccess('User unblocked');
       await this.loadFriends();
+
+      // Emit event for chat manager to sync
+      window.dispatchEvent(new CustomEvent('user-blocked', { detail: { userId, isBlocked: false } }));
     } catch (error) {
       console.error('Failed to unblock user:', error);
       this.ui.showError('Failed to unblock user');
@@ -371,7 +377,7 @@ export class FriendsManager {
    */
   private showGameInvitation(data: any): void {
     console.log('🎮 Showing game invitation from:', data.senderUsername);
-    
+
     const notification = document.createElement('div');
     notification.className = 'fixed top-24 right-4 bg-gray-800 border border-emerald-500 rounded-lg p-4 shadow-2xl z-50 max-w-sm animate-slide-in';
     notification.innerHTML = `
@@ -420,7 +426,7 @@ export class FriendsManager {
   private async acceptGameInvitation(invitationId: number): Promise<void> {
     try {
       console.log(`🎮 Accepting game invitation ${invitationId}...`);
-      
+
       const response = await fetch('/chat/api/game/accept', {
         method: 'POST',
         headers: {
@@ -438,13 +444,13 @@ export class FriendsManager {
       const data = await response.json();
       console.log('✅ Game invitation accepted, response:', data);
       console.log(`   → Game room ID: ${data.gameRoomId}`);
-      
+
       if (!data.gameRoomId) {
         throw new Error('No game room ID received');
       }
-      
+
       this.ui.showSuccess('Redirecting to game...');
-      
+
       // Redirect receiver to game with room ID
       console.log(`🎮 Redirecting receiver to: /dashboard/game/remote?room=${data.gameRoomId}`);
       setTimeout(() => {
@@ -491,15 +497,15 @@ export class FriendsManager {
     console.log('   → Full data received:', data);
     console.log('   → Current user ID:', this.currentUser?.id);
     console.log('   → Invitation ID:', data.invitationId);
-    
+
     if (!data.gameRoomId) {
       console.error('❌ No gameRoomId in accepted invite data!');
       this.ui.showError('Failed to get game room ID');
       return;
     }
-    
+
     this.ui.showSuccess('Your invitation was accepted! Redirecting to game...');
-    
+
     // Redirect immediately to ensure the sender joins the game
     console.log(`🎮 Redirecting sender to: /dashboard/game/remote?room=${data.gameRoomId}`);
     setTimeout(() => {
@@ -554,13 +560,13 @@ export class FriendsManager {
    */
   destroy(): void {
     console.log('🧹 Destroying FriendsManager');
-    
+
     // Clean up socket listeners (but don't disconnect - it's managed globally)
     this.cleanupSocketListeners();
-    
+
     // Clear socket reference (don't disconnect it)
     this.socket = null;
-    
+
     // Destroy UI
     this.ui.destroy();
   }

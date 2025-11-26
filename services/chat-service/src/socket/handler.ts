@@ -39,7 +39,7 @@ export function setupSocketConnection(app: FastifyInstance) {
     const userId = socket.user?.userId || socket.user?.id;
 
     if (userId) {
-      // Add user to online users map
+      socket.join(socket.id);
       onlineUsers.set(userId, socket.id);
       app.log.info(`User ${userId} connected with socket ${socket.id}`);
 

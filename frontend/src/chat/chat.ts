@@ -26,7 +26,8 @@ export class ChatManager {
 
     try {
       this.setupUIHandlers();
-      
+      this.setupBlockSyncListener();
+
       await this.loadFriends();
       await this.loadFriendRequests();
       await this.loadChatRooms();
@@ -42,7 +43,7 @@ export class ChatManager {
       if (globalSocket) {
         this.setupGlobalSocketListeners(globalSocket);
       }
-      
+
       console.log('✅ Chat Manager initialized');
     } catch (error) {
       console.error('❌ Chat initialization failed:', error);
@@ -65,24 +66,8 @@ export class ChatManager {
       this.ui.updateFriendStatus(data.userId, data.status);
     });
 
-    globalSocket.on('game-invitation', (data: any) => {
-      console.log('🎮 [ChatManager Global] Game invitation received:', data);
-      this.showGameInvitation(data);
-    });
-
-    globalSocket.on('game-invite-accepted', (data: any) => {
-      console.log('✅ [ChatManager Global] Game invite accepted:', data);
-      console.log('✅ [ChatManager Global] Current page:', window.location.pathname);
-      console.log('✅ [ChatManager Global] About to redirect to game room:', data.gameRoomId);
-      this.handleGameInviteAccepted(data);
-    });
-
-    globalSocket.on('game-invite-declined', (data: any) => {
-      console.log('❌ [ChatManager Global] Game invite declined:', data);
-      this.ui.showError('Your game invitation was declined');
-    });
-
     console.log('✅ ChatManager global socket listeners registered');
+    console.log('   → Note: Game invitation listeners are handled globally in main.ts');
   }
 
   private async connectSocket(): Promise<void> {
@@ -185,7 +170,8 @@ export class ChatManager {
           this.handleUserLeft(data);
           break;
         case 'game_invitation':
-          this.handleGameInvitation(data);
+          // Game invitations are now handled via global socket in main.ts
+          this.showGameInvitation(data);
           break;
         case 'typing':
           this.handleTyping(data);
@@ -196,6 +182,13 @@ export class ChatManager {
     } catch (error) {
       console.error('Error handling socket message:', error);
     }
+  }
+
+  private setupBlockSyncListener(): void {
+    window.addEventListener('user-blocked', ((event: CustomEvent) => {
+      const { userId, isBlocked } = event.detail;
+      this.ui.updateBlockButtonStatus(userId, isBlocked);
+    }) as EventListener);
   }
 
   private setupUIHandlers(): void {
@@ -451,8 +444,8 @@ export class ChatManager {
           roomName = otherMember.user.username;
           targetUserId = otherMember.user.id || otherMember.userId;
           avatarUrl = otherMember.user.avatar;
-          userStatus = (otherMember.user.status === 'online' || otherMember.user.status === 'offline') 
-            ? otherMember.user.status 
+          userStatus = (otherMember.user.status === 'online' || otherMember.user.status === 'offline')
+            ? otherMember.user.status
             : 'offline';
 
           if (targetUserId) {
@@ -529,10 +522,6 @@ export class ChatManager {
     console.log(`User ${data.username} left`);
   }
 
-  private handleGameInvitation(data: GameInvite): void {
-    this.ui.showGameInviteNotification(data);
-  }
-
   private handleTyping(data: any): void {
     if (data.chatRoomId === this.currentRoom?.id) {
       this.ui.showTypingIndicator(data.username);
@@ -552,8 +541,11 @@ export class ChatManager {
   }
 
   private showGameInvitation(data: any): void {
-    console.log('🎮 Showing game invitation from:', data.senderUsername);
-    
+    if (!data.id) {
+      console.error('No invitation ID provided');
+      return;
+    }
+
     const notification = document.createElement('div');
     notification.className = 'fixed top-24 right-4 bg-gray-800 border border-emerald-500 rounded-lg p-4 shadow-2xl z-50 max-w-sm animate-slide-in';
     notification.innerHTML = `
@@ -580,17 +572,30 @@ export class ChatManager {
       notification.remove();
     }, 30000);
 
-    document.getElementById(`accept-chat-game-invite-${data.id}`)?.addEventListener('click', async () => {
-      clearTimeout(timeout);
-      notification.remove();
-      await this.acceptGameInvitation(data.id);
-    });
+    setTimeout(() => {
+      const acceptBtn = notification.querySelector(`#accept-chat-game-invite-${data.id}`) as HTMLButtonElement;
+      const declineBtn = notification.querySelector(`#decline-chat-game-invite-${data.id}`) as HTMLButtonElement;
 
-    document.getElementById(`decline-chat-game-invite-${data.id}`)?.addEventListener('click', async () => {
-      clearTimeout(timeout);
-      notification.remove();
-      await this.declineGameInvitation(data.id);
-    });
+      if (acceptBtn) {
+        acceptBtn.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          clearTimeout(timeout);
+          notification.remove();
+          await this.acceptGameInvitation(data.id);
+        };
+      }
+
+      if (declineBtn) {
+        declineBtn.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          clearTimeout(timeout);
+          notification.remove();
+          await this.declineGameInvitation(data.id);
+        };
+      }
+    }, 100);
   }
 
   private async acceptGameInvitation(invitationId: number): Promise<void> {
@@ -611,7 +616,7 @@ export class ChatManager {
 
       const data = await response.json();
       this.ui.showSuccess('Redirecting to game...');
-      
+
       setTimeout(() => {
         window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
       }, 1000);
@@ -644,18 +649,18 @@ export class ChatManager {
     }
   }
 
-  private handleGameInviteAccepted(data: any): void {
+  private processGameInviteAccepted(data: any): void {
     console.log('🎉 [ChatManager] Game invitation accepted! Room:', data.gameRoomId);
     console.log('   → Full data:', JSON.stringify(data, null, 2));
-    
+
     if (!data.gameRoomId) {
       console.error('❌ No gameRoomId in accepted invite data!');
       this.ui.showError('Failed to get game room ID');
       return;
     }
-    
+
     this.ui.showSuccess('Your invitation was accepted! Redirecting to game...');
-    
+
     console.log(`🎮 Redirecting sender to: /dashboard/game/remote?room=${data.gameRoomId}`);
     setTimeout(() => {
       window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
@@ -672,31 +677,33 @@ export class ChatManager {
     try {
       await this.api.blockUser(userId);
       this.ui.showSuccess('User blocked successfully');
-      
-      this.ui.updateBlockButton(true);
+
+      this.ui.updateBlockButtonStatus(userId, true);
 
       await this.loadFriends();
+
+      // Emit event for friends manager to sync
+      window.dispatchEvent(new CustomEvent('user-blocked', { detail: { userId, isBlocked: true } }));
     } catch (error: any) {
       console.error('Failed to block user:', error);
       this.ui.showError(error.message || 'Failed to block user');
     }
-  }
-
-  private async unblockUser(userId: number): Promise<void> {
+  }  private async unblockUser(userId: number): Promise<void> {
     try {
       await this.api.unblockUser(userId);
       this.ui.showSuccess('User unblocked successfully');
-      
-      this.ui.updateBlockButton(false);
+
+      this.ui.updateBlockButtonStatus(userId, false);
 
       await this.loadFriends();
+
+      // Emit event for friends manager to sync
+      window.dispatchEvent(new CustomEvent('user-blocked', { detail: { userId, isBlocked: false } }));
     } catch (error: any) {
       console.error('Failed to unblock user:', error);
       this.ui.showError(error.message || 'Failed to unblock user');
     }
-  }
-
-  private async searchUsers(query: string): Promise<void> {
+  }  private async searchUsers(query: string): Promise<void> {
   }
 
   private leaveCurrentRoom(): void {
@@ -741,16 +748,34 @@ export class ChatManager {
     await this.loadFriends();
   }
 
+  /**
+   * Public method to handle game invitation (called from global socket in main.ts)
+   */
+  handleGameInvitation(data: any): void {
+    console.log('🎮 [ChatManager] Handling game invitation:', data);
+    console.log('   → Sender ID:', data.senderId);
+    console.log('   → Current user ID:', this.currentUser?.id);
+
+    // Don't show invitation notification if current user is the sender
+    if (data.senderId === this.currentUser?.id) {
+      return;
+    }
+
+    this.showGameInvitation(data);
+  }
+
+  /**
+   * Public method to handle game invite accepted (called from global socket in main.ts)
+   */
+  handleGameInviteAccepted(data: any): void {
+    this.processGameInviteAccepted(data);
+  }
+
   private cleanupGlobalSocketListeners(globalSocket: any): void {
     if (!globalSocket) return;
 
-    console.log('🧹 Cleaning up ChatManager global socket listeners');
-
     globalSocket.off('friend-status-change');
     globalSocket.off('user-status-change');
-    globalSocket.off('game-invitation');
-    globalSocket.off('game-invite-accepted');
-    globalSocket.off('game-invite-declined');
   }
 
   destroy(): void {

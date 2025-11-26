@@ -41,16 +41,17 @@ export async function gameRoutes(app: FastifyInstance) {
 
       const sender = await app.db.findUserById(userId);
 
-      const targetSocketId = onlineUsers.get(targetUserId);
-      if (targetSocketId) {
-        app.io.to(targetSocketId).emit('game-invitation', {
-          id: invitation.id,
-          senderId: userId,
-          senderUsername: sender.username,
-          chatRoomId: invitation.chatRoomId,
-          created_at: invitation.created_at
-        });
-      }
+      const invitationData = {
+        id: invitation.id,
+        senderId: userId,
+        senderUsername: sender.username,
+        senderAvatar: sender.avatar,
+        targetUserId: targetUserId,
+        chatRoomId: invitation.chatRoomId,
+        created_at: invitation.created_at
+      };
+
+      app.io.emit('game-invitation', invitationData);
 
       if (chatRoomId) {
         const messageContent = `Game invitation to ${targetUser.username}`;
@@ -75,10 +76,10 @@ export async function gameRoutes(app: FastifyInstance) {
           type: 'game_invitation',
           metadata,
           senderId: userId,
-          sender: { 
-            id: userId, 
+          sender: {
+            id: userId,
             username: sender.username,
-            avatar: sender.avatar 
+            avatar: sender.avatar
           },
           senderName: sender.username,
           senderAvatar: sender.avatar,
@@ -133,14 +134,12 @@ export async function gameRoutes(app: FastifyInstance) {
 
       await app.db.updateGameInvitationStatus(invitationId, 'accepted', gameRoomId);
 
-      const senderSocketId = onlineUsers.get(invitation.senderId);
-      if (senderSocketId) {
-        app.io.to(senderSocketId).emit('game-invite-accepted', {
-          invitationId,
-          gameRoomId,
-          acceptedBy: userId
-        });
-      }
+      app.io.emit('game-invite-accepted', {
+        invitationId,
+        gameRoomId,
+        acceptedBy: userId,
+        senderId: invitation.senderId
+      });
 
       return {
         message: 'Game invitation accepted',
@@ -182,13 +181,11 @@ export async function gameRoutes(app: FastifyInstance) {
 
       await app.db.updateGameInvitationStatus(invitationId, 'declined');
 
-      const senderSocketId = onlineUsers.get(invitation.senderId);
-      if (senderSocketId) {
-        app.io.to(senderSocketId).emit('game-invite-declined', {
-          invitationId,
-          declinedBy: userId
-        });
-      }
+      app.io.emit('game-invite-declined', {
+        invitationId,
+        declinedBy: userId,
+        senderId: invitation.senderId
+      });
 
       return {
         message: 'Game invitation declined',

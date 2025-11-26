@@ -131,7 +131,7 @@ constructor(containerId: string) {
           usernametournament: auth42Result.user.usernameTournament || auth42Result.user.username,
           id: auth42Result.user.id
         };
-        
+
         // Initialize game socket
         initgameSocket();
         initFriendInviteListener((roomId) => {
@@ -336,44 +336,34 @@ private async connectGlobalSocket(): Promise<void> {
     this.globalSocket = io(socketUrl, socketOptions);
 
     this.globalSocket.on('connect', () => {
-      console.log('✅ Global Socket.IO connected');
+      console.log('Global Socket.IO connected');
     });
 
     this.globalSocket.on('disconnect', () => {
-      console.log('❌ Global Socket.IO disconnected');
+      console.log('Global Socket.IO disconnected');
     });
 
     this.globalSocket.on('connect_error', (error: any) => {
-      console.warn('⚠️ Global Socket.IO connection error:', error.message);
+      console.warn('Global Socket.IO connection error:', error.message);
     });
 
     // Listen for friend status changes globally
     this.globalSocket.on('friend-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
-      console.log('👥 [GLOBAL] Friend status changed:', data);
-      
-      // Update in chat manager if active
       if (this.chatManager) {
-        console.log('   → Updating chat manager');
         this.chatManager.handleFriendStatusChange(data.userId, data.status);
       }
-      
-      // Update in friends manager if active
+
       if (this.friendsManager) {
-        console.log('   → Updating friends manager');
         this.friendsManager.handleFriendStatusChange(data.userId, data.status);
       }
     });
 
     // Also listen for generic user-status-change event
     this.globalSocket.on('user-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
-      console.log('👤 [GLOBAL] User status changed:', data);
-      
-      // Update in chat manager if active
       if (this.chatManager) {
         this.chatManager.handleFriendStatusChange(data.userId, data.status);
       }
-      
-      // Update in friends manager if active
+
       if (this.friendsManager) {
         this.friendsManager.handleFriendStatusChange(data.userId, data.status);
       }
@@ -394,29 +384,54 @@ private async connectGlobalSocket(): Promise<void> {
 
     // Listen for game invitations globally
     this.globalSocket.on('game-invitation', (data: any) => {
-      console.log('🎮 [GLOBAL] Game invitation received:', data);
-      if (this.friendsManager) {
+      // Filter: Only process if this user is the target
+      if (data.targetUserId && data.targetUserId !== this.user?.id) {
+        return;
+      }
+
+      // Show notification on current active page only to avoid duplicates
+      const currentPage = window.location.pathname;
+
+      if (currentPage.includes('/friends') && this.friendsManager) {
         this.friendsManager.handleGameInvitation(data);
+      } else if (currentPage.includes('/chat') && this.chatManager) {
+        this.chatManager.handleGameInvitation(data);
+      } else if (this.friendsManager) {
+        this.friendsManager.handleGameInvitation(data);
+      } else if (this.chatManager) {
+        this.chatManager.handleGameInvitation(data);
       }
     });
 
     // Listen for game invite accepted globally (for sender)
     this.globalSocket.on('game-invite-accepted', (data: any) => {
-      console.log('✅ [GLOBAL] Game invite accepted:', data);
-      if (this.friendsManager) {
-        this.friendsManager.handleGameInviteAccepted(data);
-      } else {
-        // If friends manager isn't active, redirect directly
-        if (data.gameRoomId) {
-          console.log(`🎮 [GLOBAL] Redirecting to game room: ${data.gameRoomId}`);
-          window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
+      // Filter: Only process if this user is the sender
+      if (data.senderId && data.senderId !== this.user?.id) {
+        return;
+      }
+
+      // Redirect sender to game regardless of which manager is active
+      if (data.gameRoomId) {
+        if (this.friendsManager) {
+          this.friendsManager.handleGameInviteAccepted(data);
+        } else if (this.chatManager) {
+          this.chatManager.handleGameInviteAccepted(data);
+        } else {
+          alert('Your game invitation was accepted! Redirecting to game...');
+          setTimeout(() => {
+            window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
+          }, 500);
         }
       }
     });
 
     // Listen for game invite declined globally (for sender)
     this.globalSocket.on('game-invite-declined', (data: any) => {
-      console.log('❌ [GLOBAL] Game invite declined:', data);
+      // Filter: Only process if this user is the sender
+      if (data.senderId && data.senderId !== this.user?.id) {
+        return;
+      }
+
       alert('Your game invitation was declined');
     });
 
@@ -436,18 +451,18 @@ private disconnectGlobalSocket(): void {
 
 public async performLogout(): Promise<void> {
   this.disconnectGlobalSocket();
-  
+
   // Cleanup managers
   if (this.chatManager) {
     this.chatManager.destroy();
     this.chatManager = null;
   }
-  
+
   if (this.friendsManager) {
     this.friendsManager.destroy();
     this.friendsManager = null;
   }
-  
+
   localStorage.removeItem('jwt_token');
   localStorage.removeItem('user_data');
   cleanupFriendInviteListener();
@@ -631,11 +646,11 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
 private toggleSidebar(): void {
   const sidebar = document.getElementById('dashboard-sidebar');
   const overlay = document.getElementById('sidebar-overlay');
-  
+
   if (sidebar) {
     sidebar.classList.toggle('open');
   }
-  
+
   if (overlay) {
     overlay.classList.toggle('show');
   }
@@ -645,7 +660,7 @@ private toggleSidebar(): void {
 private renderDashboardLayout(): void {
   this.container.innerHTML = `
     <div class="layout-wrapper">
-      
+
       <button id="sidebar-toggle" class="mobile-toggle-btn">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
@@ -653,7 +668,7 @@ private renderDashboardLayout(): void {
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
       <aside class="layout-sidebar" id="dashboard-sidebar">
-        
+
         <div id="logo-btn" class="sidebar-header">
           <img src="../images/logo.svg" alt="PONG" class="sidebar-logo-img">
           <h2 class="text-xl font-bold tracking-wider text-white">PONG GAME</h2>
@@ -671,7 +686,7 @@ private renderDashboardLayout(): void {
            <div class="relative">
              <button id="user-menu-btn" class="user-profile-btn">
                <img class="sidebar-user-img" src="${this.user.avatar}">
-               
+
                <div class="flex-1 text-left overflow-hidden">
                  <p class="text-base font-bold text-white truncate">${this.user.username || "Player"}</p>
                  <div class="flex items-center gap-2 mt-0.5">
@@ -680,10 +695,10 @@ private renderDashboardLayout(): void {
                  </div>
                </div>
              </button>
-             
-             <div id="user-dropdown" class="hidden absolute bottom-full left-0 w-full mb-2 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50"> 
+
+             <div id="user-dropdown" class="hidden absolute bottom-full left-0 w-full mb-2 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50">
                <button id="logout-btn" class="btn-danger">
-                 <span>Logout</span> 
+                 <span>Logout</span>
                </button>
              </div>
            </div>
@@ -714,7 +729,7 @@ private setupDashboardEvents() {
   const toggleButton = document.getElementById('sidebar-toggle');
   const overlay = document.getElementById('sidebar-overlay');
   const sidebar = document.getElementById('dashboard-sidebar');
-  
+
   // Toggle button click handler
   if (toggleButton && overlay) {
     toggleButton.addEventListener('click', () => this.toggleSidebar());
@@ -724,7 +739,7 @@ private setupDashboardEvents() {
   // Auto-close sidebar when mouse leaves (desktop only)
   if (sidebar) {
     let mouseLeaveTimeout: ReturnType<typeof setTimeout> | null = null;
-    
+
     sidebar.addEventListener('mouseenter', () => {
       // Clear any pending close timeout
       if (mouseLeaveTimeout) {
@@ -732,7 +747,7 @@ private setupDashboardEvents() {
         mouseLeaveTimeout = null;
       }
     });
-    
+
     sidebar.addEventListener('mouseleave', () => {
       // Only auto-close on desktop when sidebar is open
       const isDesktop = window.innerWidth >= 1024;
@@ -744,7 +759,7 @@ private setupDashboardEvents() {
       }
     });
   }
-  
+
   const userMenuBtn = document.getElementById("user-menu-btn");
   const userDropdown = document.getElementById("user-dropdown");
   if (userMenuBtn && userDropdown) {
@@ -753,17 +768,17 @@ private setupDashboardEvents() {
   }
   // Logo button - navigate to dashboard and close sidebar
   const logoBtn = document.getElementById("logo-btn");
-    if (logoBtn) { 
-    logoBtn.addEventListener("click", async (e) => { 
-      e.preventDefault(); 
+    if (logoBtn) {
+    logoBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
       // Close sidebar if it's open
       if (sidebar?.classList.contains('open')) {
         this.toggleSidebar();
       }
       await this.navigateTo('/dashboard');
-    }); 
+    });
   }
-  
+
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) { logoutBtn.addEventListener("click", async (e) => { e.preventDefault(); await this.performLogout(); }); }
 }
@@ -966,12 +981,12 @@ private getTournamentLobbyPage(): Page {
     title: "Tournament Lobby",
     content: `
       <div class="lobby-wrapper">
-        
+
         <div class="lobby-inner">
             <div class="flex items-center justify-between mb-6 shrink-0">
               <button id="leave-tournament-btn" class="back-button">← Leave Lobby</button>
               <h2 class="text-xl font-bold text-white tracking-wide">🏆 TOURNAMENT LOBBY</h2>
-              <div class="w-[120px]"></div> 
+              <div class="w-[120px]"></div>
             </div>
 
             <div class="lobby-grid">
@@ -997,16 +1012,16 @@ private getTournamentLobbyPage(): Page {
 
         <div id="view-bracket" class="tournament-overlay hidden">
              <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-12 tracking-widest uppercase drop-shadow-lg">SEMI-FINALS</h1>
-             
+
              <div id="big-bracket-content" class="w-full max-w-6xl px-4 flex justify-center"></div>
-             
+
              <div class="mt-16 text-gray-400 text-2xl animate-pulse">
                 Next match starting in <span id="bracket-timer" class="text-white font-bold text-3xl ml-2">...</span>
              </div>
         </div>
 
         <div id="view-game" class="tournament-overlay hidden">
-            
+
             <div class="absolute top-0 w-full h-24 bg-gray-900/95 border-b border-gray-800 flex justify-between items-center px-12">
                <div class="text-white font-bold text-2xl tracking-wider" id="game-round-label">MATCH</div>
                <div class="px-10 py-3 bg-gray-800 rounded-full border border-gray-700">
@@ -1023,12 +1038,12 @@ private getTournamentLobbyPage(): Page {
             </div>
 
             <div class="game-board-wrapper">
-               
+
                <div class="game-player-left">
                   <img id="game-p1-avatar" class="w-24 h-24 rounded-full border-4 border-blue-500 shadow-lg object-cover bg-gray-800">
                   <span id="game-p1-name" class="text-lg font-bold text-white bg-gray-900 px-4 py-1 rounded border border-gray-700">P1</span>
                </div>
-               
+
                <div id="game-container" class="game-canvas"></div>
 
                <div class="game-player-right">
@@ -1050,7 +1065,7 @@ private getTournamentLobbyPage(): Page {
        const popstateHandler = () => {
          cleanupTournamentMatch();
          localStorage.removeItem('activeTournamentId');
-         this.navigateTo("dashboard/game/tournament");          
+         this.navigateTo("dashboard/game/tournament");
        };
        window.addEventListener("popstate", popstateHandler);
 
@@ -1143,7 +1158,7 @@ private gettournamentpage(): Page {
     title: "PONG Game - Tournament",
     content: `
 <div class="w-full h-full p-4 lg:p-8">
-        
+
         <div class="flex items-center gap-6 mb-8">
           <a href="/dashboard/game" id="back-button-tournament" class="nav-link px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-base font-medium transition-colors">← Back</a>
           <h2 class="text-3xl font-bold text-white">Tournaments</h2>
@@ -1155,14 +1170,14 @@ private gettournamentpage(): Page {
               <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-3">
                  <span>➕</span> Create New
               </h3>
-              
+
               <div class="space-y-6">
                 <div>
                   <label class="block text-sm text-gray-400 uppercase font-semibold mb-2">Tournament Name</label>
-                  <input id="tournament-title-input" type="text" placeholder="e.g. Champions Cup" maxlength="20" 
+                  <input id="tournament-title-input" type="text" placeholder="e.g. Champions Cup" maxlength="20"
                          class="w-full bg-gray-900/40 border border-gray-600 rounded-xl px-5 py-4 text-white text-lg focus:border-emerald-500 focus:outline-none transition-colors" />
                 </div>
-                
+
                 <button id="create-tournament-btn" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg rounded-xl transition-all shadow-lg shadow-emerald-900/20">
                   Create & Join
                 </button>
@@ -1244,7 +1259,7 @@ private gettournamentpage(): Page {
 
              const joinBtn = document.createElement("button");
              joinBtn.innerText = count >= 4 ? "Full" : "Join Lobby";
-             joinBtn.className = count >= 4 
+             joinBtn.className = count >= 4
                ? "px-6 py-3 text-sm font-bold bg-gray-700 text-gray-400 rounded-lg cursor-not-allowed"
                : "px-6 py-3 text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors shadow-md";
 
@@ -1307,7 +1322,7 @@ private getGamePage(): Page {
       </div>
 
       <div class="game-mode-grid">
-        
+
         <a href="dashboard/game/ai" class="game-mode-card nav-link">
           <div class="game-mode-icon-bg">
              <img src="./images/ai-game.svg" class="game-mode-img" />
@@ -1353,17 +1368,17 @@ private getremotepage(): Page {
     title: "PONG Game - Online Match",
     content: `
       <div class="page-container">
-        
+
         <div class="flex items-center gap-6">
           <a href="/dashboard/game" id="back-button-remote" class="btn-secondary px-6 py-2">← Back</a>
           <h2 class="text-3xl font-bold text-white">Online Match</h2>
         </div>
 
         <div class="game-stage">
-          
+
           <div class="player-panel">
             <div class="relative">
-              <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}" 
+              <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}"
                    alt="Player" class="player-avatar-lg border-emerald-500 shadow-emerald-500/20">
               <div class="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-gray-900 rounded-full"></div>
             </div>
@@ -1375,7 +1390,7 @@ private getremotepage(): Page {
           </div>
 
           <div class="game-center-area">
-            
+
             <div class="game-controls-bar justify-center">
               <div class="text-4xl font-mono font-bold text-white tracking-widest flex items-center gap-6">
                 <div>Score: <span id="remote-score" style="color:#fbbf24;">0 - 0</span></div>
@@ -1387,7 +1402,7 @@ private getremotepage(): Page {
             </div>
 
             <div class="w-full flex flex-col items-center gap-4">
-              
+
               <button id="start-remote-game" class="btn-primary w-full md:w-auto md:px-16 text-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all duration-300">
                 <span>🌐</span> FIND OPPONENT
               </button>
@@ -1405,17 +1420,17 @@ private getremotepage(): Page {
 
           <div class="player-panel">
             <div class="relative">
-              <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent" 
+              <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent"
                    class="hidden w-32 h-32 rounded-full border-4 border-blue-500 object-cover shadow-lg mb-2">
-              
+
               <div id="opponent-placeholder" class="opponent-placeholder">?</div>
             </div>
-            
+
             <div class="text-center mb-2">
               <div id="opponent-name" class="player-name text-gray-500">Waiting...</div>
               <div class="text-blue-400 text-sm font-bold mt-1">OPPONENT</div>
             </div>
-            
+
             <div id="serch" class="status-badge-waiting">WAITING</div>
           </div>
 
@@ -1439,14 +1454,14 @@ private getremotepage(): Page {
 
       if (startButton) {
         const startHandler = () => {
-          startButton.innerText = 'CANCEL SEARCH'; 
+          startButton.innerText = 'CANCEL SEARCH';
           startButton.classList.replace('btn-primary', 'btn-secondary');
 
           if (matchmakingStatus) matchmakingStatus.classList.remove('hidden');
           if (matchmakingStatus) matchmakingStatus.classList.add('flex');
 
           if (opponentPlaceholder) opponentPlaceholder.classList.add('searching-pulse');
-          
+
           if (searchStatusText) {
             searchStatusText.innerText = "SEARCHING...";
             searchStatusText.classList.remove('status-badge-waiting');
@@ -1460,10 +1475,10 @@ private getremotepage(): Page {
       }
 
       const remoteListener = createRemoteGameListener(this.user.id);
-      
+
       const uiAwareListener = (data: any) => {
          remoteListener(data);
-         
+
          // When game/match starts
          if (data.type === 'game_start' || data.type === 'match_found') {
              const matchmakingStatus = document.getElementById('matchmaking-status');
@@ -1474,7 +1489,7 @@ private getremotepage(): Page {
              // ✅ UPDATE BUTTON TO READY STATE
              if (startButton) {
                startButton.innerHTML = '<span>⚔️</span> I AM READY';
-               startButton.disabled = false; 
+               startButton.disabled = false;
                startButton.classList.replace('btn-secondary', 'btn-primary'); // Switch back to primary color
                // Note: Any 'Ready' click logic needs to be attached here or handled by the existing listener
              }
@@ -1482,7 +1497,7 @@ private getremotepage(): Page {
              if(matchmakingStatus) matchmakingStatus.classList.add('hidden');
              if(opponentPlaceholder) opponentPlaceholder.classList.add('hidden');
              if(opponentAvatar) opponentAvatar.classList.remove('hidden');
-             
+
              if(searchStatusText) {
                  searchStatusText.innerText = "CONNECTED";
                  searchStatusText.className = "status-badge-online !text-blue-400 !border-blue-500/30 !bg-blue-500/10";
@@ -1507,14 +1522,14 @@ private getlocalpage(): Page {
     title: "PONG Game - Local Match",
     content: `
       <div class="page-container">
-        
+
         <div class="flex items-center gap-6">
           <a href="/dashboard/game" id="back-button" class="btn-secondary px-6 py-2">← Back</a>
           <h2 class="text-3xl font-bold text-white">Local PvP</h2>
         </div>
 
         <div class="game-stage">
-          
+
           <div class="player-panel">
             <div class="relative">
               <div class="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-6xl font-bold text-white shadow-lg shadow-blue-500/30 border-4 border-gray-800 mb-4">
@@ -1525,7 +1540,7 @@ private getlocalpage(): Page {
               <div class="player-name">Player 1</div>
               <div class="text-blue-400 text-sm font-bold mt-1">WASD Controls</div>
             </div>
-            
+
             <div class="flex gap-2">
               <div class="flex flex-col items-center gap-1">
                 <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">W</span>
@@ -1539,10 +1554,10 @@ private getlocalpage(): Page {
           </div>
 
           <div class="game-center-area">
-            
+
             <div class="game-controls-bar justify-center">
               <div class="text-4xl font-mono font-bold text-white tracking-widest flex items-center gap-4">
-                <div><span id="local-score" style="color:#fbbf24;">0 - 0</span></div> 
+                <div><span id="local-score" style="color:#fbbf24;">0 - 0</span></div>
               </div>
             </div>
 
@@ -1595,13 +1610,13 @@ private getlocalpage(): Page {
       );
 
       const startButton = document.getElementById('start-local-game') as HTMLButtonElement;
-      
+
       if (startButton) {
         const startHandler = () => {
           startButton.innerText = '⚔️ Game Running';
           startButton.disabled = true;
           startButton.classList.add('opacity-50', 'cursor-not-allowed', 'scale-95');
-          
+
           sendMessage("join_local", {});
         };
         startButton.addEventListener('click', startHandler);
@@ -1626,14 +1641,14 @@ private getaipage(): Page {
     title: "PONG Game - AI Match",
     content: `
       <div class="page-container">
-        
+
         <div class="flex items-center gap-6">
           <a href="/dashboard/game" id="back-button-ai" class="btn-secondary px-6 py-2">← Back</a>
           <h2 class="text-3xl font-bold text-white">VS Artificial Intelligence</h2>
         </div>
 
         <div class="game-stage">
-          
+
           <div class="player-panel">
             <div class="relative">
               <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" class="player-avatar-lg border-emerald-500 shadow-emerald-500/20">
@@ -1647,9 +1662,9 @@ private getaipage(): Page {
           </div>
 
           <div class="game-center-area">
-            
+
             <div class="game-controls-bar">
-              
+
               <div id="ai-difficulty-wrapper" class="flex items-center gap-4 transition-opacity duration-500">
                 <label class="text-gray-400 text-sm font-bold">DIFFICULTY:</label>
                 <select id="ai-difficulty" class="bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-1 text-sm focus:border-emerald-500 outline-none">
@@ -1658,9 +1673,9 @@ private getaipage(): Page {
                   <option value="hard">🔴 Hard</option>
                 </select>
               </div>
-              
+
               <div class="text-3xl font-mono font-bold text-white tracking-widest flex-1 text-center">
-              <div><span id="ai-score" style="color:#fbbf24;">0 - 0</span></div> 
+              <div><span id="ai-score" style="color:#fbbf24;">0 - 0</span></div>
               </div>
 
               <div class="text-xs text-gray-500 font-mono bg-black/30 px-3 py-1 rounded">
@@ -1708,13 +1723,13 @@ private getaipage(): Page {
       if (startButton) {
         const startHandler = () => {
           const difficulty = difficultySelect?.value || 'medium';
-          
+
           startButton.innerText = '🎮 Game Running';
           startButton.disabled = true;
           startButton.classList.add('opacity-50', 'cursor-not-allowed', 'scale-95');
-          
+
           if (difficultyWrapper) {
-            difficultyWrapper.style.display = 'none'; 
+            difficultyWrapper.style.display = 'none';
           }
 
           sendMessage("join_ai-opponent", { difficulty });
@@ -1766,7 +1781,7 @@ private getLoginPage(): Page {
             <p class="text-gray-400 mb-4">Don't have an account?</p>
             <a href="/register" class="btn-secondary w-full">Create Account</a>
           </div>
-          
+
           <div class="mt-4 text-center">
             <a href="/" class="text-xs text-gray-500 hover:text-white transition-colors">← Back to Home</a>
           </div>
@@ -1790,7 +1805,7 @@ private getLoginPage(): Page {
       if (container) {
         const divider = document.createElement('div');
         // Using the class we added to style.css
-        divider.className = "auth-divider"; 
+        divider.className = "auth-divider";
         // Or manual tailwind if you didn't add that class:
         // divider.className = "flex items-center my-4 w-full";
         divider.innerHTML = `<div class="flex-grow h-px bg-gray-700"></div><span class="px-3 text-gray-500 text-sm font-bold">OR</span><div class="flex-grow h-px bg-gray-700"></div>`;
@@ -2060,9 +2075,9 @@ private getSettingsPage(): Page {
     content: `
       <div class="page-container">
         <h2 class="text-title-lg">Account Settings</h2>
-        
+
         <form id="settings-form" class="settings-grid">
-          
+
           <div class="xl:col-span-2 card-base space-y-6">
             <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-4">Profile Details</h3>
             <div>
@@ -2083,12 +2098,12 @@ private getSettingsPage(): Page {
 
           <div class="xl:col-span-1 card-base flex flex-col items-center">
             <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-4 w-full mb-6">Avatar</h3>
-            
+
             <img id="settings-current-avatar" src="${this.user.avatar}" class="settings-avatar-preview">
 
             <input type="file" id="settings-avatar-file" class="hidden">
             <button type="button" id="settings-choose-avatar-btn" class="btn-secondary w-full">Upload New</button>
-            
+
             <div id="settings-avatar-preview-container" class="hidden w-full mt-4 flex items-center justify-between bg-gray-900 p-2 rounded-lg border border-emerald-500">
                <div class="flex items-center gap-2">
                  <img id="settings-upload-preview" src="" class="w-8 h-8 rounded-full object-cover">
@@ -2099,14 +2114,14 @@ private getSettingsPage(): Page {
 
             <div class="w-full border-t border-gray-700 my-6"></div>
             <p class="text-gray-400 text-sm mb-2">Or select default:</p>
-            
+
             <div id="avatar-options" class="avatar-selection-grid">
                <img src="../images/avatars/1.jpg" class="avatar-thumb" data-value="../images/avatars/1.jpg">
                <img src="../images/avatars/2.jpg" class="avatar-thumb" data-value="../images/avatars/2.jpg">
                <img src="../images/avatars/3.jpg" class="avatar-thumb" data-value="../images/avatars/3.jpg">
                <img src="../images/avatars/4.jpg" class="avatar-thumb" data-value="../images/avatars/4.jpg">
             </div>
-            
+
             <input type="hidden" id="settings-avatar" value="${this.user.avatar}">
           </div>
 
@@ -2118,12 +2133,12 @@ private getSettingsPage(): Page {
 
       const form = document.getElementById('settings-form') as HTMLFormElement;
       const statusDiv = document.getElementById('settings-status') as HTMLDivElement;
-      
+
       // ✅ FIX: Select by '.avatar-thumb' to match HTML/CSS
       const avatarOptions = document.querySelectorAll<HTMLImageElement>(".avatar-thumb");
       const avatarInput = document.getElementById("settings-avatar") as HTMLInputElement;
       const currentAvatarImg = document.getElementById('settings-current-avatar') as HTMLImageElement;
-      
+
       // Upload Elements
       const fileInput = document.getElementById('settings-avatar-file') as HTMLInputElement;
       const chooseBtn = document.getElementById('settings-choose-avatar-btn') as HTMLButtonElement;
@@ -2175,10 +2190,10 @@ private getSettingsPage(): Page {
 
             // Remove selection from defaults
             avatarOptions.forEach(o => o.classList.remove("selected"));
-            
+
             // Update main preview
             if(currentAvatarImg) currentAvatarImg.src = uploadedAvatarPath!;
-            
+
           } catch (error) {
             console.error(error);
             alert('Failed to upload avatar.');
@@ -2210,11 +2225,11 @@ private getSettingsPage(): Page {
             avatarOptions.forEach(o => o.classList.remove("selected"));
             // Add to clicked
             option.classList.add("selected");
-            
+
             // Update hidden input
             const newVal = option.dataset.value || "";
             avatarInput.value = newVal;
-            
+
             // Update visual preview
             currentAvatarImg.src = newVal;
 
@@ -2242,7 +2257,7 @@ private getSettingsPage(): Page {
           if (uploadedAvatarPath) {
             finalAvatar = uploadedAvatarPath;
           } else {
-            finalAvatar = avatarInput.value; 
+            finalAvatar = avatarInput.value;
           }
 
           const updates: any = {};
@@ -2466,7 +2481,7 @@ private getFriendsPage(): Page {
     `,
     init: async () => {
       console.log("👥 Friends page loaded");
-      
+
       // Ensure global socket is connected
       if (!this.globalSocket || !this.globalSocket.connected) {
         console.log('🔌 Global socket not connected, connecting now...');

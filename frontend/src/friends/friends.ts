@@ -540,6 +540,13 @@ export class FriendsManager {
   }
 
   /**
+   * Update block status (called from global app-level listener)
+   */
+  updateBlockStatus(userId: number, isBlocked: boolean): void {
+    this.loadFriends(); // Reload friends list to reflect block status
+  }
+
+  /**
    * Handle friend request from global socket
    */
   async handleFriendRequest(data: any): Promise<void> {

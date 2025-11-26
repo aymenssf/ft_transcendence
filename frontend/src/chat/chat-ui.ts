@@ -20,25 +20,30 @@ export class ChatUI {
    */
   private render(): void {
     this.container.innerHTML = `
-      <div class="flex h-[calc(100vh-8rem)] bg-gray-800/70 backdrop-blur-xl rounded-2xl overflow-hidden border border-gray-700/50 shadow-2xl mt-20">
+      <div class="flex flex-col md:flex-row h-[calc(100vh-8rem)] bg-gray-800/70 backdrop-blur-xl rounded-2xl overflow-hidden border border-gray-700/50 shadow-2xl mt-20">
+        <!-- Mobile Sidebar Toggle -->
+        <button id="mobile-sidebar-toggle" class="md:hidden fixed bottom-4 right-4 z-20 w-14 h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all">
+          <span id="toggle-icon">☰</span>
+        </button>
+
         <!-- Sidebar -->
-        <aside class="w-80 bg-gray-900/50 border-r border-gray-700/50 flex flex-col">
+        <aside id="chat-sidebar" class="w-full md:w-80 lg:w-96 bg-gray-900/50 border-b md:border-b-0 md:border-r border-gray-700/50 flex flex-col flex-shrink-0 max-h-0 md:max-h-full overflow-hidden md:overflow-visible transition-all duration-300 ease-in-out">
           <!-- Search -->
-          <div class="p-4 border-b border-gray-700/50">
-            <h3 class="text-emerald-400 text-lg font-bold mb-3 flex items-center gap-2">
+          <div class="p-3 md:p-4 border-b border-gray-700/50">
+            <h3 class="text-emerald-400 text-base md:text-lg font-bold mb-2 md:mb-3 flex items-center gap-2">
               💬 Chats
             </h3>
             <input
               type="text"
               id="chat-search-input"
-              class="w-full px-4 py-2 bg-gray-800/80 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              class="w-full px-3 md:px-4 py-2 text-sm bg-gray-800/80 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50 transition-all"
               placeholder="Search user..."
             />
           </div>
 
           <!-- Friends Section -->
-          <div class="border-b border-gray-700/50 max-h-[300px] overflow-y-auto">
-            <div class="flex items-center justify-between px-4 py-3 text-gray-400 text-sm font-semibold uppercase">
+          <div class="border-b border-gray-700/50 max-h-[120px] md:max-h-[250px] overflow-y-auto">
+            <div class="flex items-center justify-between px-3 md:px-4 py-2 md:py-3 text-gray-400 text-xs md:text-sm font-semibold uppercase">
               <span>👥 Friends</span>
               <div class="flex gap-2">
                 <button id="friend-requests-btn" class="relative p-1 hover:text-emerald-400 transition-colors" title="Friend Requests">
@@ -55,7 +60,7 @@ export class ChatUI {
 
           <!-- Chat Rooms -->
           <div class="border-b border-gray-700/50 flex-1 overflow-y-auto">
-            <div class="flex items-center justify-between px-4 py-3 text-gray-400 text-sm font-semibold uppercase">
+            <div class="flex items-center justify-between px-3 md:px-4 py-2 md:py-3 text-gray-400 text-xs md:text-sm font-semibold uppercase">
               <span>💬 Rooms</span>
               <button id="create-room-btn" class="p-1 hover:text-emerald-400 transition-colors" title="Create Room">➕</button>
             </div>
@@ -66,58 +71,55 @@ export class ChatUI {
         </aside>
 
         <!-- Main Chat Area -->
-        <main class="flex-1 flex flex-col bg-gray-800/30">
+        <main class="flex-1 flex flex-col bg-gray-800/30 min-h-0">
           <!-- No chat selected -->
-          <div id="no-chat-selected" class="flex-1 flex items-center justify-center">
+          <div id="no-chat-selected" class="flex-1 flex items-center justify-center p-4">
             <div class="text-center">
-              <div class="text-6xl mb-4">💬</div>
-              <h2 class="text-2xl font-bold text-white mb-2">Select a chat</h2>
-              <p class="text-gray-400">Choose a user or room to start messaging</p>
+              <div class="text-4xl md:text-6xl mb-3 md:mb-4">💬</div>
+              <h2 class="text-xl md:text-2xl font-bold text-white mb-2">Select a chat</h2>
+              <p class="text-gray-400 text-sm md:text-base">Choose a user or room to start messaging</p>
             </div>
           </div>
 
           <!-- Active Chat -->
-          <div id="active-chat-container" class="hidden flex-1 flex flex-col">
+          <div id="active-chat-container" class="hidden flex-1 flex-col">
             <!-- Chat Header -->
-            <header class="bg-gray-900/50 border-b border-gray-700/50 px-6 py-4 flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="relative">
-                  <img id="chat-avatar" class="w-12 h-12 rounded-full border-2 border-emerald-500 object-cover" src="" alt="">
-                  <span id="chat-status-dot" class="hidden absolute -bottom-1 -right-1 text-sm">🟢</span>
+            <header class="bg-gray-900/50 border-b border-gray-700/50 px-3 md:px-6 py-3 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+                <div id="chat-avatar-container" class="relative hidden flex-shrink-0">
+                  <img id="chat-avatar" class="w-10 h-10 rounded-full border-2 border-emerald-500 object-cover" src="" alt="">
+                  <span id="chat-status-dot" class="absolute -bottom-1 -right-1 text-sm">🟢</span>
                 </div>
-                <div>
-                  <h3 id="chat-title" class="text-white font-bold text-lg">Chat Title</h3>
+                <div class="min-w-0 flex-1">
+                  <h3 id="chat-title" class="text-white font-bold text-base md:text-lg truncate">Chat Title</h3>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
-                <button id="chat-view-profile-btn" class="hidden px-3 py-2 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-lg transition-colors text-sm">
-                  👤 Profile
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button id="chat-view-profile-btn" class="hidden p-2 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-lg transition-colors" title="Profile">
+                  👤
                 </button>
-                <button id="chat-game-invite-btn" class="hidden px-4 py-2 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 hover:from-emerald-500/30 hover:to-blue-500/30 text-emerald-400 rounded-lg transition-all border border-emerald-500/30 hover:border-emerald-500/50 hover:scale-105 active:scale-95 font-medium text-sm shadow-lg">
-                  <span class="flex items-center gap-2">
-                    <span class="text-lg">🎮</span>
-                    <span>Invite to Game</span>
-                  </span>
+                <button id="chat-game-invite-btn" class="hidden p-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors border border-emerald-500/30" title="Play Game">
+                  🎮
                 </button>
-                <button id="chat-block-user-btn" class="hidden px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm border border-red-500/30">
-                  🚫 Block
+                <button id="chat-block-user-btn" class="hidden p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors border border-red-500/30" title="Block">
+                  🚫
                 </button>
-                <button id="chat-delete-room-btn" class="hidden px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm border border-red-500/30">
-                  🗑️ Delete Room
+                <button id="chat-delete-room-btn" class="hidden p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors border border-red-500/30" title="Delete Room">
+                  🗑️
                 </button>
-                <button id="chat-leave-btn" class="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm border border-red-500/30">
-                  Leave
+                <button id="chat-leave-btn" class="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors border border-red-500/30" title="Leave">
+                  ✖
                 </button>
               </div>
             </header>
 
             <!-- Messages Container -->
-            <div id="messages-container" class="flex-1 overflow-y-auto p-6 space-y-4">
+            <div id="messages-container" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 min-h-0">
               <!-- Messages will be rendered here -->
             </div>
 
             <!-- Typing Indicator -->
-            <div id="typing-indicator" class="hidden px-6 py-2 text-gray-400 text-sm">
+            <div id="typing-indicator" class="hidden px-4 md:px-6 py-2 text-gray-400 text-sm">
               <span class="inline-flex gap-1">
                 <span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></span>
                 <span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
@@ -127,16 +129,18 @@ export class ChatUI {
             </div>
 
             <!-- Message Input -->
-            <div class="bg-gray-900/50 border-t border-gray-700/50 p-4 flex gap-3">
-              <input
-                type="text"
-                id="message-input"
-                class="flex-1 px-4 py-3 bg-gray-800/80 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                placeholder="Type your message..."
-              />
-              <button id="send-message-btn" class="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition-all hover:scale-105 active:scale-95">
-                Send ▶️
-              </button>
+            <div class="bg-gray-900/50 border-t border-gray-700/50 p-3 md:p-4">
+              <div class="flex gap-2 items-center">
+                <input
+                  type="text"
+                  id="message-input"
+                  class="flex-1 px-3 md:px-4 py-2 md:py-2.5 text-sm bg-gray-800/80 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  placeholder="Type message..."
+                />
+                <button id="send-message-btn" class="px-3 md:px-6 py-2 md:py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition-all hover:scale-105 active:scale-95 flex-shrink-0 text-sm">
+                  <span class="hidden sm:inline">Send </span>▶️
+                </button>
+              </div>
             </div>
           </div>
         </main>
@@ -157,6 +161,25 @@ export class ChatUI {
    * Attach event listeners
    */
   private attachEventListeners(): void {
+    // Mobile sidebar toggle
+    const sidebarToggle = document.getElementById('mobile-sidebar-toggle');
+    const sidebar = document.getElementById('chat-sidebar');
+    const toggleIcon = document.getElementById('toggle-icon');
+    let sidebarOpen = false;
+
+    sidebarToggle?.addEventListener('click', () => {
+      sidebarOpen = !sidebarOpen;
+      if (sidebar) {
+        if (sidebarOpen) {
+          sidebar.style.maxHeight = '45vh';
+          if (toggleIcon) toggleIcon.textContent = '✖';
+        } else {
+          sidebar.style.maxHeight = '0';
+          if (toggleIcon) toggleIcon.textContent = '☰';
+        }
+      }
+    });
+
     // Message send
     const sendBtn = document.getElementById('send-message-btn');
     const messageInput = document.getElementById('message-input') as HTMLInputElement;
@@ -477,16 +500,18 @@ export class ChatUI {
     }
 
     container.innerHTML = users.map(user => `
-      <div class="bg-gray-700/50 rounded-lg p-3 flex items-center gap-3">
-        <img class="w-10 h-10 rounded-full border-2 border-gray-600 object-cover" src="${user.avatar || '/images/avatars/1.jpg'}" alt="${user.username}">
-        <div class="flex-1">
-          <div class="text-white font-medium">${this.escapeHtml(user.username)}</div>
+      <div class="bg-gray-700/50 rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <img class="w-10 h-10 rounded-full border-2 border-gray-600 object-cover flex-shrink-0" src="${user.avatar || '/images/avatars/1.jpg'}" alt="${user.username}">
+          <div class="flex-1 min-w-0">
+            <div class="text-white font-medium truncate">${this.escapeHtml(user.username)}</div>
+          </div>
         </div>
-        <div class="flex gap-2">
-          <button class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm" data-action="send-request" data-username="${user.username}">
+        <div class="flex gap-2 w-full sm:w-auto sm:ml-auto">
+          <button class="flex-1 sm:flex-none px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm whitespace-nowrap" data-action="send-request" data-username="${user.username}">
             ➕ Add
           </button>
-          <button class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm" data-action="block-user" data-user-id="${user.id}" title="Block">
+          <button class="flex-1 sm:flex-none px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm whitespace-nowrap" data-action="block-user" data-user-id="${user.id}" title="Block">
             🚫 Block
           </button>
         </div>
@@ -927,7 +952,9 @@ export class ChatUI {
     const activeChat = document.getElementById('active-chat-container');
 
     if (noChat) noChat.style.display = show ? 'none' : 'flex';
-    if (activeChat) activeChat.classList.toggle('hidden', !show);
+    if (activeChat) {
+      activeChat.style.display = show ? 'flex' : 'none';
+    }
   }
 
   /**
@@ -936,31 +963,23 @@ export class ChatUI {
   setChatTitle(title: string, targetUserId?: number, roomType?: 'public' | 'private' | 'protected', roomOwnerId?: number, currentUserId?: number, avatarUrl?: string, isBlocked?: boolean, userStatus?: 'online' | 'offline'): void {
     const chatTitle = document.getElementById('chat-title');
     const chatAvatar = document.getElementById('chat-avatar') as HTMLImageElement;
+    const avatarContainer = document.getElementById('chat-avatar-container');
     const statusDot = document.getElementById('chat-status-dot');
 
     if (chatTitle) {
       chatTitle.textContent = title;
     }
 
-    // Handle avatar visibility and source
-    if (chatAvatar) {
+    // Handle avatar container visibility
+    if (avatarContainer && chatAvatar && statusDot) {
       if (roomType === 'private' && avatarUrl) {
-        // Private chat - show user avatar
+        // Private chat - show avatar container with status
         chatAvatar.src = avatarUrl;
-        chatAvatar.classList.remove('hidden');
-      } else {
-        // Public/Protected room - hide avatar
-        chatAvatar.classList.add('hidden');
-      }
-    }
-
-    // Handle status dot
-    if (statusDot) {
-      if (roomType === 'private') {
-        statusDot.classList.remove('hidden');
+        avatarContainer.classList.remove('hidden');
         statusDot.textContent = userStatus === 'online' ? '🟢' : '⚫';
       } else {
-        statusDot.classList.add('hidden');
+        // Public/Protected room - hide entire avatar container
+        avatarContainer.classList.add('hidden');
       }
     }
 
@@ -994,6 +1013,7 @@ export class ChatUI {
         if (isBlocked) {
           blockBtn.innerHTML = '✓ Unblock';
           blockBtn.setAttribute('data-action', 'unblock');
+          blockBtn.className = 'px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors text-sm border border-emerald-500/30';
         } else {
           blockBtn.innerHTML = '🚫 Block';
           blockBtn.setAttribute('data-action', 'block');
@@ -1012,13 +1032,16 @@ export class ChatUI {
    */
   updateBlockButtonStatus(userId: number, isBlocked: boolean): void {
     const blockBtn = document.getElementById('chat-block-user-btn');
+
     if (blockBtn && blockBtn.getAttribute('data-user-id') === userId.toString()) {
       if (isBlocked) {
         blockBtn.innerHTML = '✓ Unblock';
         blockBtn.setAttribute('data-action', 'unblock');
+        blockBtn.className = 'px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors text-sm border border-emerald-500/30';
       } else {
         blockBtn.innerHTML = '🚫 Block';
         blockBtn.setAttribute('data-action', 'block');
+        blockBtn.className = 'px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm border border-red-500/30';
       }
     }
   }

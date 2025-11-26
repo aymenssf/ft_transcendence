@@ -14,6 +14,7 @@ export class ChatManager {
   private authToken: string | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  private cachedBlockStatuses: Map<number, boolean> = new Map(); // Cache block statuses
 
   constructor(containerId: string) {
     this.ui = new ChatUI(containerId);
@@ -26,7 +27,6 @@ export class ChatManager {
 
     try {
       this.setupUIHandlers();
-      this.setupBlockSyncListener();
 
       await this.loadFriends();
       await this.loadFriendRequests();
@@ -182,13 +182,6 @@ export class ChatManager {
     } catch (error) {
       console.error('Error handling socket message:', error);
     }
-  }
-
-  private setupBlockSyncListener(): void {
-    window.addEventListener('user-blocked', ((event: CustomEvent) => {
-      const { userId, isBlocked } = event.detail;
-      this.ui.updateBlockButtonStatus(userId, isBlocked);
-    }) as EventListener);
   }
 
   private setupUIHandlers(): void {
@@ -449,11 +442,18 @@ export class ChatManager {
             : 'offline';
 
           if (targetUserId) {
-            try {
-              const blockedUsers = await this.api.getBlockedUsers();
-              isBlocked = blockedUsers.some((u: any) => u.id === targetUserId);
-            } catch (error) {
-              console.error('Failed to check block status:', error);
+            // Check cached block status first (from pending updates)
+            if (this.cachedBlockStatuses.has(targetUserId)) {
+              isBlocked = this.cachedBlockStatuses.get(targetUserId) || false;
+            } else {
+              // Fall back to API if not cached
+              try {
+                const blockedUsers = await this.api.getBlockedUsers();
+                isBlocked = blockedUsers.some((u: any) => u.id === targetUserId);
+                this.cachedBlockStatuses.set(targetUserId, isBlocked);
+              } catch (error) {
+                console.error('Failed to check block status:', error);
+              }
             }
           }
         }
@@ -678,6 +678,8 @@ export class ChatManager {
       await this.api.blockUser(userId);
       this.ui.showSuccess('User blocked successfully');
 
+      // Cache the block status
+      this.cachedBlockStatuses.set(userId, true);
       this.ui.updateBlockButtonStatus(userId, true);
 
       await this.loadFriends();
@@ -693,6 +695,8 @@ export class ChatManager {
       await this.api.unblockUser(userId);
       this.ui.showSuccess('User unblocked successfully');
 
+      // Cache the block status
+      this.cachedBlockStatuses.set(userId, false);
       this.ui.updateBlockButtonStatus(userId, false);
 
       await this.loadFriends();
@@ -736,6 +740,17 @@ export class ChatManager {
 
   handleFriendStatusChange(userId: number, status: 'online' | 'offline'): void {
     this.ui.updateFriendStatus(userId, status);
+  }
+
+  /**
+   * Update block status (called from global app-level listener)
+   */
+  updateBlockStatus(userId: number, isBlocked: boolean): void {
+    // Cache the block status
+    this.cachedBlockStatuses.set(userId, isBlocked);
+
+    this.ui.updateBlockButtonStatus(userId, isBlocked);
+    this.loadFriends(); // Reload friends list
   }
 
   async handleFriendRequest(data: any): Promise<void> {

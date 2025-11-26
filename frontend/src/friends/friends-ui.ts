@@ -17,32 +17,34 @@ export class FriendsUI {
     this.container.innerHTML = `
       <div class="flex flex-col h-[calc(100vh-8rem)] bg-gray-800/70 backdrop-blur-xl rounded-2xl overflow-hidden border border-gray-700/50 shadow-2xl mt-20">
         <!-- Header -->
-        <div class="bg-gray-900/50 border-b border-gray-700/50 p-6">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-3xl font-bold text-emerald-400">👥 Friends</h2>
-            <div class="flex items-center gap-3">
-              <button id="friend-requests-btn" class="relative px-4 py-2 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-lg transition-colors flex items-center gap-2" title="Friend Requests">
-                📬 Requests
+        <div class="bg-gray-900/50 border-b border-gray-700/50 p-3 md:p-6">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 md:mb-4">
+            <h2 class="text-2xl md:text-3xl font-bold text-emerald-400">👥 Friends</h2>
+            <div class="flex items-center gap-2 md:gap-3 flex-wrap">
+              <button id="friend-requests-btn" class="relative px-3 py-1.5 md:px-4 md:py-2 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-lg transition-colors flex items-center gap-1 md:gap-2 text-xs md:text-sm" title="Friend Requests">
+                <span class="hidden sm:inline">📬 Requests</span>
+                <span class="sm:hidden">📬</span>
                 <span id="friend-requests-badge" class="hidden bg-red-500 text-white text-xs rounded-full px-2 py-0.5">0</span>
               </button>
-              <button id="add-friend-btn" class="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors border border-emerald-500/30 flex items-center gap-2" title="Add Friend">
-                ➕ Add Friend
+              <button id="add-friend-btn" class="px-3 py-1.5 md:px-4 md:py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors border border-emerald-500/30 flex items-center gap-1 md:gap-2 text-xs md:text-sm" title="Add Friend">
+                <span class="hidden sm:inline">➕ Add Friend</span>
+                <span class="sm:hidden">➕</span>
               </button>
             </div>
           </div>
-          
+
           <!-- Search -->
           <input
             type="text"
             id="friends-search-input"
-            class="w-full px-4 py-2 bg-gray-800/80 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50 transition-all"
+            class="w-full px-3 md:px-4 py-2 text-sm md:text-base bg-gray-800/80 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50 transition-all"
             placeholder="Search friends..."
           />
         </div>
 
         <!-- Friends List -->
-        <div class="flex-1 overflow-y-auto p-6">
-          <div id="friends-list-container" class="space-y-3">
+        <div class="flex-1 overflow-y-auto p-3 md:p-6">
+          <div id="friends-list-container" class="space-y-2 md:space-y-3">
             <!-- Friends will be rendered here -->
             <div class="text-center text-gray-400 py-12">
               <div class="text-5xl mb-4">👥</div>
@@ -89,7 +91,7 @@ export class FriendsUI {
     if (!container) return;
 
     let friends = this.allFriends;
-    
+
     console.log('🔍 Filtering friends list, total friends:', friends.length);
     friends.forEach(f => {
       console.log(`   → ${f.username}: status = ${f.status}`);
@@ -138,54 +140,59 @@ export class FriendsUI {
         const isBlocked = blockedUserIds.includes(friend.id);
 
         return `
-          <div class="bg-gray-800/50 hover:bg-gray-700/50 rounded-xl p-4 transition-all border border-gray-700/50 hover:border-emerald-500/30 group">
-            <div class="flex items-center gap-4">
-              <div class="relative">
-                <img 
-                  class="w-16 h-16 rounded-full border-2 ${isOnline ? 'border-emerald-500' : 'border-gray-600'} object-cover cursor-pointer hover:opacity-80 transition-opacity" 
-                  src="${friend.avatar || '/images/avatars/1.jpg'}" 
-                  alt="${friend.username}"
-                  onerror="this.src='/images/avatars/1.jpg'"
-                  data-action="view-profile"
+          <div class="bg-gray-800/50 hover:bg-gray-700/50 rounded-xl p-3 md:p-4 transition-all border border-gray-700/50 hover:border-emerald-500/30 group">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+              <div class="flex items-center gap-3 w-full sm:w-auto">
+                <div class="relative">
+                  <img
+                    class="w-12 h-12 md:w-16 md:h-16 rounded-full border-2 ${isOnline ? 'border-emerald-500' : 'border-gray-600'} object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                    src="${friend.avatar || '/images/avatars/1.jpg'}"
+                    alt="${friend.username}"
+                    onerror="this.src='/images/avatars/1.jpg'"
+                    data-action="view-profile"
+                    data-user-id="${friend.id}"
+                    title="View Profile"
+                  >
+                  <span class="absolute bottom-0 right-0 text-sm md:text-lg">${statusDot}</span>
+                </div>
+
+                <div class="flex-1 min-w-0">
+                  <div class="text-white font-semibold text-base md:text-lg truncate">${this.escapeHtml(friend.username)}</div>
+                  <div class="${statusColor} text-xs md:text-sm font-medium">${statusText}</div>
+                </div>
+              </div>
+
+              <div class="flex gap-1.5 md:gap-2 flex-wrap w-full sm:w-auto sm:ml-auto">
+                <button
+                  class="px-2 py-1.5 md:px-4 md:py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors border border-emerald-500/30 flex items-center gap-1 text-xs md:text-sm font-medium whitespace-nowrap"
+                  data-action="invite-game"
                   data-user-id="${friend.id}"
-                  title="View Profile"
+                  title="Play Game"
                 >
-                <span class="absolute bottom-0 right-0 text-lg">${statusDot}</span>
-              </div>
-              
-              <div class="flex-1 min-w-0">
-                <div class="text-white font-semibold text-lg truncate">${this.escapeHtml(friend.username)}</div>
-                <div class="${statusColor} text-sm font-medium">${statusText}</div>
-              </div>
-              
-              <div class="flex gap-2">
-                <button 
-                  class="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors border border-emerald-500/30 flex items-center gap-1 text-sm font-medium" 
-                  data-action="invite-game" 
-                  data-user-id="${friend.id}" 
-                  title="Invite to Game"
-                >
-                  🎮 Game
+                  <span class="hidden sm:inline">🎮 Game</span>
+                  <span class="sm:hidden">🎮</span>
                 </button>
-                <button 
-                  class="px-4 py-2 bg-gray-500/20 hover:bg-gray-500/30 text-gray-400 rounded-lg transition-colors border border-gray-500/30 flex items-center gap-1 text-sm font-medium" 
-                  data-action="remove-friend" 
-                  data-user-id="${friend.id}" 
+                <button
+                  class="px-2 py-1.5 md:px-4 md:py-2 bg-gray-500/20 hover:bg-gray-500/30 text-gray-400 rounded-lg transition-colors border border-gray-500/30 flex items-center gap-1 text-xs md:text-sm font-medium whitespace-nowrap"
+                  data-action="remove-friend"
+                  data-user-id="${friend.id}"
                   title="Remove Friend"
                 >
-                  ❌ Remove
+                  <span class="hidden sm:inline">❌ Remove</span>
+                  <span class="sm:hidden">❌</span>
                 </button>
-                <button 
-                  class="px-4 py-2 rounded-lg transition-colors border flex items-center gap-1 text-sm font-medium ${
-                    isBlocked 
-                      ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30' 
+                <button
+                  class="px-2 py-1.5 md:px-4 md:py-2 rounded-lg transition-colors border flex items-center gap-1 text-xs md:text-sm font-medium whitespace-nowrap ${
+                    isBlocked
+                      ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30'
                       : 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30'
-                  }" 
-                  data-action="${isBlocked ? 'unblock' : 'block'}-user" 
-                  data-user-id="${friend.id}" 
+                  }"
+                  data-action="${isBlocked ? 'unblock' : 'block'}-user"
+                  data-user-id="${friend.id}"
                   title="${isBlocked ? 'Unblock' : 'Block'}"
                 >
-                  ${isBlocked ? '✓ Unblock' : '🚫 Block'}
+                  <span class="hidden sm:inline">${isBlocked ? '✓ Unblock' : '🚫 Block'}</span>
+                  <span class="sm:hidden">${isBlocked ? '✓' : '🚫'}</span>
                 </button>
               </div>
             </div>
@@ -280,9 +287,9 @@ export class FriendsUI {
             </div>
           ` : requests.map(req => `
             <div class="bg-gray-700/50 rounded-lg p-4 flex items-center gap-3">
-              <img 
-                class="w-12 h-12 rounded-full border-2 border-emerald-500 object-cover" 
-                src="${req.sender?.avatar || '/images/avatars/1.jpg'}" 
+              <img
+                class="w-12 h-12 rounded-full border-2 border-emerald-500 object-cover"
+                src="${req.sender?.avatar || '/images/avatars/1.jpg'}"
                 alt="${req.sender?.username}"
                 onerror="this.src='/images/avatars/1.jpg'"
               >
@@ -291,16 +298,16 @@ export class FriendsUI {
                 <div class="text-gray-400 text-sm">Wants to be friends</div>
               </div>
               <div class="flex gap-2">
-                <button 
-                  class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium" 
-                  data-action="accept-request" 
+                <button
+                  class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium"
+                  data-action="accept-request"
                   data-request-id="${req.id}"
                 >
                   ✓ Accept
                 </button>
-                <button 
-                  class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm font-medium" 
-                  data-action="decline-request" 
+                <button
+                  class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm font-medium"
+                  data-action="decline-request"
                   data-request-id="${req.id}"
                 >
                   ✗ Decline
@@ -384,7 +391,7 @@ export class FriendsUI {
         return;
       }
 
-      const filtered = users.filter(u => 
+      const filtered = users.filter(u =>
         u.username.toLowerCase().includes(query) && u.id !== this.currentUserId
       );
       this.renderAddFriendResults(filtered);
@@ -402,18 +409,18 @@ export class FriendsUI {
 
     container.innerHTML = users.map(user => `
       <div class="bg-gray-700/50 rounded-lg p-3 flex items-center gap-3">
-        <img 
-          class="w-10 h-10 rounded-full border-2 border-gray-600 object-cover" 
-          src="${user.avatar || '/images/avatars/1.jpg'}" 
+        <img
+          class="w-10 h-10 rounded-full border-2 border-gray-600 object-cover"
+          src="${user.avatar || '/images/avatars/1.jpg'}"
           alt="${user.username}"
           onerror="this.src='/images/avatars/1.jpg'"
         >
         <div class="flex-1">
           <div class="text-white font-medium">${this.escapeHtml(user.username)}</div>
         </div>
-        <button 
-          class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium" 
-          data-action="send-request" 
+        <button
+          class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium"
+          data-action="send-request"
           data-username="${user.username}"
         >
           ➕ Add
@@ -457,8 +464,8 @@ export class FriendsUI {
     const notification = document.createElement('div');
     notification.id = 'friends-notification';
     notification.className = `fixed top-24 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
-      type === 'success' 
-        ? 'bg-emerald-500 text-white' 
+      type === 'success'
+        ? 'bg-emerald-500 text-white'
         : 'bg-red-500 text-white'
     }`;
     notification.textContent = message;
@@ -487,11 +494,11 @@ export class FriendsUI {
           'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch user profile');
       }
-      
+
       const data = await response.json();
       const profile = data.user || data;
 
@@ -562,7 +569,7 @@ export class FriendsUI {
 
       document.getElementById('close-profile-modal')?.addEventListener('click', () => modal.remove());
       document.getElementById('profile-close-btn')?.addEventListener('click', () => modal.remove());
-      
+
     } catch (error) {
       console.error('Failed to load user profile:', error);
       this.showError('Failed to load profile');

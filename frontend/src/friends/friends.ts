@@ -462,30 +462,15 @@ export class FriendsManager {
   }
 
   /**
-   * Handle game invitation (called from main.ts)
-   */
-  public handleGameInvitation(data: any): void {
-    this.showGameInvitation(data);
-  }
-
-  /**
    * Handle when your game invitation is accepted by the other user
    */
-  public handleGameInviteAccepted(data: any): void {
+  private handleGameInviteAccepted(data: any): void {
     console.log('🎉 Game invitation accepted! Room:', data.gameRoomId);
     this.ui.showSuccess('Your invitation was accepted! Redirecting to game...');
     
     setTimeout(() => {
       window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
     }, 1000);
-  }
-
-  /**
-   * Handle when your game invitation is declined by the other user
-   */
-  public handleGameInviteDeclined(data: any): void {
-    console.log('❌ Game invitation declined:', data);
-    this.ui.showError('Your game invitation was declined');
   }
 
   /**

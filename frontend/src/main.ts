@@ -2357,7 +2357,7 @@ private getDashboardPage(): Page {
         </div>
         <div class="card-base">
           <h2 class="text-2xl font-bold text-white mb-6 border-b border-gray-700 pb-4">Match History</h2>
-          <div id="match-history">Loading...</div>
+          <div id="match-history" class="max-h-[600px] overflow-y-auto pr-2 space-y-3" style="scrollbar-width: thin; scrollbar-color: #374151 #111827;">Loading...</div>
         </div>
       </div>
     `,

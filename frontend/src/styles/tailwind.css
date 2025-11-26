@@ -176,4 +176,14 @@
   .game-player-right {
     @apply absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 flex flex-col items-center gap-2 z-20;
   }
+
+  .match-item {
+    @apply bg-gray-800/60 border border-gray-700 rounded-xl p-4 transition-all hover:bg-gray-700/60 hover:border-gray-600;
+  }
+  .match-item.win {
+    @apply border-l-4 border-l-emerald-500 bg-emerald-500/5;
+  }
+  .match-item.loss {
+    @apply border-l-4 border-l-red-500 bg-red-500/5;
+  }
 }

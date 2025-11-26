@@ -529,7 +529,7 @@ export class ChatManager {
     console.log(`User ${data.username} left`);
   }
 
-  private handleGameInvitation(data: GameInvite): void {
+  public handleGameInvitation(data: GameInvite): void {
     this.ui.showGameInviteNotification(data);
   }
 
@@ -644,13 +644,18 @@ export class ChatManager {
     }
   }
 
-  private handleGameInviteAccepted(data: any): void {
+  public handleGameInviteAccepted(data: any): void {
     console.log('🎉 Game invitation accepted! Room:', data.gameRoomId);
     this.ui.showSuccess('Your invitation was accepted! Redirecting to game...');
     
     setTimeout(() => {
       window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
     }, 1000);
+  }
+
+  public handleGameInviteDeclined(data: any): void {
+    console.log('❌ Game invitation declined:', data);
+    this.ui.showError('Your game invitation was declined');
   }
 
   private escapeHtml(text: string): string {

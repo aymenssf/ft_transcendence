@@ -462,33 +462,6 @@ export function handleGameConfig(msg: any, userId: number, startButtonId: string
   }
 }
 
-// function startCanvasCountdown(
-//   ctx: CanvasRenderingContext2D,
-//   canvas: HTMLCanvasElement
-// ): Promise<void> {
-//   return new Promise((resolve) => {
-
-//     ctx.clearRect(0, 0, canvas.width, canvas.height);
-//     ctx.fillStyle = "white";
-//     ctx.font = "bold 80px Arial";
-//     ctx.textAlign = "center";
-//     ctx.fillText("READY", canvas.width / 2, canvas.height / 2);
-
-//     setTimeout(() => {
-
-//       ctx.clearRect(0, 0, canvas.width, canvas.height);
-//       ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
-
-//       setTimeout(() => {
-//         ctx.clearRect(0, 0, canvas.width, canvas.height);
-//         resolve();
-//       }, 2000);
-
-//     }, 1000);
-
-//   });
-// }
-
 
 export function createLocalGameListener(userId: number): (msg: any) => void {
   return (msg: any) => {

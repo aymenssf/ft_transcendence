@@ -142,10 +142,13 @@ export class FriendsUI {
             <div class="flex items-center gap-4">
               <div class="relative">
                 <img 
-                  class="w-16 h-16 rounded-full border-2 ${isOnline ? 'border-emerald-500' : 'border-gray-600'} object-cover" 
+                  class="w-16 h-16 rounded-full border-2 ${isOnline ? 'border-emerald-500' : 'border-gray-600'} object-cover cursor-pointer hover:opacity-80 transition-opacity" 
                   src="${friend.avatar || '/images/avatars/1.jpg'}" 
                   alt="${friend.username}"
                   onerror="this.src='/images/avatars/1.jpg'"
+                  data-action="view-profile"
+                  data-user-id="${friend.id}"
+                  title="View Profile"
                 >
                 <span class="absolute bottom-0 right-0 text-lg">${statusDot}</span>
               </div>
@@ -191,6 +194,14 @@ export class FriendsUI {
       }).join('');
 
     // Attach event handlers
+    container.querySelectorAll('[data-action="view-profile"]').forEach(img => {
+      img.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const userId = parseInt((e.target as HTMLElement).dataset.userId || '0');
+        this.showUserProfile(userId);
+      });
+    });
+
     container.querySelectorAll('[data-action="invite-game"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -463,6 +474,99 @@ export class FriendsUI {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  /**
+   * Show user profile modal
+   */
+  async showUserProfile(userId: number): Promise<void> {
+    try {
+      // Fetch profile data
+      const response = await fetch(`/chat/api/users/${userId}/profile`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch user profile');
+      }
+      
+      const data = await response.json();
+      const profile = data.user || data;
+
+      // Remove any existing modal
+      const existingModal = document.getElementById('user-profile-modal');
+      if (existingModal) existingModal.remove();
+
+      // Format date
+      const joinDate = new Date(profile.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      // Create modal
+      const modal = document.createElement('div');
+      modal.id = 'user-profile-modal';
+      modal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 border border-gray-700 shadow-2xl">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-2xl font-bold text-emerald-400">Friend Profile</h3>
+            <button id="close-profile-modal" class="text-gray-400 hover:text-white text-2xl">×</button>
+          </div>
+
+          <div class="flex flex-col items-center mb-6">
+            <img
+              src="${profile.avatar || '/images/avatars/1.jpg'}"
+              alt="${profile.username}"
+              class="w-32 h-32 rounded-full border-4 border-emerald-500/50 mb-4 object-cover"
+              onerror="this.src='/images/avatars/1.jpg'"
+            />
+            <h4 class="text-2xl font-bold text-white mb-1">${this.escapeHtml(profile.username)}</h4>
+            ${profile.is_42_user ? '<span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full border border-blue-500/30">42 Student</span>' : ''}
+          </div>
+
+          <div class="space-y-3 bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400">Username:</span>
+              <span class="text-white font-medium">${this.escapeHtml(profile.username)}</span>
+            </div>
+            ${profile.usernameTournament ? `
+              <div class="flex justify-between items-center">
+                <span class="text-gray-400">Tournament Name:</span>
+                <span class="text-white font-medium">${this.escapeHtml(profile.usernameTournament)}</span>
+              </div>
+            ` : ''}
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400">Member Since:</span>
+              <span class="text-white font-medium">${joinDate}</span>
+            </div>
+          </div>
+
+          <div class="mt-6 flex gap-2">
+            <button id="profile-close-btn" class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+              Close
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      // Close handlers
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+      });
+
+      document.getElementById('close-profile-modal')?.addEventListener('click', () => modal.remove());
+      document.getElementById('profile-close-btn')?.addEventListener('click', () => modal.remove());
+      
+    } catch (error) {
+      console.error('Failed to load user profile:', error);
+      this.showError('Failed to load profile');
+    }
   }
 
   onGameInvite(handler: (userId: number) => void): void {

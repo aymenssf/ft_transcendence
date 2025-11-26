@@ -5,7 +5,21 @@ export async function friendsRoutes(app: FastifyInstance) {
     try {
       const userId = request.user.id;
       const friends = await app.db.getFriends(userId);
-      return { friends };
+      
+      // Enrich friends with real-time online status
+      const { onlineUsers } = await import('../socket/handler.js');
+      const enrichedFriends = friends.map((friend: any) => ({
+        ...friend,
+        // Override database status with real-time status from socket
+        status: onlineUsers.has(friend.id) ? 'online' : 'offline'
+      }));
+      
+      app.log.info(`User ${userId} fetched ${enrichedFriends.length} friends`);
+      enrichedFriends.forEach((f: any) => {
+        app.log.info(`  → Friend ${f.username} (${f.id}): status=${f.status}, inOnlineUsers=${onlineUsers.has(f.id)}`);
+      });
+      
+      return { friends: enrichedFriends };
     } catch (error: any) {
       app.log.error('Error fetching friends:', error);
       reply.status(500).send({ message: 'Failed to fetch friends', error: error.message });

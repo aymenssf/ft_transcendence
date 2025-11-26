@@ -645,12 +645,21 @@ export class ChatManager {
   }
 
   private handleGameInviteAccepted(data: any): void {
-    console.log('🎉 Game invitation accepted! Room:', data.gameRoomId);
+    console.log('🎉 [ChatManager] Game invitation accepted! Room:', data.gameRoomId);
+    console.log('   → Full data:', JSON.stringify(data, null, 2));
+    
+    if (!data.gameRoomId) {
+      console.error('❌ No gameRoomId in accepted invite data!');
+      this.ui.showError('Failed to get game room ID');
+      return;
+    }
+    
     this.ui.showSuccess('Your invitation was accepted! Redirecting to game...');
     
+    console.log(`🎮 Redirecting sender to: /dashboard/game/remote?room=${data.gameRoomId}`);
     setTimeout(() => {
       window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
-    }, 1000);
+    }, 500);
   }
 
   private escapeHtml(text: string): string {

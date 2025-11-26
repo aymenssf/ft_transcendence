@@ -36,9 +36,20 @@ export class FriendsManager {
       if (globalSocket) {
         this.socket = globalSocket;
         console.log('✅ Friends Manager using global socket');
+        console.log('   → Socket connected:', globalSocket.connected);
+        console.log('   → Socket ID:', globalSocket.id);
         
-        // Setup listeners on the global socket
-        this.setupSocketListeners();
+        // Verify socket is connected, if not, wait for connection
+        if (!globalSocket.connected) {
+          console.warn('⚠️ Socket not connected yet, waiting for connection...');
+          globalSocket.once('connect', () => {
+            console.log('✅ Socket connected, setting up listeners now');
+            this.setupSocketListeners();
+          });
+        } else {
+          // Setup listeners immediately if already connected
+          this.setupSocketListeners();
+        }
       } else {
         console.warn('⚠️ No global socket provided to FriendsManager');
       }
@@ -61,6 +72,8 @@ export class FriendsManager {
     }
 
     console.log('📡 Setting up FriendsManager socket listeners');
+    console.log('   → Socket connected:', this.socket.connected);
+    console.log('   → Socket ID:', this.socket.id);
 
     // Clean up any existing listeners first to prevent duplicates
     this.cleanupSocketListeners();
@@ -120,9 +133,12 @@ export class FriendsManager {
       this.showGameInvitation(data);
     });
 
-    // Listen for game invite accepted
+    // Listen for game invite accepted - THIS IS CRITICAL FOR THE SENDER
     this.socket.on('game-invite-accepted', (data: any) => {
-      console.log('✅ [FriendsManager Socket] Game invite accepted:', data);
+      console.log('✅ [FriendsManager Socket] Game invite accepted event received!');
+      console.log('   → Data:', JSON.stringify(data, null, 2));
+      console.log('   → Game Room ID:', data.gameRoomId);
+      console.log('   → Current User ID:', this.currentUser?.id);
       this.handleGameInviteAccepted(data);
     });
 
@@ -133,6 +149,18 @@ export class FriendsManager {
     });
 
     console.log('✅ FriendsManager socket listeners registered');
+    console.log('   → Registered listeners:', [
+      'friend-status-change',
+      'friend-request', 
+      'friend-request-sent',
+      'friend-request-updated',
+      'friend-added',
+      'friend-removed',
+      'user-status-change',
+      'game-invitation',
+      'game-invite-accepted',
+      'game-invite-declined'
+    ]);
   }
 
   /**
@@ -203,6 +231,14 @@ export class FriendsManager {
   private async loadFriends(): Promise<void> {
     try {
       const friends = await this.api.getFriends();
+      console.log('📋 Loaded friends from API:', friends);
+      console.log('   → Friend statuses:', friends.map(f => `${f.username}: ${f.status || 'undefined'}`));
+      
+      // Log each friend's status for debugging
+      friends.forEach(friend => {
+        console.log(`   → Friend ${friend.username} (ID: ${friend.id}): status = ${friend.status}`);
+      });
+      
       this.ui.renderFriendsList(friends, this.currentUser?.id || 0);
     } catch (error) {
       console.error('Failed to load friends:', error);
@@ -408,6 +444,8 @@ export class FriendsManager {
    */
   private async acceptGameInvitation(invitationId: number): Promise<void> {
     try {
+      console.log(`🎮 Accepting game invitation ${invitationId}...`);
+      
       const response = await fetch('/chat/api/game/accept', {
         method: 'POST',
         headers: {
@@ -423,12 +461,20 @@ export class FriendsManager {
       }
 
       const data = await response.json();
+      console.log('✅ Game invitation accepted, response:', data);
+      console.log(`   → Game room ID: ${data.gameRoomId}`);
+      
+      if (!data.gameRoomId) {
+        throw new Error('No game room ID received');
+      }
+      
       this.ui.showSuccess('Redirecting to game...');
       
-      // Redirect to game with room ID
+      // Redirect receiver to game with room ID
+      console.log(`🎮 Redirecting receiver to: /dashboard/game/remote?room=${data.gameRoomId}`);
       setTimeout(() => {
         window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
-      }, 1000);
+      }, 500);
     } catch (error) {
       console.error('Failed to accept game invitation:', error);
       this.ui.showError((error as Error).message || 'Failed to accept game invitation');
@@ -466,11 +512,21 @@ export class FriendsManager {
    */
   private handleGameInviteAccepted(data: any): void {
     console.log('🎉 Game invitation accepted! Room:', data.gameRoomId);
+    console.log('Full data received:', data);
+    
+    if (!data.gameRoomId) {
+      console.error('❌ No gameRoomId in accepted invite data!');
+      this.ui.showError('Failed to get game room ID');
+      return;
+    }
+    
     this.ui.showSuccess('Your invitation was accepted! Redirecting to game...');
     
+    // Redirect immediately to ensure the sender joins the game
+    console.log(`🎮 Redirecting sender to: /dashboard/game/remote?room=${data.gameRoomId}`);
     setTimeout(() => {
       window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
-    }, 1000);
+    }, 500);
   }
 
   /**

@@ -89,6 +89,11 @@ export class FriendsUI {
     if (!container) return;
 
     let friends = this.allFriends;
+    
+    console.log('🔍 Filtering friends list, total friends:', friends.length);
+    friends.forEach(f => {
+      console.log(`   → ${f.username}: status = ${f.status}`);
+    });
 
     if (query) {
       friends = friends.filter(friend =>
@@ -126,6 +131,7 @@ export class FriendsUI {
     container.innerHTML = friends
       .map(friend => {
         const isOnline = friend.status === 'online';
+        console.log(`   → Rendering ${friend.username}: status='${friend.status}', isOnline=${isOnline}`);
         const statusDot = isOnline ? '🟢' : '⚫';
         const statusText = isOnline ? 'Online' : 'Offline';
         const statusColor = isOnline ? 'text-emerald-400' : 'text-gray-500';

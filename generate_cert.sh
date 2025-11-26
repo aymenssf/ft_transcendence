@@ -4,19 +4,12 @@ set -e
 CERT_DIR="./frontend/certs"
 mkdir -p "$CERT_DIR"
 
-# 1) Get machine IP (macOS compatible)
-# Try to get the IP from the default network interface
-if command -v ipconfig &> /dev/null; then
-  # macOS: get IP from default route interface
-  DEFAULT_IFACE=$(route -n get default 2>/dev/null | awk '/interface:/ {print $2}')
-  if [ -n "$DEFAULT_IFACE" ]; then
-    IP=$(ipconfig getifaddr "$DEFAULT_IFACE" 2>/dev/null)
-  fi
-fi
+# 1) Get machine IP (pick first non-loopback IPv4)
+IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')
 
-# Fallback: try ifconfig parsing
 if [ -z "$IP" ]; then
-  IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -n 1)
+  # fallback: hostname -I
+  IP=$(hostname -I | awk '{print $1}')
 fi
 
 if [ -z "$IP" ]; then
@@ -46,9 +39,9 @@ EOF
 
 VALUE="FRONTEND_URL=https://$IP:8080"
 
-# If key exists → replace (macOS compatible)
+# If key exists → replace
 if grep -q "^FRONTEND_URL=" ".env"; then
-  sed -i '' "s|^FRONTEND_URL=.*|$VALUE|" ".env"
+  sed -i "s|^FRONTEND_URL=.*|$VALUE|" ".env"
 else
   # Otherwise append
   echo "$VALUE" >> ".env"

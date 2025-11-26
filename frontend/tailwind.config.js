@@ -11,6 +11,9 @@ module.exports = {
           body: ['"Elms Sans"', 'sans-serif'],
           heading: ['"Merriweather"', 'serif'],
       },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+      }
     },
   },
   plugins: [],

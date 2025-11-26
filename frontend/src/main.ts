@@ -670,7 +670,7 @@ private renderDashboardLayout(): void {
 
   this.contentContainer = document.querySelector('#dashboard-main-content .content-wrapper');
   this.setupDashboardEvents();
-  this.updateActiveNavLink(); // Highlight current page
+    this.updateActiveNavLink(); // Highlight current page
 }
 
 private renderNavLink(href: string, icon: string, text: string): string {
@@ -692,7 +692,7 @@ private setupDashboardEvents() {
     toggleButton.addEventListener('click', () => this.toggleSidebar());
     overlay.addEventListener('click', () => this.toggleSidebar());
   }
-  
+
   // Auto-close sidebar when mouse leaves (desktop only)
   if (sidebar) {
     let mouseLeaveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -723,10 +723,9 @@ private setupDashboardEvents() {
     userMenuBtn.addEventListener("click", (e) => { e.stopPropagation(); userDropdown.classList.toggle("hidden"); });
     document.addEventListener("click", () => { userDropdown.classList.add("hidden"); });
   }
-  
   // Logo button - navigate to dashboard and close sidebar
   const logoBtn = document.getElementById("logo-btn");
-  if (logoBtn) { 
+    if (logoBtn) { 
     logoBtn.addEventListener("click", async (e) => { 
       e.preventDefault(); 
       // Close sidebar if it's open
@@ -935,178 +934,180 @@ private getFriendsgamePage() : Page {
 }
 
 private getTournamentLobbyPage(): Page {
-    return {
-      title: "Tournament Lobby",
-      content: `
-        <div class="h-screen flex flex-col pt-16 bg-gray-900" id="lobby-container"> <div class="w-full max-w-7xl mx-auto px-4 flex-1 flex flex-col h-[calc(100vh-5rem)]">
+  return {
+    title: "Tournament Lobby",
+    content: `
+      <div class="lobby-wrapper">
+        
+        <div class="lobby-inner">
             <div class="flex items-center justify-between mb-6 shrink-0">
-              <button id="leave-tournament-btn" class="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors group">
-                <span class="group-hover:-translate-x-1 transition-transform">←</span>
-                <span>Leave Lobby</span>
-              </button>
+              <button id="leave-tournament-btn" class="back-button">← Leave Lobby</button>
               <h2 class="text-xl font-bold text-white tracking-wide">🏆 TOURNAMENT LOBBY</h2>
-              <div class="w-[120px]"></div> </div>
+              <div class="w-[120px]"></div> 
+            </div>
 
-            <div class="flex-1 grid grid-cols-12 gap-6 min-h-0 pb-6">
-              
-              <div class="col-span-12 md:col-span-3 bg-gray-800 rounded-xl border border-gray-700 flex flex-col overflow-hidden">
+            <div class="lobby-grid">
+              <div class="lobby-sidebar-panel">
                 <div class="p-4 border-b border-gray-700 bg-gray-850 flex justify-between items-center">
                    <h3 class="font-bold text-gray-200">Players</h3>
-                   <span id="player-count-display" class="text-xs font-mono text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">0/4</span>
+                   <span id="player-count-display" class="text-emerald-400 font-mono">0/4</span>
                 </div>
-                <div id="bracket-container" class="flex-1 overflow-y-auto p-3 space-y-2"></div>
+                <div id="bracket-container" class="lobby-player-list"></div>
               </div>
 
-              <div class="col-span-12 md:col-span-9 relative bg-gray-900/50 rounded-xl border border-gray-700 overflow-hidden flex flex-col justify-center items-center">
-
-                <div id="lobby-waiting-screen" class="text-center p-8">
-                  <div class="inline-block p-6 rounded-full bg-gray-800 mb-6 animate-pulse">
+              <div class="lobby-main-panel" id="lobby-main-area">
+                <div class="text-center p-8">
+                  <div class="inline-block p-6 rounded-full bg-gray-800 mb-6 animate-pulse border border-gray-600">
                     <span class="text-5xl">⏳</span>
                   </div>
                   <h2 class="text-3xl font-bold text-white mb-2">Waiting for Players</h2>
                   <p class="text-gray-500">The bracket will generate automatically when 4 players join.</p>
                 </div>
-
-                <div id="view-bracket" class="absolute inset-0 bg-gray-900 z-10 flex flex-col items-center justify-center" style="display: none;">
-                   <h1 id="bracket-round-title" class="text-3xl font-bold text-emerald-400 mb-8 tracking-widest">SEMI-FINALS</h1>
-                   <div id="big-bracket-content" class="w-full max-w-4xl px-4"></div>
-                   <div class="mt-12 text-gray-400">
-                      Next match starting in <span id="timer-count" class="text-white font-bold text-xl ml-2">8</span>s...
-                   </div>
-                </div>
-
-                <div id="view-game" class="fixed inset-0 z-50 bg-gray-900" style="display: none;">
-                    <div class="absolute top-0 w-full h-16 bg-gray-900/90 backdrop-blur border-b border-gray-800 flex justify-between items-center px-8 z-20">
-                       <div class="text-white font-bold text-xl" id="game-round-label">MATCH</div>
-                       <div class="font-mono text-3xl font-bold text-emerald-400 tracking-widest" id="tournament-score">0 - 0</div>
-                       <div class="w-[100px]"></div>
-                    </div>
-
-                    <div id="ready-overlay" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
-                       <div id="game-match-info" class="flex items-center gap-12 mb-10 scale-125"></div>
-                       <button id="game-ready-btn" class="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xl rounded-lg shadow-lg shadow-emerald-900/50 transform hover:scale-105 transition-all">
-                         I AM READY! ⚔️
-                       </button>
-                    </div>
-
-                    <div class="absolute inset-0 flex items-center justify-center pt-16">
-                       <div class="maintain-aspect-ratio-9-6 max-w-[800px] w-full relative">
-                           <div class="absolute top-1/2 -left-24 -translate-y-1/2 flex flex-col items-center">
-                              <img id="game-p1-avatar" class="w-16 h-16 rounded-full border-2 border-gray-500 shadow-lg object-cover">
-                              <span id="game-p1-name" class="mt-2 text-sm font-bold text-gray-300 bg-gray-800 px-2 py-1 rounded">P1</span>
-                           </div>
-                           
-                           <div id="game-container" class="w-full h-full shadow-2xl shadow-black"></div>
-
-                           <div class="absolute top-1/2 -right-24 -translate-y-1/2 flex flex-col items-center">
-                              <img id="game-p2-avatar" class="w-16 h-16 rounded-full border-2 border-gray-500 shadow-lg object-cover">
-                              <span id="game-p2-name" class="mt-2 text-sm font-bold text-gray-300 bg-gray-800 px-2 py-1 rounded">P2</span>
-                           </div>
-                       </div>
-                    </div>
-                </div>
-
               </div>
             </div>
-          </div>
         </div>
-      `,
-      init: () => {
-        // ... (Keep existing logic exactly same as provided in your code)
-        console.log("🏟️ Tournament Lobby Initialized");
-        const tId = localStorage.getItem('activeTournamentId');
-        if(!tId) { this.navigateTo("dashboard/game/tournament"); return; }
 
-        cleanupTournamentMatch();
-        const popstateHandler = () => {
-          cleanupTournamentMatch();
-          localStorage.removeItem('activeTournamentId');
-          this.navigateTo("dashboard/game/tournament");          
-        };
-        window.addEventListener("popstate", popstateHandler);
+        <div id="view-bracket" class="tournament-overlay hidden">
+             <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-12 tracking-widest uppercase drop-shadow-lg">SEMI-FINALS</h1>
+             
+             <div id="big-bracket-content" class="w-full max-w-6xl px-4 flex justify-center"></div>
+             
+             <div class="mt-16 text-gray-400 text-2xl animate-pulse">
+                Next match starting in <span id="bracket-timer" class="text-white font-bold text-3xl ml-2">...</span>
+             </div>
+        </div>
 
-        const playerCountEl = document.getElementById("player-count-display")!;
-        const leaveBtn = document.getElementById("leave-tournament-btn")!;
-        const bracketEl = document.getElementById("bracket-container")!;
+        <div id="view-game" class="tournament-overlay hidden">
+            
+            <div class="absolute top-0 w-full h-24 bg-gray-900/95 border-b border-gray-800 flex justify-between items-center px-12">
+               <div class="text-white font-bold text-2xl tracking-wider" id="game-round-label">MATCH</div>
+               <div class="px-10 py-3 bg-gray-800 rounded-full border border-gray-700">
+                  <span class="font-mono text-4xl font-bold text-emerald-400 tracking-widest" id="tournament-score">0 - 0</span>
+               </div>
+               <div class="w-[100px]"></div>
+            </div>
 
-        const resolveUser = async (pid: string | number) => {
-            const pidStr = String(pid);
-            if (pidStr === String(this.user.id)) {
-                return { username: `${this.user.username} (You)`, avatar: this.user.avatar || '../images/avatars/1.jpg' };
-            }
-            try {
-                const res = await fetch(`/api/user/${pidStr}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }});
-                if(res.ok) {
-                    const d = await res.json();
-                    return { username: d.username, avatar: d.avatar || '../images/avatars/unknown.jpg' };
-                }
-            } catch {}
-            return { username: `Player ${pidStr.substring(0,4)}`, avatar: '../images/avatars/unknown.jpg' };
-        };
+            <div id="ready-overlay" class="absolute inset-0 z-[210] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
+               <div id="game-match-info" class="flex items-center gap-16 mb-12"></div>
+               <button id="game-ready-btn" class="btn-primary text-2xl px-12 py-6 shadow-emerald-500/30 animate-pulse">
+                 I AM READY! ⚔️
+               </button>
+            </div>
 
-        const updateLobbySidebar = async (playerIds: any[]) => {
-            if (!bracketEl) return;
-            const promises = playerIds.map(id => resolveUser(id));
-            const players = await Promise.all(promises);
+            <div class="game-board-wrapper">
+               
+               <div class="game-player-left">
+                  <img id="game-p1-avatar" class="w-24 h-24 rounded-full border-4 border-blue-500 shadow-lg object-cover bg-gray-800">
+                  <span id="game-p1-name" class="text-lg font-bold text-white bg-gray-900 px-4 py-1 rounded border border-gray-700">P1</span>
+               </div>
+               
+               <div id="game-container" class="game-canvas"></div>
 
-            bracketEl.innerHTML = players.map(p => `
-                <div class="bg-gray-700/50 p-3 rounded flex items-center gap-3 border border-gray-600">
-                    <img src="${p.avatar}" class="w-8 h-8 rounded-full bg-gray-600 object-cover">
-                    <span class="text-gray-200 text-sm font-medium truncate">${p.username}</span>
-                </div>
-            `).join('');
+               <div class="game-player-right">
+                  <img id="game-p2-avatar" class="w-24 h-24 rounded-full border-4 border-red-500 shadow-lg object-cover bg-gray-800">
+                  <span id="game-p2-name" class="text-lg font-bold text-white bg-gray-900 px-4 py-1 rounded border border-gray-700">P2</span>
+               </div>
 
-            const slotsLeft = 4 - players.length;
-            if (slotsLeft > 0) {
-                const emptySlots = Array(slotsLeft).fill(0).map((_, i) => `
-                    <div class="bg-transparent p-3 rounded flex items-center gap-3 border border-dashed border-gray-600 opacity-50">
-                        <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-500">${i + 1 + players.length}</div>
-                        <span class="text-gray-500 text-sm italic">Waiting...</span>
-                    </div>
-                `).join('');
-                bracketEl.innerHTML += emptySlots;
-            }
-        };
+            </div>
+        </div>
 
-        const refreshLobbyData = async () => {
-             try {
-               const res = await fetch(`/tournaments/tournaments/${tId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }});
+      </div>
+    `,
+    init: () => {
+       console.log("🏟️ Tournament Lobby Initialized");
+       const tId = localStorage.getItem('activeTournamentId');
+       if(!tId) { this.navigateTo("dashboard/game/tournament"); return; }
+
+       cleanupTournamentMatch();
+       const popstateHandler = () => {
+         cleanupTournamentMatch();
+         localStorage.removeItem('activeTournamentId');
+         this.navigateTo("dashboard/game/tournament");          
+       };
+       window.addEventListener("popstate", popstateHandler);
+
+      const playerCountEl = document.getElementById("player-count-display")!;
+      const bracketEl = document.getElementById("bracket-container")!;
+      const leaveBtn = document.getElementById("leave-tournament-btn")!;
+
+       const resolveUser = async (pid: string | number) => {
+           const pidStr = String(pid);
+           if (pidStr === String(this.user.id)) {
+               return { username: `${this.user.username} (You)`, avatar: this.user.avatar || '../images/avatars/1.jpg' };
+           }
+           try {
+               const res = await fetch(`/api/user/${pidStr}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }});
                if(res.ok) {
                    const d = await res.json();
-                   const pList = d.players || [];
-                   if (playerCountEl) playerCountEl.innerText = `${pList.length}/4`;
-                   updateLobbySidebar(pList);
-               } else {
-                   alert("Tournament expired.");
-                   this.navigateTo("dashboard/game/tournament");
+                   return { username: d.username, avatar: d.avatar || '../images/avatars/unknown.jpg' };
                }
-            } catch {}
-        };
+           } catch {}
+           return { username: `Player ${pidStr.substring(0,4)}`, avatar: '../images/avatars/unknown.jpg' };
+       };
 
-        const handleLeave = async () => {
-            if(!confirm("Leave tournament?")) return;
-            localStorage.removeItem('activeTournamentId');
-            try { await fetch('/tournaments/tournaments/leave', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json'}, body: JSON.stringify({ tournamentId: tId }) }); } catch {}
-            this.navigateTo("dashboard/game/tournament");
-        };
-        leaveBtn.onclick = handleLeave;
+       const updateLobbySidebar = async (playerIds: any[]) => {
+           if (!bracketEl) return;
+           const promises = playerIds.map(id => resolveUser(id));
+           const players = await Promise.all(promises);
 
-        const tournamentBrain = createTournamentListener(this.user.id, tId, (path) => this.loadPage(path));
+           bracketEl.innerHTML = players.map(p => `
+               <div class="lobby-player-item">
+                   <img src="${p.avatar}" class="w-8 h-8 rounded-full bg-gray-600 object-cover border border-gray-500">
+                   <span class="text-gray-200 text-sm font-medium truncate">${p.username}</span>
+               </div>
+           `).join('');
 
-        const mainListener = (msg: any) => {
-           tournamentBrain(msg);
-           if (msg.type === "tournament_player-joined" || msg.type === "tournament_player-left") {
-               if (msg.payload.tournamentId === tId) {
-                   refreshLobbyData();
-               }
+           const slotsLeft = 4 - players.length;
+           if (slotsLeft > 0) {
+               const emptySlots = Array(slotsLeft).fill(0).map((_, i) => `
+                   <div class="lobby-empty-slot">
+                       <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-500">${i + 1 + players.length}</div>
+                       <span class="text-gray-500 text-sm italic">Waiting...</span>
+                   </div>
+               `).join('');
+               bracketEl.innerHTML += emptySlots;
            }
-        };
+       };
 
-        setupTournamentGameListeners(mainListener);
-        refreshLobbyData();
-      }
-    };
-  }
+       const refreshLobbyData = async () => {
+            try {
+              const res = await fetch(`/tournaments/tournaments/${tId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }});
+              if(res.ok) {
+                  const d = await res.json();
+                  const pList = d.players || [];
+                  if (playerCountEl) playerCountEl.innerText = `${pList.length}/4`;
+                  updateLobbySidebar(pList);
+              } else {
+                  alert("Tournament expired.");
+                  this.navigateTo("dashboard/game/tournament");
+              }
+           } catch {}
+       };
+
+      const handleLeave = async () => {
+           if(!confirm("Leave tournament?")) return;
+           localStorage.removeItem('activeTournamentId');
+           try { await fetch('/tournaments/tournaments/leave', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json'}, body: JSON.stringify({ tournamentId: tId }) }); } catch {}
+           this.navigateTo("dashboard/game/tournament");
+       };
+       if(leaveBtn) leaveBtn.onclick = handleLeave;
+
+      const tournamentBrain = createTournamentListener(this.user.id, tId, (path) => this.loadPage(path));
+
+      const mainListener = (msg: any) => {
+          tournamentBrain(msg);
+          if (msg.type === "tournament_player-joined" || msg.type === "tournament_player-left") {
+              if (msg.payload.tournamentId === tId) {
+                  refreshLobbyData();
+              }
+          }
+       };
+
+       setupTournamentGameListeners(mainListener);
+       refreshLobbyData();
+    }
+  };
+}
 
 
 private gettournamentpage(): Page {
@@ -1122,7 +1123,7 @@ private gettournamentpage(): Page {
 
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 w-full">
           <div class="xl:col-span-1">
-            <div class="bg-gray-800 rounded-2xl border border-gray-700 p-8 h-full">
+            <div class="bg-gray-800/40 rounded-2xl border border-gray-700 p-8 h-full">
               <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-3">
                  <span>➕</span> Create New
               </h3>
@@ -1131,7 +1132,7 @@ private gettournamentpage(): Page {
                 <div>
                   <label class="block text-sm text-gray-400 uppercase font-semibold mb-2">Tournament Name</label>
                   <input id="tournament-title-input" type="text" placeholder="e.g. Champions Cup" maxlength="20" 
-                         class="w-full bg-gray-900 border border-gray-600 rounded-xl px-5 py-4 text-white text-lg focus:border-emerald-500 focus:outline-none transition-colors" />
+                         class="w-full bg-gray-900/40 border border-gray-600 rounded-xl px-5 py-4 text-white text-lg focus:border-emerald-500 focus:outline-none transition-colors" />
                 </div>
                 
                 <button id="create-tournament-btn" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg rounded-xl transition-all shadow-lg shadow-emerald-900/20">
@@ -1143,7 +1144,7 @@ private gettournamentpage(): Page {
           </div>
 
           <div class="xl:col-span-2">
-            <div class="bg-gray-800 rounded-2xl border border-gray-700 p-8 h-[600px] flex flex-col">
+            <div class="bg-gray-800/40 rounded-2xl border border-gray-700 p-8 h-[600px] flex flex-col">
               <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold text-white">Active Lobbies</h3>
                 <button id="refresh-tournaments-btn" class="text-base text-emerald-400 hover:text-emerald-300 font-medium px-4 py-2 rounded hover:bg-gray-700 transition-colors">

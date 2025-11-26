@@ -572,7 +572,31 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     const sidebar = document.getElementById('dashboard-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
 
+    // Update active nav link highlight
+    if (isDashboardPage) {
+      this.updateActiveNavLink();
+    }
+
     console.log(`📄 Loaded page: ${page}`);
+  }
+
+  /**
+   * Update active navigation link based on current page
+   */
+  private updateActiveNavLink(): void {
+    const navLinks = document.querySelectorAll('.nav-item');
+    navLinks.forEach(link => {
+      link.classList.remove('active');
+    });
+
+    // Find and highlight the current page
+    const currentPath = `/${this.currentPage}`;
+    navLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      if (href === currentPath) {
+        link.classList.add('active');
+      }
+    });
   }
 
 
@@ -646,6 +670,7 @@ private renderDashboardLayout(): void {
 
   this.contentContainer = document.querySelector('#dashboard-main-content .content-wrapper');
   this.setupDashboardEvents();
+  this.updateActiveNavLink(); // Highlight current page
 }
 
 private renderNavLink(href: string, icon: string, text: string): string {
@@ -660,18 +685,58 @@ private renderNavLink(href: string, icon: string, text: string): string {
 private setupDashboardEvents() {
   const toggleButton = document.getElementById('sidebar-toggle');
   const overlay = document.getElementById('sidebar-overlay');
+  const sidebar = document.getElementById('dashboard-sidebar');
+  
+  // Toggle button click handler
   if (toggleButton && overlay) {
     toggleButton.addEventListener('click', () => this.toggleSidebar());
     overlay.addEventListener('click', () => this.toggleSidebar());
   }
+  
+  // Auto-close sidebar when mouse leaves (desktop only)
+  if (sidebar) {
+    let mouseLeaveTimeout: ReturnType<typeof setTimeout> | null = null;
+    
+    sidebar.addEventListener('mouseenter', () => {
+      // Clear any pending close timeout
+      if (mouseLeaveTimeout) {
+        clearTimeout(mouseLeaveTimeout);
+        mouseLeaveTimeout = null;
+      }
+    });
+    
+    sidebar.addEventListener('mouseleave', () => {
+      // Only auto-close on desktop when sidebar is open
+      const isDesktop = window.innerWidth >= 1024;
+      if (isDesktop && sidebar.classList.contains('open')) {
+        // Small delay to prevent accidental closes
+        mouseLeaveTimeout = setTimeout(() => {
+          this.toggleSidebar();
+        }, 300);
+      }
+    });
+  }
+  
   const userMenuBtn = document.getElementById("user-menu-btn");
   const userDropdown = document.getElementById("user-dropdown");
   if (userMenuBtn && userDropdown) {
     userMenuBtn.addEventListener("click", (e) => { e.stopPropagation(); userDropdown.classList.toggle("hidden"); });
     document.addEventListener("click", () => { userDropdown.classList.add("hidden"); });
   }
+  
+  // Logo button - navigate to dashboard and close sidebar
   const logoBtn = document.getElementById("logo-btn");
-  if (logoBtn) { logoBtn.addEventListener("click", async (e) => { e.preventDefault(); }); }
+  if (logoBtn) { 
+    logoBtn.addEventListener("click", async (e) => { 
+      e.preventDefault(); 
+      // Close sidebar if it's open
+      if (sidebar?.classList.contains('open')) {
+        this.toggleSidebar();
+      }
+      await this.navigateTo('/dashboard');
+    }); 
+  }
+  
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) { logoutBtn.addEventListener("click", async (e) => { e.preventDefault(); await this.performLogout(); }); }
 }

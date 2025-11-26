@@ -1,3 +1,4 @@
+// Socket.IO is loaded from CDN in index.html
 declare const io: any;
 
 import {game_start, listenForInputLocal} from "./game.js";
@@ -11,9 +12,7 @@ import {
   setupGameListeners,
   createLocalGameListener,
   createAIGameListener,
-  createRemoteGameListener,
-  handleGameConfig,
-  fetchUserDetails
+  createRemoteGameListener
 } from "./game_shared.js";
 import { ChatManager } from "./chat/index.js";
 import { FriendsManager } from "./friends/index.js";
@@ -73,6 +72,7 @@ class AppRouter {
   private chatManager: ChatManager | null = null;
   private friendsManager: FriendsManager | null = null;
   private globalSocket: any = null;
+  private pendingBlockUpdates: Map<number, boolean> = new Map(); // Store block updates when managers aren't ready
   private allpages = [
     "/",
     "home",
@@ -111,15 +111,21 @@ constructor(containerId: string) {
   const el = document.getElementById(containerId);
   if (!el) throw new Error(`Container #${containerId} not found`);
   this.container = el;
+
+  // Set up global block sync listener
+  this.setupGlobalBlockSyncListener();
+
   this.init();
 
   (async () => {
     try {
+      // ✅ Handle 42 OAuth callback first
       const auth42Result = await initAuth42();
       if (auth42Result) {
         console.log('✅ 42 intra authentication successful!');
         console.log('   User:', auth42Result.user);
 
+        // Set logged in state
         this.setLoggedIn(true);
         this.currentUser = auth42Result.user.username;
         this.user = {
@@ -131,13 +137,16 @@ constructor(containerId: string) {
           id: auth42Result.user.id
         };
 
+        // Initialize game socket
         initgameSocket();
         initFriendInviteListener((roomId) => {
           this.navigateTo(`/dashboard/game/friend/${roomId}`);
         });
 
+        // Connect global socket for real-time updates
         await this.connectGlobalSocket();
 
+        // Redirect to dashboard
         await this.navigateTo('/dashboard', true);
         return;
       }
@@ -205,6 +214,7 @@ private async performLogin(username: string, password: string): Promise<boolean>
     console.log(`User avatar: ${this.user.avatar}`);
     console.log(`Is logged in: ${this.isLoggedIn}, user: ${this.currentUser}`);
 
+    // Connect global socket for real-time updates
     await this.connectGlobalSocket();
 
     const redirect = this.postLoginRedirect || "/dashboard";
@@ -301,6 +311,9 @@ private async checkAuth(): Promise<void> {
   }
 }
 
+/**
+ * Connect to global Socket.IO for real-time updates
+ */
 private async connectGlobalSocket(): Promise<void> {
   if (typeof io === 'undefined') {
     console.warn('Socket.IO library not loaded');
@@ -339,6 +352,7 @@ private async connectGlobalSocket(): Promise<void> {
       console.warn('Global Socket.IO connection error:', error.message);
     });
 
+    // Listen for friend status changes globally
     this.globalSocket.on('friend-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
       if (this.chatManager) {
         this.chatManager.handleFriendStatusChange(data.userId, data.status);
@@ -349,6 +363,7 @@ private async connectGlobalSocket(): Promise<void> {
       }
     });
 
+    // Also listen for generic user-status-change event
     this.globalSocket.on('user-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
       if (this.chatManager) {
         this.chatManager.handleFriendStatusChange(data.userId, data.status);
@@ -359,6 +374,7 @@ private async connectGlobalSocket(): Promise<void> {
       }
     });
 
+    // Listen for other global events
     this.globalSocket.on('friend-request', (data: any) => {
       console.log('📬 Friend request received:', data);
       if (this.chatManager) this.chatManager.handleFriendRequest(data);
@@ -371,11 +387,14 @@ private async connectGlobalSocket(): Promise<void> {
       if (this.friendsManager) this.friendsManager.handleFriendAdded(data);
     });
 
+    // Listen for game invitations globally
     this.globalSocket.on('game-invitation', (data: any) => {
+      // Filter: Only process if this user is the target
       if (data.targetUserId && data.targetUserId !== this.user?.id) {
         return;
       }
 
+      // Show notification on current active page only to avoid duplicates
       const currentPage = window.location.pathname;
 
       if (currentPage.includes('/friends') && this.friendsManager) {
@@ -389,11 +408,14 @@ private async connectGlobalSocket(): Promise<void> {
       }
     });
 
+    // Listen for game invite accepted globally (for sender)
     this.globalSocket.on('game-invite-accepted', (data: any) => {
+      // Filter: Only process if this user is the sender
       if (data.senderId && data.senderId !== this.user?.id) {
         return;
       }
 
+      // Redirect sender to game regardless of which manager is active
       if (data.gameRoomId) {
         if (this.friendsManager) {
           this.friendsManager.handleGameInviteAccepted(data);
@@ -408,7 +430,9 @@ private async connectGlobalSocket(): Promise<void> {
       }
     });
 
+    // Listen for game invite declined globally (for sender)
     this.globalSocket.on('game-invite-declined', (data: any) => {
+      // Filter: Only process if this user is the sender
       if (data.senderId && data.senderId !== this.user?.id) {
         return;
       }
@@ -419,6 +443,27 @@ private async connectGlobalSocket(): Promise<void> {
   } catch (error) {
     console.error('Failed to connect global socket:', error);
   }
+}
+
+/**
+ * Set up global block sync listener to keep managers in sync
+ */
+private setupGlobalBlockSyncListener(): void {
+  window.addEventListener('user-blocked', ((event: CustomEvent) => {
+    const { userId, isBlocked } = event.detail;
+
+    // Store the update for when managers are created
+    this.pendingBlockUpdates.set(userId, isBlocked);
+
+    // Update both managers if they exist
+    if (this.chatManager) {
+      this.chatManager.updateBlockStatus(userId, isBlocked);
+    }
+
+    if (this.friendsManager) {
+      this.friendsManager.updateBlockStatus(userId, isBlocked);
+    }
+  }) as EventListener);
 }
 
 
@@ -433,6 +478,7 @@ private disconnectGlobalSocket(): void {
 public async performLogout(): Promise<void> {
   this.disconnectGlobalSocket();
 
+  // Cleanup managers
   if (this.chatManager) {
     this.chatManager.destroy();
     this.chatManager = null;
@@ -595,6 +641,7 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     const sidebar = document.getElementById('dashboard-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
 
+    // Update active nav link highlight
     if (isDashboardPage) {
       this.updateActiveNavLink();
     }
@@ -602,12 +649,16 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     console.log(`📄 Loaded page: ${page}`);
   }
 
+  /**
+   * Update active navigation link based on current page
+   */
   private updateActiveNavLink(): void {
     const navLinks = document.querySelectorAll('.nav-item');
     navLinks.forEach(link => {
       link.classList.remove('active');
     });
 
+    // Find and highlight the current page
     const currentPath = `/${this.currentPage}`;
     navLinks.forEach(link => {
       const href = link.getAttribute('href');
@@ -634,12 +685,10 @@ private toggleSidebar(): void {
 
 private renderDashboardLayout(): void {
   this.container.innerHTML = `
-<div class="layout-wrapper">
+    <div class="layout-wrapper">
 
       <button id="sidebar-toggle" class="mobile-toggle-btn">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
 
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -663,6 +712,7 @@ private renderDashboardLayout(): void {
            <div class="relative">
              <button id="user-menu-btn" class="user-profile-btn">
                <img class="sidebar-user-img" src="${this.user.avatar}">
+
                <div class="flex-1 text-left overflow-hidden">
                  <p class="text-base font-bold text-white truncate">${this.user.username || "Player"}</p>
                  <div class="flex items-center gap-2 mt-0.5">
@@ -689,7 +739,7 @@ private renderDashboardLayout(): void {
 
   this.contentContainer = document.querySelector('#dashboard-main-content .content-wrapper');
   this.setupDashboardEvents();
-    this.updateActiveNavLink();
+    this.updateActiveNavLink(); // Highlight current page
 }
 
 private renderNavLink(href: string, icon: string, text: string): string {
@@ -706,15 +756,18 @@ private setupDashboardEvents() {
   const overlay = document.getElementById('sidebar-overlay');
   const sidebar = document.getElementById('dashboard-sidebar');
 
+  // Toggle button click handler
   if (toggleButton && overlay) {
     toggleButton.addEventListener('click', () => this.toggleSidebar());
     overlay.addEventListener('click', () => this.toggleSidebar());
   }
 
+  // Auto-close sidebar when mouse leaves (desktop only)
   if (sidebar) {
     let mouseLeaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
     sidebar.addEventListener('mouseenter', () => {
+      // Clear any pending close timeout
       if (mouseLeaveTimeout) {
         clearTimeout(mouseLeaveTimeout);
         mouseLeaveTimeout = null;
@@ -722,8 +775,10 @@ private setupDashboardEvents() {
     });
 
     sidebar.addEventListener('mouseleave', () => {
+      // Only auto-close on desktop when sidebar is open
       const isDesktop = window.innerWidth >= 1024;
       if (isDesktop && sidebar.classList.contains('open')) {
+        // Small delay to prevent accidental closes
         mouseLeaveTimeout = setTimeout(() => {
           this.toggleSidebar();
         }, 300);
@@ -737,10 +792,12 @@ private setupDashboardEvents() {
     userMenuBtn.addEventListener("click", (e) => { e.stopPropagation(); userDropdown.classList.toggle("hidden"); });
     document.addEventListener("click", () => { userDropdown.classList.add("hidden"); });
   }
+  // Logo button - navigate to dashboard and close sidebar
   const logoBtn = document.getElementById("logo-btn");
     if (logoBtn) {
     logoBtn.addEventListener("click", async (e) => {
       e.preventDefault();
+      // Close sidebar if it's open
       if (sidebar?.classList.contains('open')) {
         this.toggleSidebar();
       }
@@ -839,177 +896,112 @@ private getHomePage(): Page {
   };
 }
 
-private getFriendsgamePage(): Page {
+private getFriendsgamePage() : Page {
   return {
-    title: "Friends Match",
-    content: `
-      <div class="page-container">
-
-        <div class="flex items-center gap-6">
-          <a href="/dashboard/friends" id="back-button-friend" class="btn-secondary px-6 py-2">← Back</a>
-          <h2 class="text-3xl font-bold text-white">Friends Match</h2>
+    title : "Friends game",
+    content : `
+     <div class="Friends-game-container" style="margin-top:5rem;">
+        <div class="game-header">
+          <a href="/dashboard/game" id="back-button-friend" class="back-button nav-link">← Back</a>
+          <h2 style="display:inline-block; margin-left:1rem;">Friends Match</h2>
         </div>
 
-        <div class="game-stage">
-
-          <div class="player-panel">
-            <div class="relative">
-              <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}"
-                   alt="Player" class="player-avatar-lg border-emerald-500 shadow-emerald-500/20">
-              <div class="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-gray-900 rounded-full"></div>
-            </div>
-            <div class="text-center mb-2">
-              <div id="r-name" class="player-name">${this.currentUser || 'Player'}</div>
-              <div class="text-emerald-400 text-sm font-bold mt-1">YOU</div>
-            </div>
-            <div class="status-badge-online">ONLINE</div>
+        <div class="Friends-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
+          <!-- Player 1 (You) -->
+          <div style="text-align:center; width:180px;">
+            <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
+            <div id="r-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
+            <div style="font-size:0.875rem; color:#10b981; margin-top:0.25rem;">● Online</div>
           </div>
 
-          <div class="game-center-area">
-
-            <div class="game-controls-bar justify-center">
-              <div class="text-4xl font-mono font-bold text-white tracking-widest flex items-center gap-6">
-                <div>Score: <span id="friend-score" style="color:#fbbf24;">0 - 0</span></div>
-              </div>
+          <!-- Game Area -->
+          <div style="flex:1;">
+            <!-- ✅ Score at TOP -->
+            <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
+              <div>Score: <span id="remote-score" style="color:#fbbf24;">0 - 0</span></div>
             </div>
 
-            <div id="game-container" class="game-canvas-box">
-               <div id="game-placeholder-text" class="text-gray-500 text-sm flex flex-col items-center gap-2">
-                  <span class="text-4xl animate-pulse">🔗</span>
-                  <span>Waiting for friend to connect...</span>
-               </div>
-            </div>
+            <!-- Canvas -->
+            <div id="game-container"></div>
 
-            <div class="w-full flex flex-col items-center gap-4">
-
-              <button id="friend-action-btn" class="btn-primary w-full md:w-auto md:px-16 text-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all duration-300">
-                ENTER LOBBY
+            <!-- Button at BOTTOM -->
+            <div style="text-align:center; margin-top:1.5rem;">
+              <button id="start-remote-game" class="btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
+                ENTER the Match
               </button>
-
-              <div class="text-xs text-gray-500 font-mono bg-gray-800 px-3 py-1 rounded border border-gray-700">
-                Controls: [W] / [S]
+              <div style="margin-top:1rem; color:#9ca3af; font-size:0.95rem;">
+                Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> / <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
               </div>
             </div>
           </div>
 
-          <div class="player-panel">
-            <div class="relative">
-              <img id="friend-avatar" src="../images/avatars/unknown.jpg"
-                   class="w-32 h-32 rounded-full border-4 border-gray-600 object-cover shadow-lg mb-2 opacity-50">
-            </div>
-
-            <div class="text-center mb-2">
-              <div id="friend-name" class="player-name text-gray-500">Waiting...</div>
-              <div class="text-blue-400 text-sm font-bold mt-1">FRIEND</div>
-            </div>
-
-            <div id="friend-status-badge" class="status-badge-waiting">PENDING</div>
+          <!-- Player 2 (Opponent) -->
+          <div style="text-align:center; width:180px;">
+            <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent" style="width:120px;height:120px;border-radius:50%;border:4px solid #6b7280;opacity:0.5;box-shadow:0 4px 12px rgba(107,114,128,0.3);" onerror="this.src='../images/avatars/2.jpg'">
+            <div id="opponent-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#9ca3af;">Waiting...</div>
+            <div id="serch"style="font-size:0.875rem; color:#6b7280; margin-top:0.25rem;">Wating...</div>
           </div>
+        </div>
 
+        <!-- Matchmaking Status -->
+        <div id="matchmaking-status" style="display:none; margin-top:2rem; text-align:center; padding:1.5rem; background:#1f2937; border-radius:0.75rem; animation:pulse 2s infinite;">
+          <div style="font-size:1.3rem; color:#10b981; margin-bottom:0.5rem; font-weight:600;">
+            🔍 Wating for your friend...
+          </div>
+          <div style="color:#9ca3af; font-size:1rem;">
+            This may take a few moments
+          </div>
         </div>
       </div>
+
+      <style>
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        kbd {
+          font-family: monospace;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+      </style>
     `,
     init: () => {
-      console.log("👥 Friend Game Page Loaded");
+          console.log("Load Friends Match");
+          const friendId = localStorage.getItem('friend_id');
+          if (!friendId) {
+            alert("Fale to enter Friend game");
+            this.navigateTo(`/dashboard/friends}`);
+            return;
+          }
+        cleanupGame(this.user.id, false);
+        setupNavigationHandlers(
+          this.user.id,
+          "back-button-friend",
+          (path: string) => this.loadPage(path)
+        );
 
-      const friendRoomId = localStorage.getItem('friend_room_id');
-      if (!friendRoomId) {
-        alert("No active friend match found.");
-        this.navigateTo('/dashboard/friends');
-        return;
-      }
-
-      cleanupGame(this.user.id, false);
-      setupNavigationHandlers(this.user.id, "back-button-friend", (path) => this.loadPage(path));
-
-      const actionBtn = document.getElementById('friend-action-btn') as HTMLButtonElement;
-      const friendNameEl = document.getElementById('friend-name');
-      const friendAvatarEl = document.getElementById('friend-avatar') as HTMLImageElement;
-      const friendStatusBadge = document.getElementById('friend-status-badge');
-      const placeholderText = document.getElementById('game-placeholder-text');
-
-      if (actionBtn) {
-        const joinHandler = () => {
-          actionBtn.innerText = 'WAITING FOR CONFIG...';
-          actionBtn.disabled = true;
-          actionBtn.classList.add('opacity-50', 'cursor-wait');
-
-          sendMessage("join_friend_match", { roomId: friendRoomId });
-        };
-        actionBtn.onclick = joinHandler;
-      }
-
-      const friendGameListener = async (msg: any) => {
-
-        if (msg.type === "game_config") {
-            console.log("✅ Game Config Received!");
-
-            handleGameConfig(msg, this.user.id, "friend-action-btn", false, true);
-
-            if(placeholderText) placeholderText.style.display = 'none';
-
-            const p1Id = msg.payload.paddles.left.playerId;
-            const p2Id = msg.payload.paddles.right.playerId;
-
-            const friendId = (String(p1Id) === String(this.user.id)) ? p2Id : p1Id;
-
-            if (friendId) {
-                const friendData = await fetchUserDetails(friendId);
-                if (friendData) {
-                    if(friendNameEl) {
-                        friendNameEl.innerText = friendData.username;
-                        friendNameEl.classList.remove('text-gray-500');
-                        friendNameEl.classList.add('text-white');
-                    }
-                    if(friendAvatarEl) {
-                        friendAvatarEl.src = friendData.avatar;
-                        friendAvatarEl.classList.remove('opacity-50', 'border-gray-600');
-                        friendAvatarEl.classList.add('border-blue-500');
-                    }
-                    if(friendStatusBadge) {
-                        friendStatusBadge.innerText = "CONNECTED";
-                        friendStatusBadge.className = "status-badge-online !text-blue-400 !border-blue-500/30 !bg-blue-500/10";
-                    }
-                }
-            }
-
-            if (actionBtn) {
-                const newBtn = actionBtn.cloneNode(true) as HTMLButtonElement;
-                actionBtn.parentNode?.replaceChild(newBtn, actionBtn);
-
-                newBtn.innerHTML = "<span>⚔️</span> I AM READY";
-                newBtn.className = "btn-primary w-full md:w-auto md:px-16 text-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all duration-300";
-                newBtn.disabled = false;
-
-                newBtn.onclick = () => {
-                    console.log("🚀 Sending Ready Signal");
-                    sendMessage("player_ready", { gameId: msg.payload.gameId, playerId: String(this.user.id) });
-
-                    newBtn.innerText = "WAITING FOR START...";
-                    newBtn.disabled = true;
-                    newBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                };
-            }
+        const startButton = document.getElementById('start-local-game');
+        if (startButton) {
+          const startHandler = () => {
+            sendMessage("join_local", {});
+          };
+          startButton.addEventListener('click', startHandler);
+          addCleanupListener(() => startButton.removeEventListener('click', startHandler));
         }
 
-        if (msg.type === "game_start") {
-            console.log("🎮 Friend Game Started!");
-            const btn = document.getElementById('friend-action-btn');
-            if (btn) btn.style.display = 'none';
-        }
-      };
-
-      setupGameListeners(
-        friendGameListener,
-        'friend-score',
-        this.user.id,
-        (path: string) => this.loadPage(path),
-        false,
-        true
-      );
+        const localListener = createLocalGameListener(this.user.id);
+        setupGameListeners(
+          localListener,
+          'local-score',
+          this.user.id,
+          (path: string) => this.loadPage(path),
+          false,
+          false
+        );
     },
-  };
+  }
 }
+
 private getTournamentLobbyPage(): Page {
   return {
     title: "Tournament Lobby",
@@ -2484,15 +2476,13 @@ private getChatPage(): Page {
         await this.connectGlobalSocket();
       }
 
-      // Cleanup previous chat instance if exists
+      // Always reinitialize to bind to new DOM
       if (this.chatManager) {
         this.chatManager.destroy();
-        this.chatManager = null;
       }
 
-      // Initialize new chat manager with global socket
       this.chatManager = new ChatManager('chat-app-container');
-      this.chatManager.init({
+      await this.chatManager.init({
         id: this.user.id,
         username: this.user.username,
         email: this.user.email,
@@ -2500,6 +2490,13 @@ private getChatPage(): Page {
       }, this.globalSocket).catch(err => {
         console.error('Failed to initialize chat:', err);
       });
+
+      // Apply any pending block updates
+      if (this.pendingBlockUpdates.size > 0) {
+        this.pendingBlockUpdates.forEach((isBlocked, userId) => {
+          this.chatManager?.updateBlockStatus(userId, isBlocked);
+        });
+      }
     }
   };
 }
@@ -2522,15 +2519,13 @@ private getFriendsPage(): Page {
         await this.connectGlobalSocket();
       }
 
-      // Cleanup previous instance
+      // Always reinitialize to bind to new DOM
       if (this.friendsManager) {
         this.friendsManager.destroy();
-        this.friendsManager = null;
       }
 
-      // Initialize Friends Manager with global socket
       this.friendsManager = new FriendsManager('friends-app-container');
-      this.friendsManager.init({
+      await this.friendsManager.init({
         id: this.user.id,
         username: this.user.username,
         email: this.user.email,
@@ -2538,6 +2533,13 @@ private getFriendsPage(): Page {
       }, this.globalSocket).catch(error => {
         console.error('Failed to initialize friends:', error);
       });
+
+      // Apply any pending block updates
+      if (this.pendingBlockUpdates.size > 0) {
+        this.pendingBlockUpdates.forEach((isBlocked, userId) => {
+          this.friendsManager?.updateBlockStatus(userId, isBlocked);
+        });
+      }
     },
   };
 }

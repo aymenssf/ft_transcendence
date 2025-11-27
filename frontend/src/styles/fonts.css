@@ -1,0 +1,73 @@
+@font-face {
+  font-family: 'Elms Sans';
+  src: url("/fonts/elms-fonts/ElmsSans-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Elms Sans';
+  src: url("/fonts/elms-fonts/ElmsSans-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Elms Sans';
+  src: url("/fonts/elms-fonts/ElmsSans-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Merriweather';
+  src: url("/fonts/head-fonts/head-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Merriweather';
+  src: url("/fonts/head-fonts/head-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Merriweather';
+  src: url("/fonts/head-fonts/head-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+
+body {
+  font-family: 'Elms Sans', sans-serif;
+  font-size: 16px;
+  color: #f8f8f8;
+  line-height: 1.6;
+  background-color: #1f2937; 
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Merriweather', serif;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.subtitle, .home-subtitle {
+  font-family: 'Elms Sans', sans-serif;
+  font-weight: 500;
+  color: #d1d5db; 
+}
+
+a {
+  font-family: 'Elms Sans', sans-serif;
+  text-decoration: none;
+  color: #10b981; /* green */
+}
+
+.home-title {
+  font-family: 'Merriweather', serif;
+  font-weight: 800;
+}

@@ -20,7 +20,6 @@ interface SocketQuery {
 async function gameSocket(fastify: FastifyInstance, options: any) {
     // @ts-ignore
     fastify.get('/ws', { websocket: true }, (connection: SocketStream, req: FastifyRequest<{ Querystring: SocketQuery }>) => {
-        console.log("New ws Connections ...");
         const token: string = req.query.token;
         if (!token) {
             connection.socket.close(1008, 'Missing token');
@@ -30,9 +29,6 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
         try {
             const payload = fastify.jwt.verify(token) as { userId: string };
             const playerId = (payload as any).userId;
-            console.log(`New Socket Connection from ${playerId}`);
-
-            console.log(`New socket connection from ${playerId}`);
 
             playersSockets.set(playerId, connection.socket);
 
@@ -69,8 +65,7 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
             });
 
             connection.socket.on('close', () => {
-                console.log(`WS closed for player ${playerId}`);
-                leaveTournament(playerId);
+                    leaveTournament(playerId);
                 cancelTournamentIfPlayerDisconnected(playerId);
                 handlePlayerDisconnect(playerId, "disconnect");
                 playersSockets.delete(playerId);
@@ -159,10 +154,6 @@ export function cancelTournamentIfPlayerDisconnected(playerId: string) {
             }
 
 
-            console.log(
-                `Tournament ${tournament.tournamentId} canceled due to disconnect of player ${playerId}`
-            );
-
             return;
         }
     }
@@ -175,7 +166,6 @@ function handlePlayerLeaveMatch(playerId: string, payload: any) {
     if (!gameRoom) return;
     if (gameRoom.status === GAME_ROOM_STATUS.FINISHED) 
     {
-        console.log("Game already finished, player leave safely ...");
         return;
     }
     if (gameRoom.p1 !== playerId && gameRoom.p2 !== playerId) return;
@@ -354,7 +344,6 @@ export function cleanupRoom(roomId: string) {
 }
 
 function handleSocketClose(playerId: string) {
-    console.log(`WS connection closed for ${playerId}`);
     playersSockets.delete(playerId);
     waitingQueue.delete(playerId);
 

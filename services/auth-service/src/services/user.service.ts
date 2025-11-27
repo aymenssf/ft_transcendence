@@ -144,7 +144,6 @@ export class UserService {
       } 
     catch (error) {
       console.error('Error creating user:', error);
-        // Inspect Prisma unique constraint error if available
         const e: any = error;
         if (e && e.code === 'P2002' && e.meta && Array.isArray(e.meta.target)) {
           const target = e.meta.target[0];
@@ -205,7 +204,6 @@ export class UserService {
 
       if (existingUser) 
       {
-        // Update existing user with 42 data
         const updatedUser = await this.updateUser(existingUser.id, {
           username: profile.login,
           avatar: await r2AvatarService.uploadFromUrl(
@@ -230,7 +228,6 @@ export class UserService {
       } 
       else 
       {
-        // Create new user from 42 profile
         const tempId = Math.floor(Math.random() * 1000000);
         const userData: CreateUserData = {
           username: profile.login,
@@ -243,13 +240,11 @@ export class UserService {
           is_42_user: true
         };
 
-        // default tournament username to profile login
         userData.usernameTournament = profile.login;
 
         try {
           return await this.createUser(userData);
         } catch (err: any) {
-          // If username conflict is handled below; also handle tournament username conflict
           const msg = String(err?.message || '').toLowerCase();
           if (msg.includes('username already exists')) 
           {

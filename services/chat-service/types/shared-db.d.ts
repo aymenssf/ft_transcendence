@@ -24,16 +24,13 @@ declare module '../../Shared_dataBase/db-connection.js' {
     }
 
     interface Database {
-      //dyal user auth , t9dr tkhdm bihom hna
       findUserById(id: number): Promise<User | undefined>;
       findUserByUsername(username: string): Promise<User | undefined>;
 
-    // example the chat
       createMessage(senderId: number, content: string, receiverId?: number, roomId?: number): Promise<Message>;
 
       createChatRoom(name: string, type: 'private' | 'group'): Promise<ChatRoom>;
 
-      // General room management
       ensureGeneralRoom(): Promise<any>;
       joinGeneralRoom(userId: number): Promise<void>;
 

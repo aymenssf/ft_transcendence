@@ -22,8 +22,6 @@ async function friendRoutes(fastify: FastifyInstance, options: any) {
 
         if (from === to || !to)
             return reply.status(400).send({ error: "Cannot invite yourself or guest invalid" });
-        console.log(`Friend invite from : ${from}, to ${to}`);
-
         const host_socket = playersSockets.get(from);
         const guest_socket = playersSockets.get(to);
 

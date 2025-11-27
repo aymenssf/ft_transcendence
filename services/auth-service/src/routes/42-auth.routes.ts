@@ -108,7 +108,6 @@ export async function Auth42Routes(fastify: FastifyInstance) {
         expiresIn: 7 * 24 * 60 * 60
       };
 
-      // Get the frontend URL and construct the full redirect URL
       const frontendUrl = process.env.FRONTEND_URL || 'https://localhost';
       const targetPath = stateValidation.data?.redirectUrl || '/dashboard';
       const fullRedirectUrl = `${frontendUrl}${targetPath}`;

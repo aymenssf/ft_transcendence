@@ -343,11 +343,11 @@ private async connectGlobalSocket(): Promise<void> {
     this.globalSocket = io(socketUrl, socketOptions);
 
     this.globalSocket.on('connect', () => {
-      console.log('Global Socket.IO connected');
+      
     });
 
     this.globalSocket.on('disconnect', () => {
-      console.log('Global Socket.IO disconnected');
+      
     });
 
     this.globalSocket.on('connect_error', (error: any) => {

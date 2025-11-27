@@ -29,10 +29,9 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization']
   });
 
-  // Register multipart support for file uploads
   await app.register(fastifyMultipart, {
     limits: {
-      fileSize: 5 * 1024 * 1024 // 5MB max file size
+      fileSize: 5 * 1024 * 1024 
     }
   });
 
@@ -50,7 +49,6 @@ async function bootstrap() {
   app.get('/test', async (_req, _reply) => {
     return { ok: true, service: 'auth-service', status: 'running' };
   });
-  // Serve default avatars and any uploaded avatars from /avatar
   await app.register((fastifyStatic as any), {
     root: path.resolve(process.cwd(), 'avatar'),
     prefix: '/avatar/',

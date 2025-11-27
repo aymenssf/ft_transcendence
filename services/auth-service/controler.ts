@@ -1,5 +1,4 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-// import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { prisma } from '@ft/shared-database';
@@ -8,9 +7,6 @@ import { updateUserHandler, type UpdateUserBody } from './user_update.js';
 import { validateUsername, validateEmail, validatePassword, ValidationError, hashPassword } from './loadSharedDb.js';
 
 const DEFAULT_AVATAR_REL = '/avatar/default_avatar/default_avatar.jpg';
-// Instantiate Prisma client (singleton per module)
-// const prisma = new PrismaClient();
-
 interface RegisterBody { username: string; email: string; password: string; avatar?: string | null; usernameTournament?: string }
 interface LoginBody { username: string; email: string; password: string }
 
@@ -23,10 +19,8 @@ export function registerControllers(app: FastifyInstance)
     const { username, email, password, avatar = null } = request.body;
     try {
       validateUsername(username);
-      // tournament username: validate (use provided or default to username)
       const tUsernameInput = (request.body as any).usernameTournament as string | undefined;
       const tUsername = (typeof tUsernameInput === 'string' && tUsernameInput.trim() !== '') ? tUsernameInput : username;
-      // validate tournament username via loadSharedDb validator
       try {
         const { validateTournamentUsername } = await import('./loadSharedDb.js');
         validateTournamentUsername(tUsername);
@@ -36,7 +30,6 @@ export function registerControllers(app: FastifyInstance)
       validateEmail(email);
       validatePassword(password);
 
-      // Check existing user/email (explicit for user-friendly messages)
       const existingUser = await prisma.user.findUnique({ where: { username } });
       if (existingUser)  
         throw new ValidationError('Username already exists');
@@ -53,7 +46,6 @@ export function registerControllers(app: FastifyInstance)
         ? avatar
         : DEFAULT_AVATAR_REL;
         
-      // Create user with random integer ID, retry on rare ID collision
       let user: { id: number; username: string; email: string; avatar: string | null; created_at: Date };
       for (let attempt = 0; ; attempt++) {
         const id = randomUserId();
@@ -64,9 +56,9 @@ export function registerControllers(app: FastifyInstance)
           }) as any;
           break;
         } catch (err: any) {
-          // P2002 unique constraint violation could be on id (collision) or username/email
           if (err?.code === 'P2002' && err?.meta?.target && Array.isArray(err.meta.target) && err.meta.target.includes('id')) {
-            if (attempt < 5) continue; // try a few times with new random id
+            if (attempt < 5) 
+              continue; 
           }
           throw err;
         }
@@ -77,7 +69,6 @@ export function registerControllers(app: FastifyInstance)
     } catch (err: any) {
       if (err?.name === 'ValidationError') 
         return reply.status(400).send({ error: err.message });
-      // Prisma unique constraint
       if (err?.code === 'P2002') 
       {
         const field = err.meta?.target?.[0];
@@ -115,13 +106,11 @@ export function registerControllers(app: FastifyInstance)
       if (!isValid) 
         throw new AuthError('Invalid password');
 
-      // Ensure avatar present (fallback to default)
       const rawAvatar = (user as any).avatar;
       const avatarValue = (typeof rawAvatar === 'string' && rawAvatar.trim() !== '')
         ? rawAvatar
         : DEFAULT_AVATAR_REL;
 
-      // Optionally persist default avatar if it was missing
       if (!rawAvatar || (typeof rawAvatar === 'string' && rawAvatar.trim() === '')) {
         try {
           await prisma.user.update({ where: { id: user.id }, data: { avatar: avatarValue } });
@@ -156,13 +145,10 @@ export function registerControllers(app: FastifyInstance)
     }
   });
 
-  // GET /me - Get current authenticated user profile
   app.get("/me", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // Verify JWT token
       const decoded = await request.jwtVerify() as any;
       
-      // Fetch user from database
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
         select: {
@@ -173,14 +159,12 @@ export function registerControllers(app: FastifyInstance)
           usernameTournament: true,
           created_at: true,
           is_42_user: true
-          // Don't include password!
         }
       });
 
       if (!user) 
         return reply.status(404).send({ error: 'User not found' });
 
-      // Ensure avatar has a value
       const avatarValue = (typeof user.avatar === 'string' && user.avatar.trim() !== '')
         ? user.avatar
         : DEFAULT_AVATAR_REL;
@@ -203,12 +187,10 @@ export function registerControllers(app: FastifyInstance)
     }
   });
 
-  // GET /user/:id - Get public user profile by ID (no authentication required)
   app.get("/user/:id", async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     try {
       const userId = parseInt(request.params.id, 10);
       
-      // Validate ID
       if (isNaN(userId) || userId <= 0) 
         return reply.status(400).send({ error: 'Invalid user ID' });
 
@@ -227,7 +209,6 @@ export function registerControllers(app: FastifyInstance)
       if (!user) 
         return reply.status(404).send({ error: 'User not found' });
 
-      // Ensure avatar has a value
       const avatarValue = (typeof user.avatar === 'string' && user.avatar.trim() !== '')
         ? user.avatar
         : DEFAULT_AVATAR_REL;
@@ -255,7 +236,6 @@ export function registerControllers(app: FastifyInstance)
     return updateUserHandler(request as any, reply);
   });
 
-  // Graceful shutdown to release Prisma connections
   app.addHook('onClose', async () => {
     await prisma.$disconnect();
   });

@@ -1,4 +1,3 @@
-// src/gameModels.ts
 import { GAME_ROOM_MODE } from '../helpers/consts.js'
 import { GameRoom } from '../utils/types.js'
 import prisma from "./prisma.js"
@@ -37,7 +36,6 @@ export const GameModel = {
     },
 
     async getUserStats(id: string) {
-        // Debug info: what's prisma at runtime?
         console.error('DEBUG prisma exists:', !!prisma);
         try {
             console.error('DEBUG prisma keys:', Object.keys(prisma || {}));

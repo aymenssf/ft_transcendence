@@ -47,8 +47,6 @@ services:
       - /app/services/game-service/node_modules
       - ./Shared_dataBase:/app/Shared_dataBase:rw
       - /app/Shared_dataBase/node_modules
-    # command: >
-    #   sh -c "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && npx tsx src/server.ts"
     networks:
       - transcendence-network
     depends_on:
@@ -78,7 +76,6 @@ services:
     container_name: ft_transcendence_frontend
     ports:
       - "0.0.0.0:8080:443"
-      # - "${FRONTEND_SERVICE_PORT:-443}:443"
     env_file:
       - .env
     volumes:

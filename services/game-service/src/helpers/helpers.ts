@@ -17,7 +17,6 @@ export function leaveTournament(playerId: string) {
 
             if (tournament.players.length === 0) {
                 tournaments.delete(tournament.tournamentId);
-                console.log(`Tournament ${tournament.tournamentId} removed (no players left).`);
                 playersSockets.forEach(sock => {
                     if (sock.readyState === 1) {
                         try {
@@ -111,12 +110,6 @@ export function handlePlayerDisconnect(playerId: string, reason: DisconnectReaso
     }
     saveGameRoom(gameRoom);
     cleanupRoom(gameRoom.gameId);
-    console.log(
-        `Player ${playerId} disconnected. ` +
-        (opponentId
-            ? `Opponent ${opponentId} wins game ${gameRoom.gameId} (reason: ${reason}).`
-            : `No opponent found.`)
-    );
 }
 export function findGameRoomByPlayer(playerId: string): GameRoom | null {
     for (const room of games.values()) {

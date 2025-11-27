@@ -40,5 +40,4 @@ app.get('/', async (req: FastifyRequest, reply: FastifyReply) => {
 
 
 app.listen({ port: 3012, host: '0.0.0.0' }, (err: any, addr: any) => {
-    console.log(`**************** Server listenning on ${addr} *****************`);
 });

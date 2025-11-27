@@ -7,9 +7,9 @@ export const DIFFICULTY_LEVELS: Record<string, DifficultySettings> = {
     predictionFrames: 0
   },
   medium: {
-    threshold: 30,
-    reactionRate: 0.85,
-    predictionFrames: 10
+    threshold: 70,
+    reactionRate: 0.50,
+    predictionFrames: 3
   },
   hard: {
     threshold: 20,

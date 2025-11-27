@@ -5,6 +5,7 @@ export let ctx: CanvasRenderingContext2D | null = null;
 export let gameConfig: any = null;
 export let gameState: any = null;
 export let gameid: string = "";
+let overlayTimer: any = null;
 
 let cleanupListeners: (() => void)[] = [];
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -16,6 +17,7 @@ export function addCleanupListener(fn: () => void): void {
 
 export function cleanupGame(userId?: number, b: boolean = true): void {
   console.log("🧹 Cleaning up game...");
+
 
   cleanupListeners.forEach(cleanup => cleanup());
   cleanupListeners = [];
@@ -29,6 +31,10 @@ export function cleanupGame(userId?: number, b: boolean = true): void {
     keyupHandler = null;
   }
 
+  if (overlayTimer) {
+    clearTimeout(overlayTimer);
+    overlayTimer = null;
+  }
   const container = document.getElementById("game-container");
   if (container) container.innerHTML = '';
 
@@ -40,6 +46,9 @@ export function cleanupGame(userId?: number, b: boolean = true): void {
 }
 
 export function setupKeyboardListeners(gameId: string, playerId: string, isAI: boolean = false, isRemote: boolean = false): void {
+  
+  if (keydownHandler) document.removeEventListener("keydown", keydownHandler);
+  if (keyupHandler) document.removeEventListener("keyup", keyupHandler);
   const moves = (isAI || isRemote)
     ? { up: false, down: false }
     : { left: { up: false, down: false }, right: { up: false, down: false } };
@@ -332,7 +341,7 @@ function showGameOverOverlay(
 
   document.body.appendChild(overlay);
 
-  setTimeout(() => {
+  overlayTimer = setTimeout(() => {
     overlay.remove();
     style.remove();
     cleanupGame(undefined, false);
@@ -341,6 +350,7 @@ function showGameOverOverlay(
     console.log(`🔄 Redirecting to: ${redirectPath}`);
     history.pushState({}, "", `/${redirectPath}`);
     navigateCallback(redirectPath);
+    overlayTimer = null;
   }, 3000);
 }
 
@@ -397,7 +407,6 @@ export function handleGameConfig(msg: any, userId: number, startButtonId: string
         }
 
         if (rName && lName) {
-          // swap text and basic styling
           const tmpText = lName.textContent;
           const tmpClass = lName.className;
           const tmpColor = lName.style.color;

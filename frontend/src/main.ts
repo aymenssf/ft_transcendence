@@ -3,7 +3,7 @@ declare const io: any;
 
 import {game_start, listenForInputLocal} from "./game.js";
 import "./game_soket.js"
-import {initgameSocket, sendMessage, removeMessageListener, addMessageListener } from "./game_soket.js"
+import {initgameSocket, sendMessage, removeMessageListener, addMessageListener, closeGameSocket } from "./game_soket.js"
 import {initchatSocket, onChatMessage} from "./chat_soket.js"
 import {
   cleanupGame,
@@ -42,6 +42,7 @@ let ctx : CanvasRenderingContext2D | null = null;
 let gameConfig : any;
 let gameState: any;
 let user_list: any;
+let is_u_i:boolean = false;
 
 interface User {
   username: string;
@@ -63,6 +64,7 @@ interface user_state {
 class AppRouter {
   private currentPage: string;
   private container: HTMLElement;
+  private card: HTMLElement | null = null;
   private contentContainer: HTMLElement | null = null;
   private isLoggedIn: boolean = false;
   private currentUser: string | null = null;
@@ -478,7 +480,6 @@ private disconnectGlobalSocket(): void {
 public async performLogout(): Promise<void> {
   this.disconnectGlobalSocket();
 
-  // Cleanup managers
   if (this.chatManager) {
     this.chatManager.destroy();
     this.chatManager = null;
@@ -570,6 +571,8 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     history.pushState(null, "", `/${normalizedPath}`);
   }
   this.currentPage = normalizedPath;
+
+
   this.loadPage(normalizedPath);
 }
 
@@ -602,6 +605,25 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
 
   private loadPage(page: string): void {
     const pageData = this.getPageData(page);
+      const tournamentId = localStorage.getItem('activeTournamentId');
+  if (tournamentId) {
+    console.log(`the path in w: ${ window.location.pathname } normalizedPath : ${page}`)
+    const token = localStorage.getItem('jwt_token');
+    if (!is_u_i && tournamentId && token) {
+          try { 
+              fetch('/tournaments/tournaments/leave', { 
+               method: 'POST', 
+               headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json'}, 
+               body: JSON.stringify({ tournamentId: tournamentId }) 
+             }); 
+           } catch (err) { console.error(err); }
+        console.log("fixed");
+        localStorage.removeItem('activeTournamentId');
+        this.loadPage("dashboard/game/tournament");
+        closeGameSocket();
+        initgameSocket();
+    }
+  }
     const dashboardPages = [
       "dashboard",
       "dashboard/game",
@@ -649,16 +671,12 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     console.log(`📄 Loaded page: ${page}`);
   }
 
-  /**
-   * Update active navigation link based on current page
-   */
   private updateActiveNavLink(): void {
     const navLinks = document.querySelectorAll('.nav-item');
     navLinks.forEach(link => {
       link.classList.remove('active');
     });
 
-    // Find and highlight the current page
     const currentPath = `/${this.currentPage}`;
     navLinks.forEach(link => {
       const href = link.getAttribute('href');
@@ -1072,16 +1090,14 @@ private getTournamentLobbyPage(): Page {
     init: () => {
        console.log("🏟️ Tournament Lobby Initialized");
        const tId = localStorage.getItem('activeTournamentId');
-       if(!tId) { this.navigateTo("dashboard/game/tournament"); return; }
-
+       if(!tId) { this.navigateTo("dashboard/game/tournament"); return;}
+        is_u_i = false;
        cleanupTournamentMatch();
 
        let isLeaving = false;
 
        const performExit = async () => {
            isLeaving = true;
-           window.removeEventListener("popstate", handlePopState);
-           window.removeEventListener("beforeunload", handleBeforeUnload);
            
            cleanupTournamentMatch();
            localStorage.removeItem('activeTournamentId');
@@ -1103,29 +1119,6 @@ private getTournamentLobbyPage(): Page {
          }
        }, 100);
 
-       const handlePopState = (event: PopStateEvent) => {
-           if (isLeaving) return;
-
-           const confirmLeave = confirm("⚠️ WARNING: You will forfeit the tournament if you leave. Are you sure?");
-           
-           if (confirmLeave) {
-               performExit();
-           } else {
-               history.pushState({ tournamentLobby: true }, "", location.href);
-           }
-       };
-       window.addEventListener("popstate", handlePopState);
-
-       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-           e.preventDefault();
-           e.returnValue = ''; 
-       };
-       window.addEventListener("beforeunload", handleBeforeUnload);
-
-       addCleanupListener(() => {
-           window.removeEventListener("popstate", handlePopState);
-           window.removeEventListener("beforeunload", handleBeforeUnload);
-       });
 
        const playerCountEl = document.getElementById("player-count-display")!;
        const bracketEl = document.getElementById("bracket-container")!;
@@ -1287,7 +1280,6 @@ private gettournamentpage(): Page {
        console.log("🏆 Tournament Selection page loaded");
        cleanupGame(this.user.id, false);
        setupNavigationHandlers(this.user.id, "back-button-tournament", (path) => this.loadPage(path));
-
        const titleInput = document.getElementById("tournament-title-input") as HTMLInputElement;
        const createBtn = document.getElementById("create-tournament-btn") as HTMLButtonElement;
        const refreshBtn = document.getElementById("refresh-tournaments-btn") as HTMLButtonElement;
@@ -1306,14 +1298,14 @@ private gettournamentpage(): Page {
            if (tournaments.length === 0) { emptyState.style.display = "flex"; return; }
 
            tournaments.forEach((t: any) => {
-             const card = document.createElement("div");
-             card.className = "bg-gray-900/50 hover:bg-gray-900 border border-gray-700 p-5 rounded-xl flex justify-between items-center transition-all group";
+              this.card = document.createElement("div");
+              this.card.className = "bg-gray-900/50 hover:bg-gray-900 border border-gray-700 p-5 rounded-xl flex justify-between items-center transition-all group";
 
              let count = 0;
              if (t.numPlayers !== undefined) count = t.numPlayers;
              else if (Array.isArray(t.players)) count = t.players.length;
 
-             card.innerHTML = `
+             this.card.innerHTML = `
                <div class="flex items-center gap-6">
                  <div class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-2xl">🏆</div>
                  <div>
@@ -1335,13 +1327,16 @@ private gettournamentpage(): Page {
                    const joinRes = await fetch('/tournaments/tournaments/join', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId: t.id || t.tournamentId }) });
                    if (joinRes.ok) {
                      localStorage.setItem('activeTournamentId', t.id || t.tournamentId);
+                      if (this.card) this.card.remove();
+                      this.card = null;
+                      is_u_i = true;
                      this.navigateTo("dashboard/game/tournament/lobby");
                    } else { alert("Failed to join."); fetchTournaments(); }
                  } catch {}
                };
              }
-             card.appendChild(joinBtn);
-             listContainer.appendChild(card);
+             this.card.appendChild(joinBtn);
+             listContainer.appendChild(this.card);
            });
          } catch { loadingState.innerHTML = `<span style="color:#ef4444">Failed to load.</span>`; }
        };
@@ -1355,7 +1350,14 @@ private gettournamentpage(): Page {
            if (res.ok) {
              const data = await res.json();
              localStorage.setItem('activeTournamentId', data.tournamentId || data.id);
-             this.navigateTo("dashboard/game/tournament/lobby");
+             if (this.card) this.card.remove();
+             this.card = null;
+             const tid = localStorage.getItem('activeTournamentId');
+             if (tid){
+              console.log("id valide");
+              is_u_i= true;
+              this.navigateTo("dashboard/game/tournament/lobby");
+            }
            } else { alert("Failed"); createBtn.disabled = false; createBtn.innerText = "Create & Join"; }
          } catch { createBtn.disabled = false; createBtn.innerText = "Create & Join"; }
        };
@@ -1545,19 +1547,16 @@ private getremotepage(): Page {
       const uiAwareListener = (data: any) => {
          remoteListener(data);
 
-         // When game/match starts
          if (data.type === 'game_start' || data.type === 'match_found') {
              const matchmakingStatus = document.getElementById('matchmaking-status');
              const opponentPlaceholder = document.getElementById('opponent-placeholder');
              const opponentAvatar = document.getElementById('opponent-avatar');
              const searchStatusText = document.getElementById('serch');
 
-             // ✅ UPDATE BUTTON TO READY STATE
              if (startButton) {
                startButton.innerHTML = '<span>⚔️</span> I AM READY';
                startButton.disabled = false;
-               startButton.classList.replace('btn-secondary', 'btn-primary'); // Switch back to primary color
-               // Note: Any 'Ready' click logic needs to be attached here or handled by the existing listener
+               startButton.classList.replace('btn-secondary', 'btn-primary');
              }
 
              if(matchmakingStatus) matchmakingStatus.classList.add('hidden');
@@ -1855,7 +1854,6 @@ private getLoginPage(): Page {
       </section>
     `,
     init: () => {
-      // ... (Keep your existing init logic unchanged) ...
       console.log("🔑 Login page loaded");
       const form = document.getElementById("login-form");
       if (form) {
@@ -1872,8 +1870,6 @@ private getLoginPage(): Page {
         const divider = document.createElement('div');
         // Using the class we added to style.css
         divider.className = "auth-divider";
-        // Or manual tailwind if you didn't add that class:
-        // divider.className = "flex items-center my-4 w-full";
         divider.innerHTML = `<div class="flex-grow h-px bg-gray-700"></div><span class="px-3 text-gray-500 text-sm font-bold">OR</span><div class="flex-grow h-px bg-gray-700"></div>`;
         container.appendChild(divider);
 
@@ -2200,12 +2196,10 @@ private getSettingsPage(): Page {
       const form = document.getElementById('settings-form') as HTMLFormElement;
       const statusDiv = document.getElementById('settings-status') as HTMLDivElement;
 
-      // ✅ FIX: Select by '.avatar-thumb' to match HTML/CSS
       const avatarOptions = document.querySelectorAll<HTMLImageElement>(".avatar-thumb");
       const avatarInput = document.getElementById("settings-avatar") as HTMLInputElement;
       const currentAvatarImg = document.getElementById('settings-current-avatar') as HTMLImageElement;
 
-      // Upload Elements
       const fileInput = document.getElementById('settings-avatar-file') as HTMLInputElement;
       const chooseBtn = document.getElementById('settings-choose-avatar-btn') as HTMLButtonElement;
       const removeBtn = document.getElementById('settings-remove-avatar-btn') as HTMLButtonElement;
@@ -2214,7 +2208,6 @@ private getSettingsPage(): Page {
 
       let uploadedAvatarPath: string | null = null;
 
-      // 1. Handle File Upload
       if (chooseBtn && fileInput) {
         chooseBtn.addEventListener('click', () => fileInput.click());
 
@@ -2227,7 +2220,6 @@ private getSettingsPage(): Page {
           if (!validTypes.includes(file.type)) { alert('Invalid file type'); return; }
           if (file.size > 5 * 1024 * 1024) { alert('Max size 5MB'); return; }
 
-          // Show mini preview
           const reader = new FileReader();
           reader.onload = (e) => {
             if (e.target?.result && uploadPreviewImg) {
@@ -2237,7 +2229,6 @@ private getSettingsPage(): Page {
           };
           reader.readAsDataURL(file);
 
-          // Upload immediately
           const formData = new FormData();
           formData.append('avatar', file);
 
@@ -2254,10 +2245,8 @@ private getSettingsPage(): Page {
             uploadedAvatarPath = data.avatar;
             console.log('✅ Avatar uploaded:', uploadedAvatarPath);
 
-            // Remove selection from defaults
             avatarOptions.forEach(o => o.classList.remove("selected"));
 
-            // Update main preview
             if(currentAvatarImg) currentAvatarImg.src = uploadedAvatarPath!;
 
           } catch (error) {
@@ -2266,40 +2255,31 @@ private getSettingsPage(): Page {
           }
         });
 
-        // Remove uploaded file
         if (removeBtn) {
           removeBtn.addEventListener('click', () => {
             fileInput.value = '';
             previewContainer.classList.add('hidden');
             uploadedAvatarPath = null;
-            // Revert preview to current user avatar
             if(currentAvatarImg) currentAvatarImg.src = this.user.avatar;
           });
         }
       }
 
-      // 2. Handle Default Avatar Selection
       if (avatarOptions && avatarInput) {
-        // Highlight current avatar on load
         avatarOptions.forEach(o => {
             if(o.dataset.value === this.user.avatar) o.classList.add('selected');
         });
 
         avatarOptions.forEach(option => {
           option.addEventListener("click", () => {
-            // Remove selected class from all
             avatarOptions.forEach(o => o.classList.remove("selected"));
-            // Add to clicked
             option.classList.add("selected");
 
-            // Update hidden input
             const newVal = option.dataset.value || "";
             avatarInput.value = newVal;
 
-            // Update visual preview
             currentAvatarImg.src = newVal;
 
-            // Clear upload if exists
             if (uploadedAvatarPath) {
               uploadedAvatarPath = null;
               fileInput.value = '';
@@ -2309,7 +2289,6 @@ private getSettingsPage(): Page {
         });
       }
 
-      // 3. Handle Form Submit
       if (form) {
         form.addEventListener('submit', async (e) => {
           e.preventDefault();
@@ -2318,7 +2297,6 @@ private getSettingsPage(): Page {
           const email = (document.getElementById('settings-email') as HTMLInputElement).value.trim();
           const tournament = (document.getElementById('settings-tournament') as HTMLInputElement).value.trim();
 
-          // Decide which avatar to use
           let finalAvatar = '';
           if (uploadedAvatarPath) {
             finalAvatar = uploadedAvatarPath;
@@ -2330,10 +2308,8 @@ private getSettingsPage(): Page {
           if (username && username !== this.currentUser) updates.username = username;
           if (email && email !== this.user.email) updates.email = email;
           if (tournament) updates.usernameTournament = tournament;
-          // Only add avatar to updates if it is different
           if (finalAvatar && finalAvatar !== this.user.avatar) updates.avatar = finalAvatar;
 
-          // UI Feedback
           if (Object.keys(updates).length === 0) {
             statusDiv.classList.remove('hidden', 'bg-green-500/20', 'text-green-400', 'bg-blue-500/20', 'text-blue-400');
             statusDiv.classList.add('block', 'bg-yellow-500/20', 'text-yellow-400');
@@ -2348,18 +2324,15 @@ private getSettingsPage(): Page {
           const success = await this.updateUserProfile(updates);
 
           if (success) {
-            // Update local state
             if (updates.username) this.currentUser = updates.username;
             if (updates.email) this.user.email = updates.email;
             if (updates.usernameTournament) this.user.usernametournament = updates.usernameTournament;
             if (updates.avatar) {
               this.user.avatar = updates.avatar;
-              // Update sidebar avatar immediately if element exists
               const sidebarAvatar = document.querySelector('.sidebar-user-img') as HTMLImageElement;
               if(sidebarAvatar) sidebarAvatar.src = updates.avatar;
             }
 
-            // Cleanup UI
             uploadedAvatarPath = null;
             fileInput.value = '';
             previewContainer.classList.add('hidden');
@@ -2588,9 +2561,6 @@ private getFriendsPage(): Page {
 
 }
 
-// ==========================
-// Initialize App
-// ==========================
 document.addEventListener("DOMContentLoaded", () => {
   new AppRouter("app-container");
 });

@@ -47,7 +47,6 @@ async function fetchUserDetails(userId: string): Promise<{ username: string; ava
   }
 }
 
-// --- Input Handling ---
 function setupInput(gId: string, pId: string) {
   const moves = { up: false, down: false };
   const send = () => sendMessage("game_update", { gameId: gId, playerId: pId, input: { ...moves } });
@@ -113,7 +112,6 @@ export function createTournamentListener(
     });
   };
 
-  // Generate HTML for the Bracket Card (Used inside the overlay)
   const createMatchCardHTML = (p1: any, p2: any, label: string) => `
       <div class="card-base border-2 border-white/10 flex flex-col items-center p-8 min-w-[300px]">
         <h3 class="text-gray-400 text-sm mb-6 uppercase font-bold tracking-widest">${label}</h3>
@@ -178,11 +176,10 @@ export function createTournamentListener(
     console.log("📨 Tournament message:", msg.type);
 
     if (msg.type === "game_config") {
-      // ... (Keep existing config logic) ...
       const config = msg.payload;
       if (config && myMatch) {
         if (currentRound === "semi") {
-          initGame(config, myMatch.p1, myMatch.p2); // Ensure initGame targets the canvas inside #view-game
+          initGame(config, myMatch.p1, myMatch.p2);
           sendMessage("player_ready", { gameId: config.gameId, playerId: userIdStr });
 
           // Hide Ready Overlay
@@ -197,7 +194,6 @@ export function createTournamentListener(
     }
 
     if (msg.type === "game_start") {
-        // Ensure Ready Overlay is gone
         const readyOverlay = document.getElementById("ready-overlay");
         if (readyOverlay) readyOverlay.style.display = "none";
         return;
@@ -214,7 +210,6 @@ export function createTournamentListener(
         if (s1p1.isMe || s1p2.isMe) myMatch = { p1: s1p1, p2: s1p2 };
         else if (s2p1.isMe || s2p2.isMe) myMatch = { p1: s2p1, p2: s2p2 };
 
-        // 1. UPDATE BRACKET CONTENT
         const bracketContent = document.getElementById("big-bracket-content");
         if (bracketContent) {
             bracketContent.innerHTML = `
@@ -225,21 +220,17 @@ export function createTournamentListener(
             `;
         }
 
-        // 2. SHOW BRACKET OVERLAY
         showView("view-bracket");
         await runCountdown("bracket-timer", 8);
         hideView("view-bracket");
 
-        // 3. SETUP GAME VIEW
         if (myMatch) {
-            // Update DOM elements for Game View (Avatars/Names)
             (document.getElementById("game-p1-avatar") as HTMLImageElement).src = myMatch.p1.avatar;
             document.getElementById("game-p1-name")!.textContent = myMatch.p1.name;
             (document.getElementById("game-p2-avatar") as HTMLImageElement).src = myMatch.p2.avatar;
             document.getElementById("game-p2-name")!.textContent = myMatch.p2.name;
             document.getElementById("game-round-label")!.textContent = "SEMI-FINAL";
 
-            // Reset Ready Overlay
             const readyOverlay = document.getElementById("ready-overlay");
             if(readyOverlay) {
                 readyOverlay.style.display = "flex";
@@ -256,11 +247,9 @@ export function createTournamentListener(
       case "game_finish": {
         const winner = await resolveUser(msg.payload.winner);
 
-        // Hide Game View immediately
         hideView("view-game");
 
         if (currentRound === "semi") {
-             // Show result on the Lobby Main Panel
              const mainArea = document.getElementById("lobby-main-area");
              if (mainArea) {
                  if (winner.isMe) {
@@ -293,19 +282,16 @@ export function createTournamentListener(
 
         if (amIPlaying) myMatch = { p1: f1, p2: f2 };
 
-        // 1. UPDATE BRACKET FOR FINAL
         const bracketContent = document.getElementById("big-bracket-content");
         if (bracketContent) {
              document.querySelector("#view-bracket h1")!.textContent = "GRAND FINAL";
              bracketContent.innerHTML = createMatchCardHTML(f1, f2, "Championship Match");
         }
 
-        // 2. SHOW BRACKET
         showView("view-bracket");
         await runCountdown("bracket-timer", 5);
         hideView("view-bracket");
 
-        // 3. SHOW GAME (If playing) or SPECTATOR (Logic simplified for now)
         if (amIPlaying && myMatch) {
             (document.getElementById("game-p1-avatar") as HTMLImageElement).src = myMatch.p1.avatar;
             document.getElementById("game-p1-name")!.textContent = myMatch.p1.name;
@@ -316,7 +302,6 @@ export function createTournamentListener(
             const readyOverlay = document.getElementById("ready-overlay");
             if(readyOverlay) {
                 readyOverlay.style.display = "flex";
-                // Inject the button back in
                 readyOverlay.innerHTML = `
                    <div class="flex flex-col items-center gap-8">
                       <h2 class="text-3xl font-bold text-white">Grand Final Ready?</h2>
@@ -325,7 +310,6 @@ export function createTournamentListener(
                       </button>
                    </div>
                 `;
-                // Re-attach listener logic for pendingFinalGameId (Similar to your previous code)
                 if(pendingFinalGameId) {
                     setTimeout(() => {
                         const btn = document.getElementById("final-ready-btn");

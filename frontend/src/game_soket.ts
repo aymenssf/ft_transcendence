@@ -34,3 +34,19 @@ export function removeMessageListener(fn: (msg: any) => void) {
     const idx = listeners.indexOf(fn);
     if (idx !== -1) listeners.splice(idx, 1);
 }
+export function closeGameSocket(code: number = 1000, reason: string = 'Client closed connection') {
+    if (!socket) return;
+
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+
+    try {
+        socket.close(code, reason);
+    } catch (err) {
+        console.warn('Failed to close WebSocket', err);
+    } finally {
+        socket = null;
+    }
+}

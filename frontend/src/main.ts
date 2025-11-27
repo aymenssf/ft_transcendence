@@ -739,7 +739,7 @@ private renderDashboardLayout(): void {
 
   this.contentContainer = document.querySelector('#dashboard-main-content .content-wrapper');
   this.setupDashboardEvents();
-    this.updateActiveNavLink(); // Highlight current page
+    this.updateActiveNavLink();
 }
 
 private renderNavLink(href: string, icon: string, text: string): string {
@@ -756,18 +756,15 @@ private setupDashboardEvents() {
   const overlay = document.getElementById('sidebar-overlay');
   const sidebar = document.getElementById('dashboard-sidebar');
 
-  // Toggle button click handler
   if (toggleButton && overlay) {
     toggleButton.addEventListener('click', () => this.toggleSidebar());
     overlay.addEventListener('click', () => this.toggleSidebar());
   }
 
-  // Auto-close sidebar when mouse leaves (desktop only)
   if (sidebar) {
     let mouseLeaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
     sidebar.addEventListener('mouseenter', () => {
-      // Clear any pending close timeout
       if (mouseLeaveTimeout) {
         clearTimeout(mouseLeaveTimeout);
         mouseLeaveTimeout = null;
@@ -775,10 +772,8 @@ private setupDashboardEvents() {
     });
 
     sidebar.addEventListener('mouseleave', () => {
-      // Only auto-close on desktop when sidebar is open
       const isDesktop = window.innerWidth >= 1024;
       if (isDesktop && sidebar.classList.contains('open')) {
-        // Small delay to prevent accidental closes
         mouseLeaveTimeout = setTimeout(() => {
           this.toggleSidebar();
         }, 300);
@@ -792,12 +787,10 @@ private setupDashboardEvents() {
     userMenuBtn.addEventListener("click", (e) => { e.stopPropagation(); userDropdown.classList.toggle("hidden"); });
     document.addEventListener("click", () => { userDropdown.classList.add("hidden"); });
   }
-  // Logo button - navigate to dashboard and close sidebar
   const logoBtn = document.getElementById("logo-btn");
     if (logoBtn) {
     logoBtn.addEventListener("click", async (e) => {
       e.preventDefault();
-      // Close sidebar if it's open
       if (sidebar?.classList.contains('open')) {
         this.toggleSidebar();
       }
@@ -1007,12 +1000,14 @@ private getTournamentLobbyPage(): Page {
     title: "Tournament Lobby",
     content: `
       <div class="lobby-wrapper">
-
         <div class="lobby-inner">
             <div class="flex items-center justify-between mb-6 shrink-0">
-              <button id="leave-tournament-btn" class="back-button">← Leave Lobby</button>
+              <button id="leave-tournament-btn" class="back-button group">
+                <span class="group-hover:-translate-x-1 transition-transform">←</span>
+                <span>Leave Lobby</span>
+              </button>
               <h2 class="text-xl font-bold text-white tracking-wide">🏆 TOURNAMENT LOBBY</h2>
-              <div class="w-[120px]"></div>
+              <div class="w-[120px]"></div> 
             </div>
 
             <div class="lobby-grid">
@@ -1038,48 +1033,40 @@ private getTournamentLobbyPage(): Page {
 
         <div id="view-bracket" class="tournament-overlay hidden">
              <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-12 tracking-widest uppercase drop-shadow-lg">SEMI-FINALS</h1>
-
              <div id="big-bracket-content" class="w-full max-w-6xl px-4 flex justify-center"></div>
-
              <div class="mt-16 text-gray-400 text-2xl animate-pulse">
                 Next match starting in <span id="bracket-timer" class="text-white font-bold text-3xl ml-2">...</span>
              </div>
         </div>
 
-        <div id="view-game" class="tournament-overlay hidden">
-
-            <div class="absolute top-0 w-full h-24 bg-gray-900/95 border-b border-gray-800 flex justify-between items-center px-12">
-               <div class="text-white font-bold text-2xl tracking-wider" id="game-round-label">MATCH</div>
-               <div class="px-10 py-3 bg-gray-800 rounded-full border border-gray-700">
-                  <span class="font-mono text-4xl font-bold text-emerald-400 tracking-widest" id="tournament-score">0 - 0</span>
+        <div id="view-game" class="lobby-game-view">
+            <div class="lobby-game-header">
+               <div class="text-white font-bold text-xl tracking-wider" id="game-round-label">MATCH</div>
+               <div class="px-8 py-2 bg-gray-800 rounded-full border border-gray-700">
+                  <span class="font-mono text-3xl font-bold text-emerald-400 tracking-widest" id="tournament-score">0 - 0</span>
                </div>
                <div class="w-[100px]"></div>
             </div>
-
-            <div id="ready-overlay" class="absolute inset-0 z-[210] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md">
-               <div id="game-match-info" class="flex items-center gap-16 mb-12"></div>
+            <div id="ready-overlay" class="lobby-ready-overlay">
+               <div id="game-match-info" class="flex items-center gap-16 mb-12 scale-125"></div>
                <button id="game-ready-btn" class="btn-primary text-2xl px-12 py-6 shadow-emerald-500/30 animate-pulse">
                  I AM READY! ⚔️
                </button>
             </div>
-
-            <div class="game-board-wrapper">
-
-               <div class="game-player-left">
-                  <img id="game-p1-avatar" class="w-24 h-24 rounded-full border-4 border-blue-500 shadow-lg object-cover bg-gray-800">
-                  <span id="game-p1-name" class="text-lg font-bold text-white bg-gray-900 px-4 py-1 rounded border border-gray-700">P1</span>
+            <div class="lobby-game-container">
+               <div class="lobby-canvas-wrapper">
+                   <div class="absolute top-1/2 -left-32 -translate-y-1/2 flex flex-col items-center gap-2">
+                      <img id="game-p1-avatar" class="w-20 h-20 rounded-full border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)] object-cover">
+                      <span id="game-p1-name" class="text-lg font-bold text-white bg-gray-800 px-3 py-1 rounded border border-gray-700">P1</span>
+                   </div>
+                   <div id="game-container" class="w-full h-full"></div>
+                   <div class="absolute top-1/2 -right-32 -translate-y-1/2 flex flex-col items-center gap-2">
+                      <img id="game-p2-avatar" class="w-20 h-20 rounded-full border-4 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] object-cover">
+                      <span id="game-p2-name" class="text-lg font-bold text-white bg-gray-800 px-3 py-1 rounded border border-gray-700">P2</span>
+                   </div>
                </div>
-
-               <div id="game-container" class="game-canvas"></div>
-
-               <div class="game-player-right">
-                  <img id="game-p2-avatar" class="w-24 h-24 rounded-full border-4 border-red-500 shadow-lg object-cover bg-gray-800">
-                  <span id="game-p2-name" class="text-lg font-bold text-white bg-gray-900 px-4 py-1 rounded border border-gray-700">P2</span>
-               </div>
-
             </div>
         </div>
-
       </div>
     `,
     init: () => {
@@ -1088,16 +1075,61 @@ private getTournamentLobbyPage(): Page {
        if(!tId) { this.navigateTo("dashboard/game/tournament"); return; }
 
        cleanupTournamentMatch();
-       const popstateHandler = () => {
-         cleanupTournamentMatch();
-         localStorage.removeItem('activeTournamentId');
-         this.navigateTo("dashboard/game/tournament");
-       };
-       window.addEventListener("popstate", popstateHandler);
 
-      const playerCountEl = document.getElementById("player-count-display")!;
-      const bracketEl = document.getElementById("bracket-container")!;
-      const leaveBtn = document.getElementById("leave-tournament-btn")!;
+       let isLeaving = false;
+
+       const performExit = async () => {
+           isLeaving = true;
+           window.removeEventListener("popstate", handlePopState);
+           window.removeEventListener("beforeunload", handleBeforeUnload);
+           
+           cleanupTournamentMatch();
+           localStorage.removeItem('activeTournamentId');
+
+           try { 
+             await fetch('/tournaments/tournaments/leave', { 
+               method: 'POST', 
+               headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json'}, 
+               body: JSON.stringify({ tournamentId: tId }) 
+             }); 
+           } catch (err) { console.error(err); }
+           
+           this.navigateTo("dashboard/game/tournament");
+       };
+
+       setTimeout(() => {
+         if (!isLeaving) {
+           history.pushState({ tournamentLobby: true }, "", location.href);
+         }
+       }, 100);
+
+       const handlePopState = (event: PopStateEvent) => {
+           if (isLeaving) return;
+
+           const confirmLeave = confirm("⚠️ WARNING: You will forfeit the tournament if you leave. Are you sure?");
+           
+           if (confirmLeave) {
+               performExit();
+           } else {
+               history.pushState({ tournamentLobby: true }, "", location.href);
+           }
+       };
+       window.addEventListener("popstate", handlePopState);
+
+       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+           e.preventDefault();
+           e.returnValue = ''; 
+       };
+       window.addEventListener("beforeunload", handleBeforeUnload);
+
+       addCleanupListener(() => {
+           window.removeEventListener("popstate", handlePopState);
+           window.removeEventListener("beforeunload", handleBeforeUnload);
+       });
+
+       const playerCountEl = document.getElementById("player-count-display")!;
+       const bracketEl = document.getElementById("bracket-container")!;
+       const leaveBtn = document.getElementById("leave-tournament-btn")!;
 
        const resolveUser = async (pid: string | number) => {
            const pidStr = String(pid);
@@ -1144,31 +1176,40 @@ private getTournamentLobbyPage(): Page {
               if(res.ok) {
                   const d = await res.json();
                   const pList = d.players || [];
+
+                  const amIInList = pList.some((p: any) => {
+                      const pid = typeof p === 'object' ? p.id : p;
+                      return String(pid) === String(this.user.id);
+                  });
+
+                  if (!amIInList) {
+                      console.warn("⚠️ User removed from tournament. Redirecting...");
+                      localStorage.removeItem('activeTournamentId');
+                      this.navigateTo("dashboard/game/tournament");
+                      return;
+                  }
+
                   if (playerCountEl) playerCountEl.innerText = `${pList.length}/4`;
                   updateLobbySidebar(pList);
               } else {
-                  alert("Tournament expired.");
+                  console.warn("⚠️ Tournament not found. Redirecting...");
+                  localStorage.removeItem('activeTournamentId');
                   this.navigateTo("dashboard/game/tournament");
               }
-           } catch {}
+           } catch (e) { console.error(e); }
        };
 
-      const handleLeave = async () => {
-           if(!confirm("Leave tournament?")) return;
-           localStorage.removeItem('activeTournamentId');
-           try { await fetch('/tournaments/tournaments/leave', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json'}, body: JSON.stringify({ tournamentId: tId }) }); } catch {}
-           this.navigateTo("dashboard/game/tournament");
-       };
-       if(leaveBtn) leaveBtn.onclick = handleLeave;
+       if(leaveBtn) {
+         leaveBtn.onclick = async () => {
+             if(confirm("Leave tournament?")) performExit();
+         };
+       }
 
-      const tournamentBrain = createTournamentListener(this.user.id, tId, (path) => this.loadPage(path));
-
-      const mainListener = (msg: any) => {
+       const tournamentBrain = createTournamentListener(this.user.id, tId, (path) => this.loadPage(path));
+       const mainListener = (msg: any) => {
           tournamentBrain(msg);
           if (msg.type === "tournament_player-joined" || msg.type === "tournament_player-left") {
-              if (msg.payload.tournamentId === tId) {
-                  refreshLobbyData();
-              }
+              if (msg.payload.tournamentId === tId) refreshLobbyData();
           }
        };
 
@@ -1177,7 +1218,6 @@ private getTournamentLobbyPage(): Page {
     }
   };
 }
-
 
 private gettournamentpage(): Page {
   return {

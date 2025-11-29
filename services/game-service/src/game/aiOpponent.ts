@@ -4,14 +4,11 @@ import WebSocket from "ws";
 import {SocketStream} from "@fastify/websocket";
 
 export function aiOpponentGame(connection:SocketStream, playerId: string, difficulty: string) {
-    console.log(`Player ${playerId} requests AI opponent , difficulty: ${difficulty}`);
-
     const game_room = createGameRoom(playerId, "ai", connection.socket, "ai_opponent");
 
     const aiSocket = new WebSocket(process.env.AI_SERVICE_URL || "ws://ai-service:3013/");
 
     aiSocket.on("open", () => {
-        console.log("Connected to AI service");
 
         game_room.sockets.add(aiSocket);
 
@@ -33,7 +30,7 @@ export function aiOpponentGame(connection:SocketStream, playerId: string, diffic
                 }));
             });
             startGameLoop(game_room);
-        }, 3000);
+        }, 500);
 
     });
 
@@ -56,7 +53,6 @@ export function aiOpponentGame(connection:SocketStream, playerId: string, diffic
     });
 
     aiSocket.on("close", () => {
-        console.log("AI service disconnected");
         game_room.sockets.delete(aiSocket);
         // end game
     });

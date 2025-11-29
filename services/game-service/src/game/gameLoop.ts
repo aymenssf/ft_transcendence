@@ -4,6 +4,7 @@ import { GameBall, GameCanvas, GamePaddles, GameRoom } from "../utils/types.js";
 import { WebSocket } from "ws";
 import { createInitialGameState } from '../helpers/helpers.js';
 import { handleTournamentRoundWinner } from './tournament.js';
+import { saveGameRoom } from '../model/gameModels.js';
 
 function resetBall(gameRoom: GameRoom) {
     const { ball, canvas } = gameRoom.state;
@@ -120,6 +121,7 @@ function checkBallCollision(ball: GameBall, paddles: GamePaddles) {
 
 export function startGame(room: GameRoom) {
 
+    if (room.status === GAME_ROOM_STATUS.FINISHED) return ;
     room.sockets.forEach(sock => {
         sock?.send(JSON.stringify(createInitialGameState(room.gameId, room.mode)));
     });
@@ -131,7 +133,7 @@ export function startGame(room: GameRoom) {
             }));
         });
         startGameLoop(room);
-    }, 3000);
+    }, 500);
 }
 
 export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
@@ -139,7 +141,7 @@ export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
     gameRoom.loop = setInterval(() => {
         const { state, sockets } = gameRoom;
         const { ball, paddles, canvas } = state;
-        // if (gameRoom.paused) return;
+        if (gameRoom.paused) return;
         movePaddles(paddles, canvas);
         moveBall(ball, canvas);
         checkBallCollision(ball, paddles);
@@ -162,6 +164,9 @@ export function startGameLoop(gameRoom: GameRoom, FPS = 60) {
             if (gameRoom.loop) {
                 clearInterval(gameRoom.loop);
                 gameRoom.loop = null;
+                gameRoom.winner = winner;
+                gameRoom.status = GAME_ROOM_STATUS.FINISHED;
+                saveGameRoom(gameRoom);
             }
         }
         const updateMsg = JSON.stringify({

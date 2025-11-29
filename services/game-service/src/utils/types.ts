@@ -1,7 +1,7 @@
 export type GameMode = "local" | "friend" | "random" | "ai_opponent" | "tournament";
 export type GameStatus = "waiting" | "ongoing" | "finished";
 export type Difficulty = "easy" | "medium" | "hard";
-export type TournamentStatus = "waiting" | "semifinals" | "final" | "finished";
+export type TournamentStatus = "waiting" | "semifinals" | "final" | "finished" | "canceled";
 import { WebSocket } from "ws";
 
 export interface GameCanvas {

@@ -4,7 +4,6 @@ export interface SimpleGameDB {
   findUserById(id: number): Promise<any>;
   getAllUsers(): Promise<any[]>;
   
-  // Simple test 
   testConnection(): Promise<boolean>;
   
   close(): void;
@@ -47,7 +46,6 @@ function createSimpleGameDB(): SimpleGameDB {
     },
 
     close() {
-      // No need to disconnect shared prisma instance
     }
   };
 }

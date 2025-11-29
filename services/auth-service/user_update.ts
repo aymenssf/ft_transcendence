@@ -57,9 +57,9 @@ export async function updateUserHandler(
 		if (email !== undefined) 
 			data.email = email;
 		if (avatar !== undefined) 
-			data.avatar = avatar; // can be null
+			data.avatar = avatar;
 		if (usernameTournament !== undefined) 
-			data.usernameTournament = usernameTournament; // can be null or string
+			data.usernameTournament = usernameTournament; 
 		if (password !== undefined) 
 			data.password = await hashPassword(password);
 

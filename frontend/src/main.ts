@@ -1,6 +1,9 @@
+// Socket.IO is loaded from CDN in index.html
+declare const io: any;
+
 import {game_start, listenForInputLocal} from "./game.js";
 import "./game_soket.js"
-import {initgameSocket, sendMessage, removeMessageListener, addMessageListener } from "./game_soket.js"
+import {initgameSocket, sendMessage, removeMessageListener, addMessageListener, closeGameSocket } from "./game_soket.js"
 import {initchatSocket, onChatMessage} from "./chat_soket.js"
 import {
   cleanupGame,
@@ -11,6 +14,20 @@ import {
   createAIGameListener,
   createRemoteGameListener
 } from "./game_shared.js";
+import { ChatManager } from "./chat/index.js";
+import { FriendsManager } from "./friends/index.js";
+import { initAuth42, Auth42Handler, create42IntraButton } from './auth-42-intra.js';
+import {
+  createTournamentListener,
+  cleanupTournamentMatch,
+  setupTournamentGameListeners
+} from "./game_tournament_handler.js"
+
+import {
+  initFriendInviteListener,
+  cleanupFriendInviteListener,
+  sendFriendInvite
+} from "./friend_invite_handler.js";
 
 console.log("start Pong game");
 
@@ -24,6 +41,8 @@ interface Page {
 let ctx : CanvasRenderingContext2D | null = null;
 let gameConfig : any;
 let gameState: any;
+let user_list: any;
+let is_u_i:boolean = false;
 
 interface User {
   username: string;
@@ -34,14 +53,28 @@ interface User {
   id: number;
 }
 
+interface user_state {
+  avgScore: string,
+  losses: string,
+  total: string,
+  winRate: string,
+  wins: string,
+}
+
 class AppRouter {
   private currentPage: string;
   private container: HTMLElement;
+  private card: HTMLElement | null = null;
   private contentContainer: HTMLElement | null = null;
   private isLoggedIn: boolean = false;
   private currentUser: string | null = null;
   private postLoginRedirect: string | null = null;
   private user: User = {username:"", passworde:"",email:"", avatar:"../images/avatre/1jpg",usernametournament : "" ,id:0};
+  private friend: User = {username:"", passworde:"",email:"", avatar:"../images/avatre/1jpg",usernametournament : "" ,id:0};
+  private chatManager: ChatManager | null = null;
+  private friendsManager: FriendsManager | null = null;
+  private globalSocket: any = null;
+  private pendingBlockUpdates: Map<number, boolean> = new Map(); // Store block updates when managers aren't ready
   private allpages = [
     "/",
     "home",
@@ -50,14 +83,14 @@ class AppRouter {
     "dashboard",
     "dashboard/chat",
     "dashboard/friends",
-    "dashboard/status",
-    "dashboard/stats",
     "dashboard/settings",
     "dashboard/game",
     "dashboard/game/ai",
     "dashboard/game/local",
     "dashboard/game/remote",
-    "dashboard/game/Tournament"
+    "dashboard/game/tournament",
+    "dashboard/game/tournament/lobby",
+    "dashboard/game/friend_game"
   ]
   private publicPages = ["/","home", "login", "register"];
   private protectedPages = [
@@ -65,14 +98,14 @@ class AppRouter {
     "dashboard",
     "dashboard/chat",
     "dashboard/friends",
-    "dashboard/status",
-    "dashboard/stats",
     "dashboard/settings",
     "dashboard/game",
     "dashboard/game/ai",
     "dashboard/game/local",
     "dashboard/game/remote",
-    "dashboard/game/Tournament"
+    "dashboard/game/tournament",
+    "dashboard/game/tournament/lobby",
+    "dashboard/game/friend_game"
   ];
 
 constructor(containerId: string) {
@@ -80,12 +113,54 @@ constructor(containerId: string) {
   const el = document.getElementById(containerId);
   if (!el) throw new Error(`Container #${containerId} not found`);
   this.container = el;
+
+  // Set up global block sync listener
+  this.setupGlobalBlockSyncListener();
+
   this.init();
 
   (async () => {
     try {
+      // ✅ Handle 42 OAuth callback first
+      const auth42Result = await initAuth42();
+      if (auth42Result) {
+        console.log('✅ 42 intra authentication successful!');
+        console.log('   User:', auth42Result.user);
+
+        // Set logged in state
+        this.setLoggedIn(true);
+        this.currentUser = auth42Result.user.username;
+        this.user = {
+          username: auth42Result.user.username,
+          passworde: '',
+          email: auth42Result.user.email,
+          avatar: auth42Result.user.avatar,
+          usernametournament: auth42Result.user.usernameTournament || auth42Result.user.username,
+          id: auth42Result.user.id
+        };
+
+        // Initialize game socket
+        initgameSocket();
+        initFriendInviteListener((roomId) => {
+          this.navigateTo(`/dashboard/game/friend/${roomId}`);
+        });
+
+        // Connect global socket for real-time updates
+        await this.connectGlobalSocket();
+
+        // Redirect to dashboard
+        await this.navigateTo('/dashboard', true);
+        return;
+      }
+
       await this.checkAuth();
+      if (this.isLoggedIn) {
+        initFriendInviteListener((roomId) => {
+          this.navigateTo(`/dashboard/game/friend/${roomId}`);
+        });
+      }
     } catch (e) {
+      console.error('Auth initialization error:', e);
     }
     const initialPath = window.location.pathname || "/";
     await this.navigateTo(initialPath, false);
@@ -94,7 +169,7 @@ constructor(containerId: string) {
 
 private async performLogin(username: string, password: string): Promise<boolean> {
   try {
-    const res = await fetch("/api/auth/login", {
+    const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -118,13 +193,12 @@ private async performLogin(username: string, password: string): Promise<boolean>
 
     this.setLoggedIn(true);
      initgameSocket();
-    //  initchatSocket();
 
     const respUser = data.user ?? data;
     if (respUser && typeof respUser === "object") {
       this.user = {
         username: (respUser.username ?? respUser.name ?? "") as string,
-        passworde : password,
+        passworde : "password",
         email: (respUser.email ?? "") as string,
         avatar: (respUser.avatar ?? "../images/avatre/1.jpg") as string,
         usernametournament : (respUser.usernametournament ?? name),
@@ -133,7 +207,7 @@ private async performLogin(username: string, password: string): Promise<boolean>
       this.currentUser = (respUser.username ?? this.user.username) as string;
 
       if (this.user.avatar === "avatar/default_avatar/default_avatar.jpg") {
-        this.user.avatar = "../images/avatre/1.jpg";
+        this.user.avatar = "../images/avatrs/1.jpg";
       }
 
       localStorage.setItem('user_data', JSON.stringify(this.user));
@@ -141,6 +215,9 @@ private async performLogin(username: string, password: string): Promise<boolean>
 
     console.log(`User avatar: ${this.user.avatar}`);
     console.log(`Is logged in: ${this.isLoggedIn}, user: ${this.currentUser}`);
+
+    // Connect global socket for real-time updates
+    await this.connectGlobalSocket();
 
     const redirect = this.postLoginRedirect || "/dashboard";
     this.postLoginRedirect = null;
@@ -214,6 +291,7 @@ private async checkAuth(): Promise<void> {
     this.currentUser = payload.username || null;
     this.setLoggedIn(true);
     initgameSocket();
+
     const storedUserData = localStorage.getItem('user_data');
     if (storedUserData) {
       try {
@@ -225,6 +303,8 @@ private async checkAuth(): Promise<void> {
     } else if (payload.userId) {
       await this.fetchUserDetails(payload.userId);
     }
+
+    await this.connectGlobalSocket();
   } catch (err) {
     console.warn('checkAuth failed', err);
     localStorage.removeItem('jwt_token');
@@ -233,9 +313,186 @@ private async checkAuth(): Promise<void> {
   }
 }
 
+/**
+ * Connect to global Socket.IO for real-time updates
+ */
+private async connectGlobalSocket(): Promise<void> {
+  if (typeof io === 'undefined') {
+    console.warn('Socket.IO library not loaded');
+    return;
+  }
+
+  const token = localStorage.getItem('jwt_token');
+  if (!token) {
+    console.warn('No auth token available for socket connection');
+    return;
+  }
+
+  try {
+    const socketUrl = `${window.location.protocol}//${window.location.host}`;
+    const socketOptions = {
+      path: '/chat/socket.io',
+      auth: { token },
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 10000
+    };
+
+    this.globalSocket = io(socketUrl, socketOptions);
+
+    this.globalSocket.on('connect', () => {
+      
+    });
+
+    this.globalSocket.on('disconnect', () => {
+      
+    });
+
+    this.globalSocket.on('connect_error', (error: any) => {
+      console.warn('Global Socket.IO connection error:', error.message);
+    });
+
+    // Listen for friend status changes globally
+    this.globalSocket.on('friend-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
+      if (this.chatManager) {
+        this.chatManager.handleFriendStatusChange(data.userId, data.status);
+      }
+
+      if (this.friendsManager) {
+        this.friendsManager.handleFriendStatusChange(data.userId, data.status);
+      }
+    });
+
+    // Also listen for generic user-status-change event
+    this.globalSocket.on('user-status-change', (data: { userId: number; status: 'online' | 'offline' }) => {
+      if (this.chatManager) {
+        this.chatManager.handleFriendStatusChange(data.userId, data.status);
+      }
+
+      if (this.friendsManager) {
+        this.friendsManager.handleFriendStatusChange(data.userId, data.status);
+      }
+    });
+
+    // Listen for other global events
+    this.globalSocket.on('friend-request', (data: any) => {
+      console.log('📬 Friend request received:', data);
+      if (this.chatManager) this.chatManager.handleFriendRequest(data);
+      if (this.friendsManager) this.friendsManager.handleFriendRequest(data);
+    });
+
+    this.globalSocket.on('friend-added', (data: any) => {
+      console.log('✅ Friend added:', data);
+      if (this.chatManager) this.chatManager.handleFriendAdded(data);
+      if (this.friendsManager) this.friendsManager.handleFriendAdded(data);
+    });
+
+    // Listen for game invitations globally
+    this.globalSocket.on('game-invitation', (data: any) => {
+      // Filter: Only process if this user is the target
+      if (data.targetUserId && data.targetUserId !== this.user?.id) {
+        return;
+      }
+
+      // Show notification on current active page only to avoid duplicates
+      const currentPage = window.location.pathname;
+
+      if (currentPage.includes('/friends') && this.friendsManager) {
+        this.friendsManager.handleGameInvitation(data);
+      } else if (currentPage.includes('/chat') && this.chatManager) {
+        this.chatManager.handleGameInvitation(data);
+      } else if (this.friendsManager) {
+        this.friendsManager.handleGameInvitation(data);
+      } else if (this.chatManager) {
+        this.chatManager.handleGameInvitation(data);
+      }
+    });
+
+    // Listen for game invite accepted globally (for sender)
+    this.globalSocket.on('game-invite-accepted', (data: any) => {
+      // Filter: Only process if this user is the sender
+      if (data.senderId && data.senderId !== this.user?.id) {
+        return;
+      }
+
+      // Redirect sender to game regardless of which manager is active
+      if (data.gameRoomId) {
+        if (this.friendsManager) {
+          this.friendsManager.handleGameInviteAccepted(data);
+        } else if (this.chatManager) {
+          this.chatManager.handleGameInviteAccepted(data);
+        } else {
+          alert('Your game invitation was accepted! Redirecting to game...');
+          setTimeout(() => {
+            window.location.href = `/dashboard/game/remote?room=${data.gameRoomId}`;
+          }, 500);
+        }
+      }
+    });
+
+    // Listen for game invite declined globally (for sender)
+    this.globalSocket.on('game-invite-declined', (data: any) => {
+      // Filter: Only process if this user is the sender
+      if (data.senderId && data.senderId !== this.user?.id) {
+        return;
+      }
+
+      alert('Your game invitation was declined');
+    });
+
+  } catch (error) {
+    console.error('Failed to connect global socket:', error);
+  }
+}
+
+/**
+ * Set up global block sync listener to keep managers in sync
+ */
+private setupGlobalBlockSyncListener(): void {
+  window.addEventListener('user-blocked', ((event: CustomEvent) => {
+    const { userId, isBlocked } = event.detail;
+
+    // Store the update for when managers are created
+    this.pendingBlockUpdates.set(userId, isBlocked);
+
+    // Update both managers if they exist
+    if (this.chatManager) {
+      this.chatManager.updateBlockStatus(userId, isBlocked);
+    }
+
+    if (this.friendsManager) {
+      this.friendsManager.updateBlockStatus(userId, isBlocked);
+    }
+  }) as EventListener);
+}
+
+
+private disconnectGlobalSocket(): void {
+  if (this.globalSocket) {
+    this.globalSocket.disconnect();
+    this.globalSocket = null;
+    console.log('🔌 Global socket disconnected');
+  }
+}
+
 public async performLogout(): Promise<void> {
+  this.disconnectGlobalSocket();
+
+  if (this.chatManager) {
+    this.chatManager.destroy();
+    this.chatManager = null;
+  }
+
+  if (this.friendsManager) {
+    this.friendsManager.destroy();
+    this.friendsManager = null;
+  }
+
   localStorage.removeItem('jwt_token');
   localStorage.removeItem('user_data');
+  cleanupFriendInviteListener();
   console.log("logout");
   this.setLoggedIn(false);
   this.currentUser = null;
@@ -314,6 +571,8 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     history.pushState(null, "", `/${normalizedPath}`);
   }
   this.currentPage = normalizedPath;
+
+
   this.loadPage(normalizedPath);
 }
 
@@ -346,13 +605,30 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
 
   private loadPage(page: string): void {
     const pageData = this.getPageData(page);
+      const tournamentId = localStorage.getItem('activeTournamentId');
+  if (tournamentId) {
+    console.log(`the path in w: ${ window.location.pathname } normalizedPath : ${page}`)
+    const token = localStorage.getItem('jwt_token');
+    if (!is_u_i && tournamentId && token) {
+          try { 
+              fetch('/tournaments/tournaments/leave', { 
+               method: 'POST', 
+               headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json'}, 
+               body: JSON.stringify({ tournamentId: tournamentId }) 
+             }); 
+           } catch (err) { console.error(err); }
+        console.log("fixed");
+        localStorage.removeItem('activeTournamentId');
+        this.loadPage("dashboard/game/tournament");
+        closeGameSocket();
+        initgameSocket();
+    }
+  }
     const dashboardPages = [
       "dashboard",
       "dashboard/game",
       "dashboard/chat",
       "dashboard/friends",
-      "dashboard/status",
-      "dashboard/stats",
       "dashboard/settings",
     ];
 
@@ -387,144 +663,162 @@ private async navigateTo(path: string, pushState: boolean = true): Promise<void>
     const sidebar = document.getElementById('dashboard-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
 
-    if (sidebarToggle && sidebar && overlay) {
-    const toggleSidebar = (): void => {
-        const sidebar: HTMLElement | null = document.getElementById('dashboard-sidebar');
-        const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
-        const body: HTMLElement = document.body;
-
-        if (sidebar) {
-            sidebar.classList.toggle('open');
-        }
-        if (overlay) {
-            overlay.classList.toggle('active');
-        }
-        body.classList.toggle('sidebar-open');
-    };
-
-    // Add event listeners with null checks
-    const toggleButton: HTMLElement | null = document.getElementById('sidebar-toggle');
-    const overlay: HTMLElement | null = document.getElementById('sidebar-overlay');
-
-    if (toggleButton) {
-        toggleButton.addEventListener('click', toggleSidebar);
-    }
-
-    if (overlay) {
-        overlay.addEventListener('click', toggleSidebar);
-    }
-
-    // Close sidebar when clicking nav links (optional)
-    const navLinks: NodeListOf<Element> = document.querySelectorAll('.nav-link');
-    navLinks.forEach((link: Element) => {
-        link.addEventListener('click', () => {
-            if (window.innerWidth <= 1024) {
-                toggleSidebar();
-            }
-        });
-    });
+    // Update active nav link highlight
+    if (isDashboardPage) {
+      this.updateActiveNavLink();
     }
 
     console.log(`📄 Loaded page: ${page}`);
   }
 
-  // Render the dashboard layout once, then only update content
-private renderDashboardLayout(): void {
-  console.log(`user info :` ,this.user);
-  this.container.innerHTML = `
-<div class="dashboard-wrapper">
+  private updateActiveNavLink(): void {
+    const navLinks = document.querySelectorAll('.nav-item');
+    navLinks.forEach(link => {
+      link.classList.remove('active');
+    });
 
-      <!-- Sidebar Overlay (Mobile) -->
+    const currentPath = `/${this.currentPage}`;
+    navLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      if (href === currentPath) {
+        link.classList.add('active');
+      }
+    });
+  }
+
+
+private toggleSidebar(): void {
+  const sidebar = document.getElementById('dashboard-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+
+  if (sidebar) {
+    sidebar.classList.toggle('open');
+  }
+
+  if (overlay) {
+    overlay.classList.toggle('show');
+  }
+}
+
+
+private renderDashboardLayout(): void {
+  this.container.innerHTML = `
+    <div class="layout-wrapper">
+
+      <button id="sidebar-toggle" class="mobile-toggle-btn">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+
       <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-      <!-- Sidebar Brand -->
-      <div class="sidebar-brand">
-        <img src="../images/logo.svg" alt="PONG Logo">
-        <h2>PONG Game</h2>
-      </div>
+      <aside class="layout-sidebar" id="dashboard-sidebar">
 
-      <!-- User Avatar Section (Top Right) -->
-      <div class="sidebar-username">
-        <div class="user-avatar-container">
-          <img class="user-avatar" src="${this.user.avatar}">
-          <span class="header-username">${this.user.username || "Player"}</span>
+        <div id="logo-btn" class="sidebar-header">
+          <img src="../images/logo.svg" alt="PONG" class="sidebar-logo-img">
+          <h2 class="text-xl font-bold tracking-wider text-white">PONG GAME</h2>
         </div>
-        <button id="logout-btn" class="logout-btn">🚪 Logout</button>
-      </div>
 
-      <!-- Sidebar (Fixed) -->
-      <aside class="sidebar-card" id="dashboard-sidebar">
         <nav class="sidebar-nav">
-          <a href="/dashboard" class="nav-link nav-links" data-page="dashboard" style="display: flex; align-items: center;">
-            <img src="../images/dashboard.svg" alt="Dashboard" width="24" height="24" style="margin-right: 8px;">
-            Dashboard
-          </a>
-          <a href="/dashboard/game" class="nav-link nav-links" data-page="game" style="display: flex; align-items: center;">
-            <img src="../images/game.svg" alt="Game" width="24" height="24" style="margin-right: 8px;">
-            Game
-          </a>
-          <a href="/dashboard/chat" class="nav-link nav-links" data-page="chat" style="display: flex; align-items: center;">
-            <img src="../images/chat.svg" alt="Chat" width="24" height="24" style="margin-right: 8px;">
-            Chat
-          </a>
-          <a href="/dashboard/friends" class="nav-link nav-links" data-page="friends" style="display: flex; align-items: center;">
-            <img src="../images/friends.svg" alt="Friends" width="24" height="24" style="margin-right: 8px;">
-            Friends
-          </a>
-          <a href="/dashboard/status" class="nav-link nav-links" data-page="status" style="display: flex; align-items: center;">
-            <img src="../images/status.svg" alt="Status" width="24" height="24" style="margin-right: 8px;">
-            Status
-          </a>
-          <a href="/dashboard/stats" class="nav-link nav-links" data-page="stats" style="display: flex; align-items: center;">
-            <img src="../images/stats.svg" alt="Stats" width="24" height="24" style="margin-right: 8px;">
-            Stats
-          </a>
-          <a href="/dashboard/settings" class="nav-link nav-links" data-page="settings" style="display: flex; align-items: center;">
-            <img src="../images/settings.svg" alt="Settings" width="24" height="24" style="margin-right: 8px;">
-            Settings
-          </a>
+          ${this.renderNavLink('/dashboard', 'dashboard', 'Dashboard')}
+          ${this.renderNavLink('/dashboard/game', 'game', 'Game Mode')}
+          ${this.renderNavLink('/dashboard/chat', 'chat', 'Chat')}
+          ${this.renderNavLink('/dashboard/friends', 'friends', 'Friends')}
+          ${this.renderNavLink('/dashboard/settings', 'settings', 'Settings')}
         </nav>
+
+        <div class="sidebar-footer">
+           <div class="relative">
+             <button id="user-menu-btn" class="user-profile-btn">
+               <img class="sidebar-user-img" src="${this.user.avatar}">
+
+               <div class="flex-1 text-left overflow-hidden">
+                 <p class="text-base font-bold text-white truncate">${this.user.username || "Player"}</p>
+                 <div class="flex items-center gap-2 mt-0.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <p class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Online</p>
+                 </div>
+               </div>
+             </button>
+
+             <div id="user-dropdown" class="hidden absolute bottom-full left-0 w-full mb-2 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50">
+               <button id="logout-btn" class="btn-danger">
+                 <span>Logout</span>
+               </button>
+             </div>
+           </div>
+        </div>
       </aside>
 
-      <!-- Main Content Area (ONLY ONE) -->
-      <main class="dashboard-content" id="dashboard-main-content">
-        <div class="content-wrapper">
-          <!-- Content will be injected here -->
-        </div>
+      <main class="layout-main" id="dashboard-main-content">
+         <div class="content-wrapper h-full w-full"></div>
       </main>
     </div>
   `;
 
-  this.contentContainer = document.getElementById('dashboard-main-content');
-
-  // Setup the logout functionality
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      await this.performLogout();
-    });
-  }
-
-  // Add event listener to toggle user dropdown menu
-  const userMenuToggle = document.getElementById('user-menu-toggle');
-  const userDropdown = document.getElementById('user-dropdown');
-  if (userMenuToggle && userDropdown) {
-    userMenuToggle.addEventListener('click', () => {
-      userDropdown.classList.toggle('show');
-    });
-  }
-
-  // Close dropdown when clicking outside
-  document.addEventListener('click', (e) => {
-    if (userDropdown && !userDropdown.contains(e.target as Node)) {
-      userDropdown.classList.remove('show');
-    }
-  });
-
-  console.log(`📄 Loaded dashboard layout`);
+  this.contentContainer = document.querySelector('#dashboard-main-content .content-wrapper');
+  this.setupDashboardEvents();
+    this.updateActiveNavLink();
 }
 
+private renderNavLink(href: string, icon: string, text: string): string {
+  return `
+    <a href="${href}" class="nav-item nav-link" data-page="${icon}">
+      <img src="../images/${icon}.svg" alt="${text}">
+      <span class="text-base font-semibold">${text}</span>
+    </a>
+  `;
+}
+
+private setupDashboardEvents() {
+  const toggleButton = document.getElementById('sidebar-toggle');
+  const overlay = document.getElementById('sidebar-overlay');
+  const sidebar = document.getElementById('dashboard-sidebar');
+
+  if (toggleButton && overlay) {
+    toggleButton.addEventListener('click', () => this.toggleSidebar());
+    overlay.addEventListener('click', () => this.toggleSidebar());
+  }
+
+  if (sidebar) {
+    let mouseLeaveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    sidebar.addEventListener('mouseenter', () => {
+      if (mouseLeaveTimeout) {
+        clearTimeout(mouseLeaveTimeout);
+        mouseLeaveTimeout = null;
+      }
+    });
+
+    sidebar.addEventListener('mouseleave', () => {
+      const isDesktop = window.innerWidth >= 1024;
+      if (isDesktop && sidebar.classList.contains('open')) {
+        mouseLeaveTimeout = setTimeout(() => {
+          this.toggleSidebar();
+        }, 300);
+      }
+    });
+  }
+
+  const userMenuBtn = document.getElementById("user-menu-btn");
+  const userDropdown = document.getElementById("user-dropdown");
+  if (userMenuBtn && userDropdown) {
+    userMenuBtn.addEventListener("click", (e) => { e.stopPropagation(); userDropdown.classList.toggle("hidden"); });
+    document.addEventListener("click", () => { userDropdown.classList.add("hidden"); });
+  }
+  const logoBtn = document.getElementById("logo-btn");
+    if (logoBtn) {
+    logoBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      if (sidebar?.classList.contains('open')) {
+        this.toggleSidebar();
+      }
+      await this.navigateTo('/dashboard');
+    });
+  }
+
+  const logoutBtn = document.getElementById("logout-btn");
+  if (logoutBtn) { logoutBtn.addEventListener("click", async (e) => { e.preventDefault(); await this.performLogout(); }); }
+}
 
   private getPageData(page: string): Page {
     console.log(`page is ${page}`);
@@ -541,82 +835,70 @@ private renderDashboardLayout(): void {
         return this.getDashboardPage();
       case "dashboard/settings":
         return this.getSettingsPage();
-      case "dashboard/stats":
-        return this.getStatsPage();
       case "dashboard/chat":
         return this.getChatPage();
       case "dashboard/friends":
         return this.getFriendsPage();
-      case "dashboard/status":
-        return this.getStatusPage();
       case "dashboard/game/ai":
         return this.getaipage();
       case "dashboard/game/local":
         return this.getlocalpage();
-      // case "dashboard/game/Tournament":
-      //   return this.gettournamentpage();
+      case "dashboard/game/tournament":
+        return this.gettournamentpage();
       case "dashboard/game/remote":
         return this.getremotepage();
+      case "dashboard/game/tournament/lobby":
+        return this.getTournamentLobbyPage();
+       case "dashboard/game/friend_game":
+        return this.getFriendsgamePage();
       default:
         return this.get404Page();
     }
   }
 
-  // ==============================
-  // PAGES - Now return only content, not full layout
-  // ==============================
+
+
 
 private getHomePage(): Page {
   return {
     title: "PONG Game - Home",
     content: `
-<nav class="pong-navbar">
-  <div class="navbar-container">
-    <div class="navbar-content">
-      <!-- Logo -->
-      <div class="nav-Links nav-link pong-logo">
-        <img src="./images/logo.svg" alt="Pong Logo">
-        <span class="logo-text">PONG Game</span>
-      </div>
-      <div class="nav-link">
-        <a href="/login" class="login-btn nav-link">
-          <img src="./images/login.svg" alt="Login Icon">
-          <span class="login-text">Login</span>
-        </a>
-        <a href="/register" class="reg-btn nav-link">
-          <span class="login-text">Register</span>
-        </a>
-      </div>
-    </div>
-  </div>
-</nav>
+      <nav class="public-navbar">
+        <div class="flex items-center gap-3">
+          <img src="./images/logo.svg" alt="Pong Logo" class="h-10 w-10">
+          <span class="text-xl font-bold text-white tracking-wider">PONG GAME</span>
+        </div>
+        <div class="flex gap-4">
+          <a href="/login" class="btn-secondary py-2 px-6 text-sm">Login</a>
+          <a href="/register" class="btn-primary py-2 px-6 text-sm">Register</a>
+        </div>
+      </nav>
 
-      <section class="home-dashboard">
-        <div class="intro-section">
-          <h1 class="home-title">Welcome to <span class="highlight">PONG Game</span></h1>
-          <p class="home-subtitle">
-            The ultimate real-time pong experience. Connect, play, and compete worldwide.
-          </p>
-          <div class="home-buttons">
-            <a href="/register" class="btn-primary nav-link">Get Started</a>
-            <a href="/login" class="btn-secondary nav-link">Login</a>
+      <section class="hero-section">
+        <div class="text-center max-w-3xl mx-auto mb-16 mt-10">
+          <h1 class="text-hero">Welcome to <span class="text-gradient">PONG</span></h1>
+          <p class="text-gray-400 text-xl mb-10 leading-relaxed">The ultimate real-time multiplayer experience.</p>
+          <div class="flex flex-wrap justify-center gap-6">
+            <a href="/register" class="btn-primary text-lg px-8 py-4">Get Started</a>
+            <a href="/login" class="btn-secondary text-lg px-8 py-4">Sign In</a>
           </div>
         </div>
-        <div class="cards-grid">
+
+        <div class="features-grid">
           <div class="feature-card">
-            <img src="./images/online-svg.svg" alt="Online Play" class="card-icon" />
-            <h3>Play Online</h3>
-            <p>Challenge friends or random opponents in real-time Pong matches.</p>
+            <div class="bg-gray-900 p-4 rounded-full mb-6 border border-gray-700"><img src="./images/online-svg.svg" class="w-12 h-12 opacity-80" /></div>
+            <h3 class="text-xl font-bold text-white mb-3">Play Online</h3>
+            <p class="text-gray-400">Challenge friends or random opponents.</p>
           </div>
           <div class="feature-card">
-            <img src="./images/leader-borde.svg" alt="Trophy" class="card-icon" />
-            <h3>Leaderboards</h3>
-            <p>Track your rank and compete to reach the top players.</p>
+            <div class="bg-gray-900 p-4 rounded-full mb-6 border border-gray-700"><img src="./images/leader-borde.svg" class="w-12 h-12 opacity-80" /></div>
+            <h3 class="text-xl font-bold text-white mb-3">Leaderboards</h3>
+            <p class="text-gray-400">Track your rank and compete for the top.</p>
           </div>
           <div class="feature-card">
-            <img src="./images/chat.svg" alt="Chat & Social" class="card-icon" />
-            <h3>Chat & Social</h3>
-            <p>Connect with players worldwide through real-time chat and messaging.</p>
+            <div class="bg-gray-900 p-4 rounded-full mb-6 border border-gray-700"><img src="./images/chat.svg" class="w-12 h-12 opacity-80" /></div>
+            <h3 class="text-xl font-bold text-white mb-3">Social Hub</h3>
+            <p class="text-gray-400">Chat and connect with players worldwide.</p>
           </div>
         </div>
       </section>
@@ -625,69 +907,21 @@ private getHomePage(): Page {
   };
 }
 
-private getGamePage(): Page {
+private getFriendsgamePage() : Page {
   return {
-    title: "PONG Game - Select Mode",
-    content: `
-      <section class="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-6 py-12 bg-gray-900 rounded-2xl shadow-lg max-w-5xl mx-auto" style="margin-top: 5rem;">
-        <h1 class="text-3xl md:text-4xl font-bold text-greenLight mb-10 text-center">
-          🏓 Choose Your Game Mode
-        </h1>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 w-full">
-          <!-- AI Game -->
-          <div class="mode-card group">
-            <img src="./images/ai-game.svg" alt="AI Game" class="mode-icon" />
-            <h3 class="mode-title">Play vs AI</h3>
-            <p class="mode-desc">Challenge a smart AI opponent — great for quick solo fun.</p>
-            <a href="dashboard/game/ai" class="mode-btn nav-link">Play</a>
-          </div>
-
-          <!-- Local Game -->
-          <div class="mode-card group">
-            <img src="./images/local.svg" alt="Local Game" class="mode-icon" />
-            <h3 class="mode-title">Local Game</h3>
-            <p class="mode-desc">Two players on the same computer — perfect for friendly duels.</p>
-            <a href="dashboard/game/local" class="mode-btn nav-link">Play</a>
-          </div>
-
-          <!-- Remote Game -->
-          <div class="mode-card group">
-            <img src="./images/remote-game.svg" alt="Online Game" class="mode-icon" />
-            <h3 class="mode-title">Online Match</h3>
-            <p class="mode-desc">Compete with friends or random players around the world.</p>
-            <a href="dashboard/game/remote" class="mode-btn nav-link">Play</a>
-          </div>
-
-          <!-- Tournament -->
-          <div class="mode-card group">
-            <img src="./images/tournament.svg" alt="Tournament" class="mode-icon" />
-            <h3 class="mode-title">Tournament</h3>
-            <p class="mode-desc">Join tournaments and climb the ranks to prove your skill.</p>
-            <a href="dashboard/game/tournament" class="mode-btn">Play</a>
-          </div>
-        </div>
-      </section>
-    `,
-    init: () => console.log("🎮 Game mode selection loaded"),
-  };
-}
-
-private getremotepage(): Page {
-  return {
-    title: "PONG Game - Online Match",
-    content: `
-      <div class="local-game-container" style="margin-top:5rem;">
+    title : "Friends game",
+    content : `
+     <div class="Friends-game-container" style="margin-top:5rem;">
         <div class="game-header">
-          <a href="/dashboard/game" id="back-button-remote" class="back-button nav-link">← Back</a>
-          <h2 style="display:inline-block; margin-left:1rem;">Online Match</h2>
+          <a href="/dashboard/game" id="back-button-friend" class="back-button nav-link">← Back</a>
+          <h2 style="display:inline-block; margin-left:1rem;">Friends Match</h2>
         </div>
 
-        <div class="local-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
+        <div class="Friends-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
           <!-- Player 1 (You) -->
           <div style="text-align:center; width:180px;">
-            <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
+            <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
+            <div id="r-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
             <div style="font-size:0.875rem; color:#10b981; margin-top:0.25rem;">● Online</div>
           </div>
 
@@ -704,7 +938,7 @@ private getremotepage(): Page {
             <!-- Button at BOTTOM -->
             <div style="text-align:center; margin-top:1.5rem;">
               <button id="start-remote-game" class="btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
-                🌐 Find Opponent
+                ENTER the Match
               </button>
               <div style="margin-top:1rem; color:#9ca3af; font-size:0.95rem;">
                 Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> / <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
@@ -714,16 +948,16 @@ private getremotepage(): Page {
 
           <!-- Player 2 (Opponent) -->
           <div style="text-align:center; width:180px;">
-            <img id="opponent-avatar" src="../images/avatars/unknown.jpg" alt="Opponent" style="width:120px;height:120px;border-radius:50%;border:4px solid #6b7280;opacity:0.5;box-shadow:0 4px 12px rgba(107,114,128,0.3);" onerror="this.src='../images/avatars/2.jpg'">
+            <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent" style="width:120px;height:120px;border-radius:50%;border:4px solid #6b7280;opacity:0.5;box-shadow:0 4px 12px rgba(107,114,128,0.3);" onerror="this.src='../images/avatars/2.jpg'">
             <div id="opponent-name" style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#9ca3af;">Waiting...</div>
-            <div style="font-size:0.875rem; color:#6b7280; margin-top:0.25rem;">Searching...</div>
+            <div id="serch"style="font-size:0.875rem; color:#6b7280; margin-top:0.25rem;">Wating...</div>
           </div>
         </div>
 
         <!-- Matchmaking Status -->
         <div id="matchmaking-status" style="display:none; margin-top:2rem; text-align:center; padding:1.5rem; background:#1f2937; border-radius:0.75rem; animation:pulse 2s infinite;">
           <div style="font-size:1.3rem; color:#10b981; margin-bottom:0.5rem; font-weight:600;">
-            🔍 Searching for opponent...
+            🔍 Wating for your friend...
           </div>
           <div style="color:#9ca3af; font-size:1rem;">
             This may take a few moments
@@ -743,6 +977,535 @@ private getremotepage(): Page {
       </style>
     `,
     init: () => {
+          console.log("Load Friends Match");
+          const friendId = localStorage.getItem('friend_id');
+          if (!friendId) {
+            alert("Fale to enter Friend game");
+            this.navigateTo(`/dashboard/friends}`);
+            return;
+          }
+        cleanupGame(this.user.id, false);
+        setupNavigationHandlers(
+          this.user.id,
+          "back-button-friend",
+          (path: string) => this.loadPage(path)
+        );
+
+        const startButton = document.getElementById('start-local-game');
+        if (startButton) {
+          const startHandler = () => {
+            sendMessage("join_local", {});
+          };
+          startButton.addEventListener('click', startHandler);
+          addCleanupListener(() => startButton.removeEventListener('click', startHandler));
+        }
+
+        const localListener = createLocalGameListener(this.user.id);
+        setupGameListeners(
+          localListener,
+          'local-score',
+          this.user.id,
+          (path: string) => this.loadPage(path),
+          false,
+          false
+        );
+    },
+  }
+}
+
+private getTournamentLobbyPage(): Page {
+  return {
+    title: "Tournament Lobby",
+    content: `
+      <div class="lobby-wrapper">
+        <div class="lobby-inner">
+            <div class="flex items-center justify-between mb-6 shrink-0">
+              <button id="leave-tournament-btn" class="back-button group">
+                <span class="group-hover:-translate-x-1 transition-transform">←</span>
+                <span>Leave Lobby</span>
+              </button>
+              <h2 class="text-xl font-bold text-white tracking-wide">🏆 TOURNAMENT LOBBY</h2>
+              <div class="w-[120px]"></div> 
+            </div>
+
+            <div class="lobby-grid">
+              <div class="lobby-sidebar-panel">
+                <div class="p-4 border-b border-gray-700 bg-gray-850 flex justify-between items-center">
+                   <h3 class="font-bold text-gray-200">Players</h3>
+                   <span id="player-count-display" class="text-emerald-400 font-mono">0/4</span>
+                </div>
+                <div id="bracket-container" class="lobby-player-list"></div>
+              </div>
+
+              <div class="lobby-main-panel" id="lobby-main-area">
+                <div class="text-center p-8">
+                  <div class="inline-block p-6 rounded-full bg-gray-800 mb-6 animate-pulse border border-gray-600">
+                    <span class="text-5xl">⏳</span>
+                  </div>
+                  <h2 class="text-3xl font-bold text-white mb-2">Waiting for Players</h2>
+                  <p class="text-gray-500">The bracket will generate automatically when 4 players join.</p>
+                </div>
+              </div>
+            </div>
+        </div>
+
+        <div id="view-bracket" class="tournament-overlay hidden">
+             <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-12 tracking-widest uppercase drop-shadow-lg">SEMI-FINALS</h1>
+             <div id="big-bracket-content" class="w-full max-w-6xl px-4 flex justify-center"></div>
+             <div class="mt-16 text-gray-400 text-2xl animate-pulse">
+                Next match starting in <span id="bracket-timer" class="text-white font-bold text-3xl ml-2">...</span>
+             </div>
+        </div>
+
+        <div id="view-game" class="lobby-game-view">
+            <div class="lobby-game-header">
+               <div class="text-white font-bold text-xl tracking-wider" id="game-round-label">MATCH</div>
+               <div class="px-8 py-2 bg-gray-800 rounded-full border border-gray-700">
+                  <span class="font-mono text-3xl font-bold text-emerald-400 tracking-widest" id="tournament-score">0 - 0</span>
+               </div>
+               <div class="w-[100px]"></div>
+            </div>
+            <div id="ready-overlay" class="lobby-ready-overlay">
+               <div id="game-match-info" class="flex items-center gap-16 mb-12 scale-125"></div>
+               <button id="game-ready-btn" class="btn-primary text-2xl px-12 py-6 shadow-emerald-500/30 animate-pulse">
+                 I AM READY! ⚔️
+               </button>
+            </div>
+            <div class="lobby-game-container">
+               <div class="lobby-canvas-wrapper">
+                   <div class="absolute top-1/2 -left-32 -translate-y-1/2 flex flex-col items-center gap-2">
+                      <img id="game-p1-avatar" class="w-20 h-20 rounded-full border-4 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)] object-cover">
+                      <span id="game-p1-name" class="text-lg font-bold text-white bg-gray-800 px-3 py-1 rounded border border-gray-700">P1</span>
+                   </div>
+                   <div id="game-container" class="w-full h-full"></div>
+                   <div class="absolute top-1/2 -right-32 -translate-y-1/2 flex flex-col items-center gap-2">
+                      <img id="game-p2-avatar" class="w-20 h-20 rounded-full border-4 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)] object-cover">
+                      <span id="game-p2-name" class="text-lg font-bold text-white bg-gray-800 px-3 py-1 rounded border border-gray-700">P2</span>
+                   </div>
+               </div>
+            </div>
+        </div>
+      </div>
+    `,
+    init: () => {
+       console.log("🏟️ Tournament Lobby Initialized");
+       const tId = localStorage.getItem('activeTournamentId');
+       if(!tId) { this.navigateTo("dashboard/game/tournament"); return;}
+        is_u_i = false;
+       cleanupTournamentMatch();
+
+       let isLeaving = false;
+
+       const performExit = async () => {
+           isLeaving = true;
+           
+           cleanupTournamentMatch();
+           localStorage.removeItem('activeTournamentId');
+
+           try { 
+             await fetch('/tournaments/tournaments/leave', { 
+               method: 'POST', 
+               headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json'}, 
+               body: JSON.stringify({ tournamentId: tId }) 
+             }); 
+           } catch (err) { console.error(err); }
+           
+           this.navigateTo("dashboard/game/tournament");
+       };
+
+       setTimeout(() => {
+         if (!isLeaving) {
+           history.pushState({ tournamentLobby: true }, "", location.href);
+         }
+       }, 100);
+
+
+       const playerCountEl = document.getElementById("player-count-display")!;
+       const bracketEl = document.getElementById("bracket-container")!;
+       const leaveBtn = document.getElementById("leave-tournament-btn")!;
+
+       const resolveUser = async (pid: string | number) => {
+           const pidStr = String(pid);
+           if (pidStr === String(this.user.id)) {
+               return { username: `${this.user.username} (You)`, avatar: this.user.avatar || '../images/avatars/1.jpg' };
+           }
+           try {
+               const res = await fetch(`/api/user/${pidStr}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }});
+               if(res.ok) {
+                   const d = await res.json();
+                   return { username: d.username, avatar: d.avatar || '../images/avatars/unknown.jpg' };
+               }
+           } catch {}
+           return { username: `Player ${pidStr.substring(0,4)}`, avatar: '../images/avatars/unknown.jpg' };
+       };
+
+       const updateLobbySidebar = async (playerIds: any[]) => {
+           if (!bracketEl) return;
+           const promises = playerIds.map(id => resolveUser(id));
+           const players = await Promise.all(promises);
+
+           bracketEl.innerHTML = players.map(p => `
+               <div class="lobby-player-item">
+                   <img src="${p.avatar}" class="w-8 h-8 rounded-full bg-gray-600 object-cover border border-gray-500">
+                   <span class="text-gray-200 text-sm font-medium truncate">${p.username}</span>
+               </div>
+           `).join('');
+
+           const slotsLeft = 4 - players.length;
+           if (slotsLeft > 0) {
+               const emptySlots = Array(slotsLeft).fill(0).map((_, i) => `
+                   <div class="lobby-empty-slot">
+                       <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-500">${i + 1 + players.length}</div>
+                       <span class="text-gray-500 text-sm italic">Waiting...</span>
+                   </div>
+               `).join('');
+               bracketEl.innerHTML += emptySlots;
+           }
+       };
+
+       const refreshLobbyData = async () => {
+            try {
+              const res = await fetch(`/tournaments/tournaments/${tId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }});
+              if(res.ok) {
+                  const d = await res.json();
+                  const pList = d.players || [];
+
+                  const amIInList = pList.some((p: any) => {
+                      const pid = typeof p === 'object' ? p.id : p;
+                      return String(pid) === String(this.user.id);
+                  });
+
+                  if (!amIInList) {
+                      console.warn("⚠️ User removed from tournament. Redirecting...");
+                      localStorage.removeItem('activeTournamentId');
+                      this.navigateTo("dashboard/game/tournament");
+                      return;
+                  }
+
+                  if (playerCountEl) playerCountEl.innerText = `${pList.length}/4`;
+                  updateLobbySidebar(pList);
+              } else {
+                  console.warn("⚠️ Tournament not found. Redirecting...");
+                  localStorage.removeItem('activeTournamentId');
+                  this.navigateTo("dashboard/game/tournament");
+              }
+           } catch (e) { console.error(e); }
+       };
+
+       if(leaveBtn) {
+         leaveBtn.onclick = async () => {
+             if(confirm("Leave tournament?")) performExit();
+         };
+       }
+
+       const tournamentBrain = createTournamentListener(this.user.id, tId, (path) => this.loadPage(path));
+       const mainListener = (msg: any) => {
+          tournamentBrain(msg);
+          if (msg.type === "tournament_player-joined" || msg.type === "tournament_player-left") {
+              if (msg.payload.tournamentId === tId) refreshLobbyData();
+          }
+       };
+
+       setupTournamentGameListeners(mainListener);
+       refreshLobbyData();
+    }
+  };
+}
+
+private gettournamentpage(): Page {
+  return {
+    title: "PONG Game - Tournament",
+    content: `
+<div class="w-full h-full p-4 lg:p-8">
+
+        <div class="flex items-center gap-6 mb-8">
+          <a href="/dashboard/game" id="back-button-tournament" class="nav-link px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-base font-medium transition-colors">← Back</a>
+          <h2 class="text-3xl font-bold text-white">Tournaments</h2>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 w-full">
+          <div class="xl:col-span-1">
+            <div class="bg-gray-800/40 rounded-2xl border border-gray-700 p-8 h-full">
+              <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                 <span>➕</span> Create New
+              </h3>
+
+              <div class="space-y-6">
+                <div>
+                  <label class="block text-sm text-gray-400 uppercase font-semibold mb-2">Tournament Name</label>
+                  <input id="tournament-title-input" type="text" placeholder="e.g. Champions Cup" maxlength="20"
+                         class="w-full bg-gray-900/40 border border-gray-600 rounded-xl px-5 py-4 text-white text-lg focus:border-emerald-500 focus:outline-none transition-colors" />
+                </div>
+
+                <button id="create-tournament-btn" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-lg rounded-xl transition-all shadow-lg shadow-emerald-900/20">
+                  Create & Join
+                </button>
+                <p class="text-sm text-center text-gray-500">Max 4 players per tournament</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="xl:col-span-2">
+            <div class="bg-gray-800/40 rounded-2xl border border-gray-700 p-8 h-[600px] flex flex-col">
+              <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">Active Lobbies</h3>
+                <button id="refresh-tournaments-btn" class="text-base text-emerald-400 hover:text-emerald-300 font-medium px-4 py-2 rounded hover:bg-gray-700 transition-colors">
+                  🔄 Refresh List
+                </button>
+              </div>
+
+              <div id="tournaments-list" class="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                <div id="tournaments-loading" class="text-center py-20 text-gray-500 text-lg">
+                  Loading tournaments...
+                </div>
+                <div id="tournaments-empty" class="hidden text-center py-20 text-gray-500 flex flex-col items-center justify-center h-full">
+                  <span class="text-6xl mb-4 opacity-50">🏜️</span>
+                  <span class="text-lg">No active tournaments found.</span>
+                </div>
+                <div id="tournaments-container"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+      </style>
+    `,
+    init: () => {
+
+       console.log("🏆 Tournament Selection page loaded");
+       cleanupGame(this.user.id, false);
+       setupNavigationHandlers(this.user.id, "back-button-tournament", (path) => this.loadPage(path));
+       const titleInput = document.getElementById("tournament-title-input") as HTMLInputElement;
+       const createBtn = document.getElementById("create-tournament-btn") as HTMLButtonElement;
+       const refreshBtn = document.getElementById("refresh-tournaments-btn") as HTMLButtonElement;
+       const listContainer = document.getElementById("tournaments-container")!;
+       const loadingState = document.getElementById("tournaments-loading")!;
+       const emptyState = document.getElementById("tournaments-empty")!;
+
+       const fetchTournaments = async () => {
+         try {
+           loadingState.style.display = "block"; emptyState.style.display = "none"; listContainer.innerHTML = "";
+           const res = await fetch('/tournaments/tournaments', { method: 'GET', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }});
+           if (!res.ok) throw new Error("Failed");
+           const tournaments = await res.json();
+           loadingState.style.display = "none";
+
+           if (tournaments.length === 0) { emptyState.style.display = "flex"; return; }
+
+           tournaments.forEach((t: any) => {
+              this.card = document.createElement("div");
+              this.card.className = "bg-gray-900/50 hover:bg-gray-900 border border-gray-700 p-5 rounded-xl flex justify-between items-center transition-all group";
+
+             let count = 0;
+             if (t.numPlayers !== undefined) count = t.numPlayers;
+             else if (Array.isArray(t.players)) count = t.players.length;
+
+             this.card.innerHTML = `
+               <div class="flex items-center gap-6">
+                 <div class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-2xl">🏆</div>
+                 <div>
+                   <div class="text-gray-200 font-bold text-lg group-hover:text-white">${t.title}</div>
+                   <div class="text-sm text-gray-500">Players: <span class="${count >= 4 ? 'text-red-400' : 'text-emerald-400'} font-bold">${count}/4</span></div>
+                 </div>
+               </div>
+             `;
+
+             const joinBtn = document.createElement("button");
+             joinBtn.innerText = count >= 4 ? "Full" : "Join Lobby";
+             joinBtn.className = count >= 4
+               ? "px-6 py-3 text-sm font-bold bg-gray-700 text-gray-400 rounded-lg cursor-not-allowed"
+               : "px-6 py-3 text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors shadow-md";
+
+             if (count < 4) {
+               joinBtn.onclick = async () => {
+                 try {
+                   const joinRes = await fetch('/tournaments/tournaments/join', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tournamentId: t.id || t.tournamentId }) });
+                   if (joinRes.ok) {
+                     localStorage.setItem('activeTournamentId', t.id || t.tournamentId);
+                      if (this.card) this.card.remove();
+                      this.card = null;
+                      is_u_i = true;
+                     this.navigateTo("dashboard/game/tournament/lobby");
+                   } else { alert("Failed to join."); fetchTournaments(); }
+                 } catch {}
+               };
+             }
+             this.card.appendChild(joinBtn);
+             listContainer.appendChild(this.card);
+           });
+         } catch { loadingState.innerHTML = `<span style="color:#ef4444">Failed to load.</span>`; }
+       };
+
+       const createTournament = async () => {
+         const title = titleInput.value.trim();
+         if (!title) { alert("Enter name"); return; }
+         createBtn.disabled = true; createBtn.innerText = "Creating...";
+         try {
+           const res = await fetch('/tournaments/tournaments/create', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+           if (res.ok) {
+             const data = await res.json();
+             localStorage.setItem('activeTournamentId', data.tournamentId || data.id);
+             if (this.card) this.card.remove();
+             this.card = null;
+             const tid = localStorage.getItem('activeTournamentId');
+             if (tid){
+              console.log("id valide");
+              is_u_i= true;
+              this.navigateTo("dashboard/game/tournament/lobby");
+            }
+           } else { alert("Failed"); createBtn.disabled = false; createBtn.innerText = "Create & Join"; }
+         } catch { createBtn.disabled = false; createBtn.innerText = "Create & Join"; }
+       };
+
+       const listListener = (msg: any) => {
+         if (["tournament_created", "tournament_deleted", "tournament_player-joined"].includes(msg.type)) fetchTournaments();
+       };
+
+       addMessageListener(listListener);
+       addCleanupListener(() => removeMessageListener(listListener));
+       createBtn.addEventListener("click", createTournament);
+       addCleanupListener(() => createBtn.removeEventListener("click", createTournament));
+       refreshBtn.addEventListener("click", fetchTournaments);
+       addCleanupListener(() => refreshBtn.removeEventListener("click", fetchTournaments));
+
+       fetchTournaments();
+    }
+  };
+}
+
+
+private getGamePage(): Page {
+  return {
+    title: "Select Mode",
+    content: `
+    <div class="page-container">
+      <div>
+        <h1 class="text-title-lg">Select Game Mode</h1>
+        <p class="text-subtitle">Choose how you want to play</p>
+      </div>
+
+      <div class="game-mode-grid">
+
+        <a href="dashboard/game/ai" class="game-mode-card nav-link">
+          <div class="game-mode-icon-bg">
+             <img src="./images/ai-game.svg" class="game-mode-img" />
+          </div>
+          <h3 class="game-card-title">Play vs AI</h3>
+          <p class="game-card-desc">Train against the computer</p>
+        </a>
+
+        <a href="dashboard/game/local" class="game-mode-card nav-link">
+          <div class="game-mode-icon-bg">
+             <img src="./images/local.svg" class="game-mode-img" />
+          </div>
+          <h3 class="game-card-title">Local PvP</h3>
+          <p class="game-card-desc">2 Players on one device</p>
+        </a>
+
+        <a href="dashboard/game/remote" class="game-mode-card nav-link">
+          <div class="game-mode-icon-bg">
+             <img src="./images/remote-game.svg" class="game-mode-img" />
+          </div>
+          <h3 class="game-card-title">Online Match</h3>
+          <p class="game-card-desc">Find a random opponent</p>
+        </a>
+
+        <a href="dashboard/game/tournament" class="game-mode-card nav-link">
+           <div class="game-mode-icon-bg">
+             <img src="./images/tournament.svg" class="game-mode-img" />
+          </div>
+          <h3 class="game-card-title">Tournament</h3>
+          <p class="game-card-desc">Join a bracket & win</p>
+        </a>
+
+      </div>
+    </div>
+    `,
+    init: () => console.log("🎮 Game mode selection loaded"),
+  };
+}
+
+
+private getremotepage(): Page {
+  return {
+    title: "PONG Game - Online Match",
+    content: `
+      <div class="page-container">
+
+        <div class="flex items-center gap-6">
+          <a href="/dashboard/game" id="back-button-remote" class="btn-secondary px-6 py-2">← Back</a>
+          <h2 class="text-3xl font-bold text-white">Online Match</h2>
+        </div>
+
+        <div class="game-stage">
+
+          <div class="player-panel">
+            <div class="relative">
+              <img id="r-palyer" src="${this.user.avatar || '../images/avatars/1.jpg'}"
+                   alt="Player" class="player-avatar-lg border-emerald-500 shadow-emerald-500/20">
+              <div class="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-gray-900 rounded-full"></div>
+            </div>
+            <div class="text-center mb-2">
+              <div id="r-name" class="player-name">${this.currentUser || 'Player'}</div>
+              <div class="text-emerald-400 text-sm font-bold mt-1">YOU</div>
+            </div>
+            <div class="status-badge-online">ONLINE</div>
+          </div>
+
+          <div class="game-center-area">
+
+            <div class="game-controls-bar justify-center">
+              <div class="text-4xl font-mono font-bold text-white tracking-widest flex items-center gap-6">
+                <div>Score: <span id="remote-score" style="color:#fbbf24;">0 - 0</span></div>
+              </div>
+            </div>
+
+            <div id="game-container" class="game-canvas-box">
+               <div class="text-gray-600 text-sm">Find an opponent to start</div>
+            </div>
+
+            <div class="w-full flex flex-col items-center gap-4">
+
+              <button id="start-remote-game" class="btn-primary w-full md:w-auto md:px-16 text-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all duration-300">
+                <span>🌐</span> FIND OPPONENT
+              </button>
+
+              <div id="matchmaking-status" class="hidden items-center gap-2 text-yellow-400 bg-gray-800 px-4 py-2 rounded-full border border-yellow-500/30 animate-pulse">
+                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span class="text-xs font-bold tracking-wide">SEARCHING...</span>
+              </div>
+
+              <div class="text-xs text-gray-500 font-mono bg-gray-800 px-3 py-1 rounded border border-gray-700">
+                Controls: [W] / [S]
+              </div>
+            </div>
+          </div>
+
+          <div class="player-panel">
+            <div class="relative">
+              <img id="opponent-avatar" src="../images/avatars/1.jpg" alt="Opponent"
+                   class="hidden w-32 h-32 rounded-full border-4 border-blue-500 object-cover shadow-lg mb-2">
+
+              <div id="opponent-placeholder" class="opponent-placeholder">?</div>
+            </div>
+
+            <div class="text-center mb-2">
+              <div id="opponent-name" class="player-name text-gray-500">Waiting...</div>
+              <div class="text-blue-400 text-sm font-bold mt-1">OPPONENT</div>
+            </div>
+
+            <div id="serch" class="status-badge-waiting">WAITING</div>
+          </div>
+
+        </div>
+      </div>
+    `,
+    init: () => {
       console.log("🌐 Remote game page loaded");
       cleanupGame(this.user.id, false);
 
@@ -754,14 +1517,23 @@ private getremotepage(): Page {
 
       const startButton = document.getElementById('start-remote-game') as HTMLButtonElement;
       const matchmakingStatus = document.getElementById('matchmaking-status');
+      const opponentPlaceholder = document.getElementById('opponent-placeholder');
+      const searchStatusText = document.getElementById('serch');
 
       if (startButton) {
         const startHandler = () => {
-          startButton.innerText = '🔍 Searching...';
-          startButton.disabled = true;
+          startButton.innerText = 'CANCEL SEARCH';
+          startButton.classList.replace('btn-primary', 'btn-secondary');
 
-          if (matchmakingStatus) {
-            matchmakingStatus.style.display = 'block';
+          if (matchmakingStatus) matchmakingStatus.classList.remove('hidden');
+          if (matchmakingStatus) matchmakingStatus.classList.add('flex');
+
+          if (opponentPlaceholder) opponentPlaceholder.classList.add('searching-pulse');
+
+          if (searchStatusText) {
+            searchStatusText.innerText = "SEARCHING...";
+            searchStatusText.classList.remove('status-badge-waiting');
+            searchStatusText.classList.add('text-yellow-400', 'border-yellow-500/30', 'bg-yellow-500/10');
           }
 
           sendMessage("join_random", {});
@@ -771,8 +1543,35 @@ private getremotepage(): Page {
       }
 
       const remoteListener = createRemoteGameListener(this.user.id);
+
+      const uiAwareListener = (data: any) => {
+         remoteListener(data);
+
+         if (data.type === 'game_start' || data.type === 'match_found') {
+             const matchmakingStatus = document.getElementById('matchmaking-status');
+             const opponentPlaceholder = document.getElementById('opponent-placeholder');
+             const opponentAvatar = document.getElementById('opponent-avatar');
+             const searchStatusText = document.getElementById('serch');
+
+             if (startButton) {
+               startButton.innerHTML = '<span>⚔️</span> I AM READY';
+               startButton.disabled = false;
+               startButton.classList.replace('btn-secondary', 'btn-primary');
+             }
+
+             if(matchmakingStatus) matchmakingStatus.classList.add('hidden');
+             if(opponentPlaceholder) opponentPlaceholder.classList.add('hidden');
+             if(opponentAvatar) opponentAvatar.classList.remove('hidden');
+
+             if(searchStatusText) {
+                 searchStatusText.innerText = "CONNECTED";
+                 searchStatusText.className = "status-badge-online !text-blue-400 !border-blue-500/30 !bg-blue-500/10";
+             }
+         }
+      };
+
       setupGameListeners(
-        remoteListener,
+        uiAwareListener,
         'remote-score',
         this.user.id,
         (path: string) => this.loadPage(path),
@@ -787,66 +1586,83 @@ private getlocalpage(): Page {
   return {
     title: "PONG Game - Local Match",
     content: `
-      <div class="local-game-container" style="margin-top:5rem;">
-        <div class="game-header">
-          <a href="dashboard/game" id="back-button" class="back-button nav-link">← Back</a>
-          <h2 style="display:inline-block; margin-left:1rem;">Local Match (2 Players)</h2>
+      <div class="page-container">
+
+        <div class="flex items-center gap-6">
+          <a href="/dashboard/game" id="back-button" class="btn-secondary px-6 py-2">← Back</a>
+          <h2 class="text-3xl font-bold text-white">Local PvP</h2>
         </div>
 
-        <div class="local-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
-          <!-- Player 1 -->
-          <div style="text-align:center; width:180px;">
-            <div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);display:flex;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 4px 12px rgba(59,130,246,0.4);">
-              <div style="font-size:3rem; font-weight:700; color:white;">1</div>
-            </div>
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">Player 1</div>
-            <div style="font-size:0.875rem; color:#3b82f6; margin-top:0.25rem; font-weight:600;">
-              <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;margin:0 2px;">W</kbd>
-              <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;margin:0 2px;">S</kbd>
-            </div>
-          </div>
+        <div class="game-stage">
 
-          <!-- Game Area -->
-          <div style="flex:1;">
-            <!-- ✅ Score at TOP -->
-            <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
-              <div>Score: <span id="local-score" style="color:#fbbf24;">0 - 0</span></div>
+          <div class="player-panel">
+            <div class="relative">
+              <div class="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-6xl font-bold text-white shadow-lg shadow-blue-500/30 border-4 border-gray-800 mb-4">
+                1
+              </div>
+            </div>
+            <div class="text-center mb-4">
+              <div class="player-name">Player 1</div>
+              <div class="text-blue-400 text-sm font-bold mt-1">WASD Controls</div>
             </div>
 
-            <!-- Canvas -->
-            <div id="game-container"></div>
-
-            <!-- Button at BOTTOM -->
-            <div style="text-align:center; margin-top:1.5rem;">
-              <button id="start-local-game" class="btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
-                ▶️ Start Game
-              </button>
-              <div style="margin-top:1rem; color:#9ca3af; font-size:0.95rem;">
-                Local multiplayer on same device
+            <div class="flex gap-2">
+              <div class="flex flex-col items-center gap-1">
+                <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">W</span>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Up</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">S</span>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Down</span>
               </div>
             </div>
           </div>
 
-          <!-- Player 2 -->
-          <div style="text-align:center; width:180px;">
-            <div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);display:flex;align-items:center;justify-content:center;margin:0 auto;box-shadow:0 4px 12px rgba(239,68,68,0.4);">
-              <div style="font-size:3rem; font-weight:700; color:white;">2</div>
+          <div class="game-center-area">
+
+            <div class="game-controls-bar justify-center">
+              <div class="text-4xl font-mono font-bold text-white tracking-widest flex items-center gap-4">
+                <div><span id="local-score" style="color:#fbbf24;">0 - 0</span></div>
+              </div>
             </div>
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">Player 2</div>
-            <div style="font-size:0.875rem; color:#ef4444; margin-top:0.25rem; font-weight:600;">
-              <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;margin:0 2px;">↑</kbd>
-              <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;margin:0 2px;">↓</kbd>
+
+            <div id="game-container" class="game-canvas-box">
+               <div class="text-gray-600 text-sm">Press Start to Load Game</div>
+            </div>
+
+            <div class="w-full flex flex-col items-center gap-2">
+              <button id="start-local-game" class="btn-primary w-full md:w-auto md:px-16 text-lg shadow-blue-500/20">
+                ▶️ START MATCH
+              </button>
+              <p class="text-xs text-gray-500">Local multiplayer on the same device</p>
             </div>
           </div>
+
+          <div class="player-panel">
+            <div class="relative">
+              <div class="w-32 h-32 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-6xl font-bold text-white shadow-lg shadow-red-500/30 border-4 border-gray-800 mb-4">
+                2
+              </div>
+            </div>
+            <div class="text-center mb-4">
+              <div class="player-name">Player 2</div>
+              <div class="text-red-400 text-sm font-bold mt-1">Arrow Controls</div>
+            </div>
+
+            <div class="flex gap-2">
+              <div class="flex flex-col items-center gap-1">
+                <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">↑</span>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Up</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <span class="w-8 h-8 flex items-center justify-center bg-gray-700 rounded border border-gray-600 font-mono text-sm font-bold text-white shadow-md">↓</span>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Down</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
-
-      <style>
-        kbd {
-          font-family: monospace;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-      </style>
     `,
     init: () => {
       console.log("🎮 Local page loaded");
@@ -858,9 +1674,14 @@ private getlocalpage(): Page {
         (path: string) => this.loadPage(path)
       );
 
-      const startButton = document.getElementById('start-local-game');
+      const startButton = document.getElementById('start-local-game') as HTMLButtonElement;
+
       if (startButton) {
         const startHandler = () => {
+          startButton.innerText = '⚔️ Game Running';
+          startButton.disabled = true;
+          startButton.classList.add('opacity-50', 'cursor-not-allowed', 'scale-95');
+
           sendMessage("join_local", {});
         };
         startButton.addEventListener('click', startHandler);
@@ -884,73 +1705,71 @@ private getaipage(): Page {
   return {
     title: "PONG Game - AI Match",
     content: `
-      <div class="local-game-container" style="margin-top:5rem;">
-        <div class="game-header">
-          <a href="/dashboard/game" id="back-button-ai" class="back-button nav-link">← Back</a>
-          <h2 style="display:inline-block; margin-left:1rem;">Play vs AI</h2>
+      <div class="page-container">
+
+        <div class="flex items-center gap-6">
+          <a href="/dashboard/game" id="back-button-ai" class="btn-secondary px-6 py-2">← Back</a>
+          <h2 class="text-3xl font-bold text-white">VS Artificial Intelligence</h2>
         </div>
 
-        <div class="local-players" style="display:flex; align-items:flex-start; gap:2rem; margin-top:2rem;">
-          <!-- Player -->
-          <div style="text-align:center; width:180px;">
-            <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" style="width:120px;height:120px;border-radius:50%;border:4px solid #10b981;box-shadow:0 4px 12px rgba(16,185,129,0.3);" onerror="this.src='../images/avatars/1.jpg'">
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">${this.currentUser || 'Player'}</div>
-            <div style="font-size:0.875rem; color:#10b981; margin-top:0.25rem;">● Ready</div>
+        <div class="game-stage">
+
+          <div class="player-panel">
+            <div class="relative">
+              <img src="${this.user.avatar || '../images/avatars/1.jpg'}" alt="Player" class="player-avatar-lg border-emerald-500 shadow-emerald-500/20">
+              <div class="absolute bottom-2 right-2 w-6 h-6 bg-emerald-500 border-4 border-gray-900 rounded-full"></div>
+            </div>
+            <div class="text-center">
+              <div class="player-name">${this.currentUser || 'Player'}</div>
+              <div class="text-emerald-400 text-sm font-bold mt-1">Human</div>
+            </div>
+            <div class="player-status text-emerald-400 border-emerald-500/30 bg-emerald-500/10">READY</div>
           </div>
 
-          <!-- Game Area -->
-          <div style="flex:1;">
-            <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; padding:1rem; background:#1f2937; border-radius:0.5rem;">
-              <div>
-                <label for="ai-difficulty" style="color:#9ca3af; margin-right:0.75rem; font-weight:600;">Difficulty:</label>
-                <select id="ai-difficulty" style="padding:0.5rem 1rem; border-radius:6px; color:#111827; font-weight:600; border:2px solid #3b82f6; cursor:pointer;">
+          <div class="game-center-area">
+
+            <div class="game-controls-bar">
+
+              <div id="ai-difficulty-wrapper" class="flex items-center gap-4 transition-opacity duration-500">
+                <label class="text-gray-400 text-sm font-bold">DIFFICULTY:</label>
+                <select id="ai-difficulty" class="bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-1 text-sm focus:border-emerald-500 outline-none">
                   <option value="easy">🟢 Easy</option>
                   <option value="medium" selected>🟡 Medium</option>
                   <option value="hard">🔴 Hard</option>
                 </select>
               </div>
-              <div style="color:#9ca3af; font-size:0.9rem;">
-                Controls: <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">W</kbd> / <kbd style="background:#374151;padding:0.25rem 0.5rem;border-radius:4px;font-weight:600;">S</kbd>
+
+              <div class="text-3xl font-mono font-bold text-white tracking-widest flex-1 text-center">
+              <div><span id="ai-score" style="color:#fbbf24;">0 - 0</span></div>
+              </div>
+
+              <div class="text-xs text-gray-500 font-mono bg-black/30 px-3 py-1 rounded">
+                [W] UP / [S] DOWN
               </div>
             </div>
 
-            <!-- ✅ Score at TOP -->
-            <div style="display:flex; justify-content:center; margin-bottom:1rem; color:#e5e7eb; font-size:1.2rem; font-weight:600;">
-              <div>Score: <span id="ai-score" style="color:#fbbf24;">0 - 0</span></div>
+            <div id="game-container" class="game-canvas-box">
+               <div class="text-gray-600 text-sm">Press Start to Load Game</div>
             </div>
 
-            <!-- Canvas -->
-            <div id="game-container"></div>
-
-            <!-- Button at BOTTOM -->
-            <div style="text-align:center; margin-top:1.5rem;">
-              <button id="start-ai-game" class="btn-primary" style="padding:1rem 2.5rem; font-size:1.1rem; min-width:250px;">
-                🤖 Start vs AI
-              </button>
-            </div>
+            <button id="start-ai-game" class="btn-primary w-full md:w-auto md:px-12 text-lg shadow-emerald-500/20 transition-all duration-500">
+              🤖 START MATCH
+            </button>
           </div>
 
-          <!-- AI Opponent -->
-          <div style="text-align:center; width:180px;">
-            <div style="width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);display:flex;align-items:center;justify-content:center;font-size:3.5rem;margin:0 auto;box-shadow:0 4px 12px rgba(139,92,246,0.4);animation:ai-pulse 2s infinite;">
-              🤖
+          <div class="player-panel">
+            <div class="relative">
+              <div class="player-avatar-lg ai-avatar-glow border-purple-500">🤖</div>
             </div>
-            <div style="margin-top:1rem; font-weight:700; font-size:1.1rem; color:#e5e7eb;">AI Opponent</div>
-            <div style="font-size:0.875rem; color:#8b5cf6; margin-top:0.25rem;">Adaptive AI</div>
+            <div class="text-center">
+              <div class="player-name">PongBot 3000</div>
+              <div class="text-purple-400 text-sm font-bold mt-1">CPU</div>
+            </div>
+            <div class="player-status text-purple-400 border-purple-500/30 bg-purple-500/10">WAITING</div>
           </div>
+
         </div>
       </div>
-
-      <style>
-        @keyframes ai-pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
-        kbd {
-          font-family: monospace;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-      </style>
     `,
     init: () => {
       console.log("🤖 AI Game page loaded");
@@ -964,12 +1783,20 @@ private getaipage(): Page {
 
       const startButton = document.getElementById('start-ai-game') as HTMLButtonElement;
       const difficultySelect = document.getElementById('ai-difficulty') as HTMLSelectElement;
+      const difficultyWrapper = document.getElementById('ai-difficulty-wrapper'); // ✅ Get the wrapper
 
       if (startButton) {
         const startHandler = () => {
           const difficulty = difficultySelect?.value || 'medium';
-          startButton.innerText = '🔍 Finding AI...';
+
+          startButton.innerText = '🎮 Game Running';
           startButton.disabled = true;
+          startButton.classList.add('opacity-50', 'cursor-not-allowed', 'scale-95');
+
+          if (difficultyWrapper) {
+            difficultyWrapper.style.display = 'none';
+          }
+
           sendMessage("join_ai-opponent", { difficulty });
         };
         startButton.addEventListener('click', startHandler);
@@ -988,114 +1815,163 @@ private getaipage(): Page {
     }
   };
 }
+private getLoginPage(): Page {
+  return {
+    title: "PONG Game - Login",
+    content: `
+      <nav class="public-navbar">
+        <div class="flex items-center gap-3">
+          <img src="./images/logo.svg" class="h-8 w-8">
+          <span class="font-bold text-white tracking-wider">PONG</span>
+        </div>
+        <a href="/register" class="text-sm font-bold text-emerald-400 hover:text-emerald-300">Create Account →</a>
+      </nav>
 
-  private getLoginPage(): Page {
-    return {
-      title: "PONG Game - Login",
-      content: `
-<nav class="pong-navbar">
-  <div class="navbar-container">
-    <div class="navbar-content">
-      <!-- Logo -->
-      <div class="nav-Links pong-logo">
-        <img src="./images/logo.svg" alt="Pong Logo">
-        <span class="logo-text">PONG Game</span>
-      </div>
+      <section class="auth-section">
+        <div class="auth-card">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Welcome Back</h1>
+            <p class="text-gray-400">Sign in to your account</p>
+          </div>
 
-      <!-- Navigation Links -->
-      <div class="nav-link pong-logo">
-        <a href="/register" class="login-btn nav-link">
-          <span class="login-text">Register</span>
-        </a>
-      </div>
-    </div>
-  </div>
-</nav>
+          <form id="login-form" class="space-y-6">
+            <input type="text" id="username" placeholder="Username" class="input-std" />
+            <input type="password" id="password" placeholder="Password" class="input-std" />
+            <button type="submit" class="btn-primary w-full justify-center">Sign In</button>
+          </form>
 
-<section class="login-section">
-  <div class="login-card">
-    <h1>Welcome Back</h1>
-    <p>Sign in to your account</p>
+          <div id="login-42-container" class="w-full mt-6"></div>
 
-    <form id="login-form" class="input-form">
-      <input type="text" id="username" placeholder="Username" class="input-field" />
-      <input type="password" id="password" placeholder="Password" class="input-field" />
-      <button type="submit" class="submit-btn">Sign In</button>
-    </form>
+          <div class="mt-8 text-center border-t border-gray-700 pt-6">
+            <p class="text-gray-400 mb-4">Don't have an account?</p>
+            <a href="/register" class="btn-secondary w-full">Create Account</a>
+          </div>
 
-    <div class="mt-4 nav-link">
-      <p>Don’t have an account?</p>
-      <a href="/register" class="link-btn nav-link">Create One</a>
-    </div>
+          <div class="mt-4 text-center">
+            <a href="/" class="text-xs text-gray-500 hover:text-white transition-colors">← Back to Home</a>
+          </div>
+        </div>
+      </section>
+    `,
+    init: () => {
+      console.log("🔑 Login page loaded");
+      const form = document.getElementById("login-form");
+      if (form) {
+        form.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const username = (document.getElementById("username") as HTMLInputElement).value;
+          const password = (document.getElementById("password") as HTMLInputElement).value;
+          (async () => { await this.performLogin(username, password); })();
+        });
+      }
 
-    <a href="/" class="back-btn nav-link">← Back to Home</a>
-  </div>
-</section>
+      const container = document.getElementById('login-42-container');
+      if (container) {
+        const divider = document.createElement('div');
+        // Using the class we added to style.css
+        divider.className = "auth-divider";
+        divider.innerHTML = `<div class="flex-grow h-px bg-gray-700"></div><span class="px-3 text-gray-500 text-sm font-bold">OR</span><div class="flex-grow h-px bg-gray-700"></div>`;
+        container.appendChild(divider);
 
-      `,
-      init: () => {
-        console.log("🔑 Login page loaded");
-        const form = document.getElementById("login-form");
-        if (form) {
-          form.addEventListener("submit", (e) => {
-            e.preventDefault();
-            const username = (document.getElementById("username") as HTMLInputElement).value;
-            const password = (document.getElementById("password") as HTMLInputElement).value;
-            (async () => {
-              await this.performLogin(username, password);
-            })();
-          });
-        }
-      },
-    };
-  }
+        create42IntraButton(container, {
+          text: 'Sign in with 42 Intra',
+          onClick: () => {
+            console.log('🚀 Starting 42 intra OAuth login...');
+            Auth42Handler.initiateLogin('/dashboard');
+          }
+        });
+      }
+    },
+  };
+}
 
   private getRegisterPage(): Page {
     return {
       title: "PONG Game - Register",
       content: `
-<nav class="pong-navbar">
-  <div class="navbar-container">
-    <div class="navbar-content">
-      <!-- Logo -->
-      <div class="nav-Links nav-link pong-logo">
-        <img src="./images/logo.svg" alt="Pong Logo">
-        <span class="logo-text">PONG Game</span>
-      </div>
+      <nav class="public-navbar">
+        <div class="flex items-center gap-3">
+          <img src="./images/logo.svg" class="h-8 w-8"><span class="font-bold text-white">PONG</span>
+        </div>
+        <a href="/login" class="text-sm font-bold text-emerald-400">Sign In →</a>
+      </nav>
 
-      <!-- Navigation Links -->
-      <div class="nav-link">
-        <a href="/login" class="login-btn nav-link">
-          <img src="./images/login.svg" alt="Login Icon">
-          <span class="login-text">Login</span>
-        </a>
-      </div>
-    </div>
-  </div>
-</nav>
+      <section class="auth-section">
+        <div class="auth-card">
+          <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Create Account</h1>
+            <p class="text-gray-400">Join the arena today</p>
+          </div>
 
-<section class="register-section">
-  <div class="register-card">
-    <h1>Create Account</h1>
-    <form id="register-form" class="input-form">
-      <input type="text" id="new-username" placeholder="Username" required class="input-field">
-      <input type="email" id="email" placeholder="Email" required class="input-field">
-      <input type="password" id="new-password" placeholder="Password" required class="input-field">
-      <input type="usernameTournament" id="usernameTournament" placeholder="usernameTournament" class="input-field">
-      <button type="submit" class="submit-btn">Register</button>
-    </form>
-    <p>
-      Already have an account?
-      <a href="/login" class="nav-link">Sign In</a>
-    </p>
-    <a href="/" class="back-btn nav-link">← Back to Home</a>
-    </div>
+          <form id="register-form" class="space-y-5">
+            <input type="text" id="new-username" placeholder="Username" required class="input-std">
+            <input type="email" id="email" placeholder="Email Address" required class="input-std">
+            <input type="password" id="new-password" placeholder="Password" required class="input-std">
+            <input type="text" id="usernameTournament" placeholder="Tournament Name (Optional)" class="input-std">
 
-</section>
+            <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700 flex items-center gap-4">
+               <img id="avatar-preview" src="/avatar/default_avatar/default_avatar.jpg" class="w-16 h-16 rounded-full object-cover border-2 border-gray-600">
+               <div class="flex flex-col gap-2">
+                  <label for="avatar-upload" class="btn-secondary text-xs py-2 px-4">Choose Image</label>
+                  <input type="file" id="avatar-upload" accept="image/*" class="hidden">
+                  <button type="button" id="remove-avatar" class="hidden text-xs text-red-400 underline">Remove</button>
+               </div>
+            </div>
 
+            <button type="submit" class="btn-primary w-full justify-center">Register</button>
+          </form>
+
+          <div id="register-42-container" class="mt-6"></div>
+          <div class="mt-6 text-center">
+             <p class="text-gray-400 text-sm">Have an account? <a href="/login" class="text-emerald-400 hover:underline">Sign In</a></p>
+             <div class="mt-4"><a href="/" class="text-xs text-gray-500 hover:text-white">← Home</a></div>
+          </div>
+        </div>
+      </section>
       `,
       init: () => {
         console.log("📝 Register page loaded");
+
+        let selectedAvatarFile: File | null = null;
+        const avatarUpload = document.getElementById('avatar-upload') as HTMLInputElement;
+        const avatarPreview = document.getElementById('avatar-preview') as HTMLImageElement;
+        const removeAvatarBtn = document.getElementById('remove-avatar') as HTMLButtonElement;
+
+        if (avatarUpload && avatarPreview && removeAvatarBtn) {
+          avatarUpload.addEventListener('change', (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (file) {
+              // Validate file type
+              if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+              }
+              // Validate file size (max 5MB)
+              if (file.size > 5 * 1024 * 1024) {
+                alert('Image size must be less than 5MB');
+                return;
+              }
+
+              selectedAvatarFile = file;
+
+              // Show preview
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                avatarPreview.src = e.target?.result as string;
+                removeAvatarBtn.style.display = 'block';
+              };
+              reader.readAsDataURL(file);
+            }
+          });
+
+          removeAvatarBtn.addEventListener('click', () => {
+            selectedAvatarFile = null;
+            avatarPreview.src = '/avatar/default_avatar/default_avatar.jpg';
+            avatarUpload.value = '';
+            removeAvatarBtn.style.display = 'none';
+          });
+        }
+
         const form = document.getElementById('register-form');
         if (form) {
           form.addEventListener('submit', async (e) => {
@@ -1105,10 +1981,40 @@ private getaipage(): Page {
             const password = (document.getElementById('new-password') as HTMLInputElement).value;
             const usernameTournament = (document.getElementById('usernameTournament') as HTMLInputElement).value;
             try {
-              const res = await fetch("/api/auth/register", {
+              let avatarPath = null;
+
+              // Upload avatar first if selected
+              if (selectedAvatarFile) {
+                const formData = new FormData();
+                formData.append('file', selectedAvatarFile);
+
+                const uploadRes = await fetch('/api/upload-avatar', {
+                  method: 'POST',
+                  body: formData
+                });
+
+                if (uploadRes.ok) {
+                  const uploadData = await uploadRes.json();
+                  avatarPath = uploadData.avatar;
+                  console.log('✅ Avatar uploaded:', avatarPath);
+                } else {
+                  const err = await uploadRes.json();
+                  console.warn('Avatar upload failed:', err);
+                  alert('Avatar upload failed. Using default avatar.');
+                }
+              }
+
+              // Register user with avatar path
+              const res = await fetch("/api/register", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, email, password,usernameTournament }),
+                body: JSON.stringify({
+                  username,
+                  email,
+                  password,
+                  usernameTournament: usernameTournament || username,
+                  avatar: avatarPath
+                }),
               });
               if (!res.ok) {
                 const err = await res.json().catch(() => ({ error: 'Register failed' }));
@@ -1119,6 +2025,25 @@ private getaipage(): Page {
             } catch (err) {
               console.error(err);
               alert('Registration error');
+            }
+          });
+        }
+
+        // ✅ Add 42 intra button
+        const container = document.getElementById('register-42-container');
+        if (container) {
+          // Add divider
+          const divider = document.createElement('div');
+          divider.style.cssText = 'margin: 1.5rem 0; text-align: center; color: #9ca3af; font-size: 0.9rem;';
+          divider.innerHTML = '— or —';
+          container.appendChild(divider);
+
+          // Add 42 intra button
+          create42IntraButton(container, {
+            text: '🎓 Register with 42 intra',
+            onClick: () => {
+              console.log('🚀 Starting 42 intra OAuth registration...');
+              Auth42Handler.initiateLogin('/dashboard');
             }
           });
         }
@@ -1133,7 +2058,7 @@ private getaipage(): Page {
         <section class="max-w-lg mx-auto px-6 py-20 text-center">
           <h1 class="text-4xl font-bold text-red-600 mb-6">404</h1>
           <p class="text-gray-600 mb-6">Oops! The page you are looking for does not exist.</p>
-          <a href="/home" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-semibold nav-links">Go Home</a>
+          <a href="/home" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 font-semibold nav-link">Go Home</a>
         </section>
       `,
     };
@@ -1164,7 +2089,7 @@ private async updateUserProfile(updates: User): Promise<boolean> {
       return false;
     }
 
-    const response = await fetch('/api/auth/user/update', {
+    const response = await fetch('/api/user/update', {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -1210,473 +2135,382 @@ private getSettingsPage(): Page {
   return {
     title: "PONG Game - Settings",
     content: `
-      <div class="content-card" style="margin-top: 5rem;">
-        <h2>⚙️ Settings</h2>
-        <form id="settings-form" style="margin-top: 1.5rem;">
-          <!-- Username -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-username" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-              Username
-            </label>
-            <input
-              type="text"
-              id="settings-username"
-              value="${this.user.username || ''}"
-              placeholder="Enter username"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-            />
+      <div class="page-container">
+        <h2 class="text-title-lg">Account Settings</h2>
+
+        <form id="settings-form" class="settings-grid">
+
+          <div class="xl:col-span-2 card-base space-y-6">
+            <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-4">Profile Details</h3>
+            <div>
+              <label class="text-label">Username</label>
+              <input type="text" id="settings-username" value="${this.user.username}" class="input-std">
+            </div>
+            <div>
+              <label class="text-label">Email</label>
+              <input type="email" id="settings-email" value="${this.user.email}" class="input-std">
+            </div>
+            <div>
+              <label class="text-label">Tournament Name</label>
+              <input type="text" id="settings-tournament" placeholder="Display Name" class="input-std">
+            </div>
+            <button type="submit" class="btn-primary w-full mt-4">Save Changes</button>
+            <div id="settings-status" class="hidden text-center p-3 rounded-lg mt-2 font-bold"></div>
           </div>
 
-          <!-- Email -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-email" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-              Email
-            </label>
-            <input
-              type="email"
-              id="settings-email"
-              value="${this.user.email || ''}"
-              placeholder="player@example.com"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-            />
+          <div class="xl:col-span-1 card-base flex flex-col items-center">
+            <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-4 w-full mb-6">Avatar</h3>
+
+            <img id="settings-current-avatar" src="${this.user.avatar}" class="settings-avatar-preview">
+
+            <input type="file" id="settings-avatar-file" class="hidden">
+            <button type="button" id="settings-choose-avatar-btn" class="btn-secondary w-full">Upload New</button>
+
+            <div id="settings-avatar-preview-container" class="hidden w-full mt-4 flex items-center justify-between bg-gray-900 p-2 rounded-lg border border-emerald-500">
+               <div class="flex items-center gap-2">
+                 <img id="settings-upload-preview" src="" class="w-8 h-8 rounded-full object-cover">
+                 <span class="text-xs text-emerald-400">New image selected</span>
+               </div>
+               <button type="button" id="settings-remove-avatar-btn" class="text-red-400 hover:text-red-300 text-lg font-bold px-2">×</button>
+            </div>
+
+            <div class="w-full border-t border-gray-700 my-6"></div>
+            <p class="text-gray-400 text-sm mb-2">Or select default:</p>
+
+            <div id="avatar-options" class="avatar-selection-grid">
+               <img src="../images/avatars/1.jpg" class="avatar-thumb" data-value="../images/avatars/1.jpg">
+               <img src="../images/avatars/2.jpg" class="avatar-thumb" data-value="../images/avatars/2.jpg">
+               <img src="../images/avatars/3.jpg" class="avatar-thumb" data-value="../images/avatars/3.jpg">
+               <img src="../images/avatars/4.jpg" class="avatar-thumb" data-value="../images/avatars/4.jpg">
+            </div>
+
+            <input type="hidden" id="settings-avatar" value="${this.user.avatar}">
           </div>
-          <!-- Tournament Username (Optional) -->
-          <div style="margin-bottom: 1.5rem;">
-            <label for="settings-tournament" style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-              Tournament Username (Optional)
-            </label>
-            <input
-              type="text"
-              id="settings-tournament"
-              placeholder="Tournament display name"
-              style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; color: #111827;"
-            />
-          </div>
 
-          <!-- Avatar URL (Optional) -->
-<div style="margin-bottom: 1.5rem;">
-  <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">
-    Choose Your Avatar
-  </label>
-
-<div id="avatar-options">
-  <img src="../images/avatars/1.jpg" alt="Avatar 1" class="avatar-option" data-value="../images/avatars/1.jpg">
-  <img src="../images/avatars/2.jpg" alt="Avatar 2" class="avatar-option" data-value="../images/avatars/2.jpg">
-  <img src="../images/avatars/3.jpg" alt="Avatar 3" class="avatar-option" data-value="../images/avatars/3.jpg">
-  <img src="../images/avatars/4.jpg" alt="Avatar 4" class="avatar-option" data-value="../images/avatars/4.jpg">
-</div>
-
-  <!-- Hidden field to send selected avatar path -->
-  <input type="hidden" id="settings-avatar" name="avatar" value="${this.user.avatar || ''}" />
-
-  <small style="color: #6b7280; font-size: 0.875rem;">
-    Current:
-    <img src="${this.user.avatar || './images/avatars/avatar1.png'}"
-         alt="Current Avatar"
-         style="width: 40px; height: 40px; border-radius: 50%; vertical-align: middle; margin-left: 0.5rem;">
-  </small>
-</div>
-
-          <!-- Save Button -->
-          <button
-            type="submit"
-            style="padding: 0.75rem 1.5rem; background: #10b981; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: background 0.3s;"
-            onmouseover="this.style.background='#059669'"
-            onmouseout="this.style.background='#10b981'"
-          >
-            💾 Save Changes
-          </button>
-
-          <!-- Status Message -->
-          <div id="settings-status" style="margin-top: 1rem; padding: 0.75rem; border-radius: 0.5rem; display: none;"></div>
         </form>
       </div>
     `,
-init: () => {
-  console.log("⚙️ Settings page loaded");
+    init: () => {
+      console.log("⚙️ Settings page loaded");
 
-  const form = document.getElementById('settings-form') as HTMLFormElement;
-  const statusDiv = document.getElementById('settings-status') as HTMLDivElement;
-  const avatarOptions = document.querySelectorAll<HTMLImageElement>(".avatar-option");
-  const avatarInput = document.getElementById("settings-avatar") as HTMLInputElement;
-  const profileAvatar = document.querySelector('.user-avatar') as HTMLImageElement; // main avatar in UI
+      const form = document.getElementById('settings-form') as HTMLFormElement;
+      const statusDiv = document.getElementById('settings-status') as HTMLDivElement;
 
-  // --- Avatar selection logic ---
-  if (avatarOptions && avatarInput) {
-    avatarOptions.forEach(option => {
-      option.addEventListener("click", () => {
-        // Remove selection from others
-        avatarOptions.forEach(o => o.classList.remove("selected"));
-        // Mark clicked one as selected
-        option.classList.add("selected");
-        // Update hidden input value
-        avatarInput.value = option.dataset.value || "";
-        // Optionally update live avatar preview
-        if (profileAvatar) profileAvatar.src = avatarInput.value;
-      });
-    });
+      const avatarOptions = document.querySelectorAll<HTMLImageElement>(".avatar-thumb");
+      const avatarInput = document.getElementById("settings-avatar") as HTMLInputElement;
+      const currentAvatarImg = document.getElementById('settings-current-avatar') as HTMLImageElement;
 
-    // Pre-select current avatar
-    const currentAvatar = avatarInput.value;
-    avatarOptions.forEach(o => {
-      if (o.dataset.value === currentAvatar) o.classList.add("selected");
-    });
-  }
+      const fileInput = document.getElementById('settings-avatar-file') as HTMLInputElement;
+      const chooseBtn = document.getElementById('settings-choose-avatar-btn') as HTMLButtonElement;
+      const removeBtn = document.getElementById('settings-remove-avatar-btn') as HTMLButtonElement;
+      const previewContainer = document.getElementById('settings-avatar-preview-container') as HTMLDivElement;
+      const uploadPreviewImg = document.getElementById('settings-upload-preview') as HTMLImageElement;
 
-  // --- Form submission logic ---
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
+      let uploadedAvatarPath: string | null = null;
 
-      // Get form values
-      const username = (document.getElementById('settings-username') as HTMLInputElement).value.trim();
-      const email = (document.getElementById('settings-email') as HTMLInputElement).value.trim();
-      const tournament = (document.getElementById('settings-tournament') as HTMLInputElement).value.trim();
-      const avatar = avatarInput?.value.trim() || "";
+      if (chooseBtn && fileInput) {
+        chooseBtn.addEventListener('click', () => fileInput.click());
 
-      // Build update object (only include changed fields)
-      const updates: any = {};
-      if (username && username !== this.currentUser) updates.username = username;
-      if (email && email !== this.user.email) updates.email = email;
-      if (tournament) updates.usernameTournament = tournament;
-      if (avatar && avatar !== this.user.avatar) updates.avatar = avatar;
+        fileInput.addEventListener('change', async (e) => {
+          const target = e.target as HTMLInputElement;
+          const file = target.files?.[0];
+          if (!file) return;
 
-      // Check if any changes were made
-      if (Object.keys(updates).length === 0) {
-        statusDiv.style.display = 'block';
-        statusDiv.style.background = '#fef3c7';
-        statusDiv.style.color = '#92400e';
-        statusDiv.textContent = '⚠️ No changes detected';
-        return;
-      }
+          const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+          if (!validTypes.includes(file.type)) { alert('Invalid file type'); return; }
+          if (file.size > 5 * 1024 * 1024) { alert('Max size 5MB'); return; }
 
-      // Show loading state
-      statusDiv.style.display = 'block';
-      statusDiv.style.background = '#dbeafe';
-      statusDiv.style.color = '#1e40af';
-      statusDiv.textContent = '⏳ Updating profile...';
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result && uploadPreviewImg) {
+              uploadPreviewImg.src = e.target.result as string;
+              previewContainer.classList.remove('hidden');
+            }
+          };
+          reader.readAsDataURL(file);
 
-      // Call update method
-      const success = await this.updateUserProfile(updates);
+          const formData = new FormData();
+          formData.append('avatar', file);
 
-      if (success) {
-        // Update local state
-        if (updates.username) this.currentUser = updates.username;
-        if (updates.email) this.user.email = updates.email;
-        if (updates.usernameTournament) this.user.usernametournament = updates.usernameTournament;
-        if (updates.avatar) {
-          this.user.avatar = updates.avatar;
-          if (profileAvatar) profileAvatar.src = updates.avatar; // update avatar in UI
+          try {
+            const token = localStorage.getItem('jwt_token');
+            const response = await fetch('/api/upload-avatar', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+              body: formData
+            });
+
+            if (!response.ok) throw new Error('Upload failed');
+            const data = await response.json();
+            uploadedAvatarPath = data.avatar;
+            console.log('✅ Avatar uploaded:', uploadedAvatarPath);
+
+            avatarOptions.forEach(o => o.classList.remove("selected"));
+
+            if(currentAvatarImg) currentAvatarImg.src = uploadedAvatarPath!;
+
+          } catch (error) {
+            console.error(error);
+            alert('Failed to upload avatar.');
+          }
+        });
+
+        if (removeBtn) {
+          removeBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            previewContainer.classList.add('hidden');
+            uploadedAvatarPath = null;
+            if(currentAvatarImg) currentAvatarImg.src = this.user.avatar;
+          });
         }
-
-        statusDiv.style.background = '#d1fae5';
-        statusDiv.style.color = '#065f46';
-        statusDiv.textContent = '✅ Profile updated successfully!';
-      } else {
-        statusDiv.style.background = '#fee2e2';
-        statusDiv.style.color = '#991b1b';
-        statusDiv.textContent = '❌ Failed to update profile. Please try again.';
       }
-    });
-  }
-}
 
+      if (avatarOptions && avatarInput) {
+        avatarOptions.forEach(o => {
+            if(o.dataset.value === this.user.avatar) o.classList.add('selected');
+        });
+
+        avatarOptions.forEach(option => {
+          option.addEventListener("click", () => {
+            avatarOptions.forEach(o => o.classList.remove("selected"));
+            option.classList.add("selected");
+
+            const newVal = option.dataset.value || "";
+            avatarInput.value = newVal;
+
+            currentAvatarImg.src = newVal;
+
+            if (uploadedAvatarPath) {
+              uploadedAvatarPath = null;
+              fileInput.value = '';
+              previewContainer.classList.add('hidden');
+            }
+          });
+        });
+      }
+
+      if (form) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+
+          const username = (document.getElementById('settings-username') as HTMLInputElement).value.trim();
+          const email = (document.getElementById('settings-email') as HTMLInputElement).value.trim();
+          const tournament = (document.getElementById('settings-tournament') as HTMLInputElement).value.trim();
+
+          let finalAvatar = '';
+          if (uploadedAvatarPath) {
+            finalAvatar = uploadedAvatarPath;
+          } else {
+            finalAvatar = avatarInput.value;
+          }
+
+          const updates: any = {};
+          if (username && username !== this.currentUser) updates.username = username;
+          if (email && email !== this.user.email) updates.email = email;
+          if (tournament) updates.usernameTournament = tournament;
+          if (finalAvatar && finalAvatar !== this.user.avatar) updates.avatar = finalAvatar;
+
+          if (Object.keys(updates).length === 0) {
+            statusDiv.classList.remove('hidden', 'bg-green-500/20', 'text-green-400', 'bg-blue-500/20', 'text-blue-400');
+            statusDiv.classList.add('block', 'bg-yellow-500/20', 'text-yellow-400');
+            statusDiv.textContent = '⚠️ No changes detected';
+            return;
+          }
+
+          statusDiv.classList.remove('hidden', 'bg-yellow-500/20', 'text-yellow-400', 'bg-red-500/20', 'text-red-400');
+          statusDiv.classList.add('block', 'bg-blue-500/20', 'text-blue-400');
+          statusDiv.textContent = '⏳ Updating profile...';
+
+          const success = await this.updateUserProfile(updates);
+
+          if (success) {
+            if (updates.username) this.currentUser = updates.username;
+            if (updates.email) this.user.email = updates.email;
+            if (updates.usernameTournament) this.user.usernametournament = updates.usernameTournament;
+            if (updates.avatar) {
+              this.user.avatar = updates.avatar;
+              const sidebarAvatar = document.querySelector('.sidebar-user-img') as HTMLImageElement;
+              if(sidebarAvatar) sidebarAvatar.src = updates.avatar;
+            }
+
+            uploadedAvatarPath = null;
+            fileInput.value = '';
+            previewContainer.classList.add('hidden');
+
+            statusDiv.classList.remove('bg-blue-500/20', 'text-blue-400');
+            statusDiv.classList.add('bg-green-500/20', 'text-green-400');
+            statusDiv.textContent = '✅ Profile updated successfully!';
+          } else {
+            statusDiv.classList.remove('bg-blue-500/20', 'text-blue-400');
+            statusDiv.classList.add('bg-red-500/20', 'text-red-400');
+            statusDiv.textContent = '❌ Failed to update profile.';
+          }
+        });
+      }
+    }
   };
 }
 
-  private getDashboardPage(): Page {
-    return {
-      title: "PONG Game - Dashboard",
-      content: `
-        <div class="content-card">
-          <h2>Welcome back, ${this.user.username || 'Player'}! 👋</h2>
-          <p>Ready to play some Pong? Check out your stats below.</p>
-        </div>
-
-        <div class="stats-grid">
-          <div class="stat-card">
-            <h3>Games Played</h3>
-            <div class="stat-value">42</div>
-          </div>
-          <div class="stat-card">
-            <h3>Win Rate</h3>
-            <div class="stat-value">68%</div>
-          </div>
-          <div class="stat-card">
-            <h3>Current Rank</h3>
-            <div class="stat-value">#15</div>
-          </div>
-          <div class="stat-card">
-            <h3>Online Friends</h3>
-            <div class="stat-value">5</div>
-          </div>
-        </div>
-
-        <div class="content-card">
-          <h2>Recent Activity</h2>
-          <p>No recent games. Start playing to see your activity here!</p>
-        </div>
-      `,
-      init: () => console.log("📊 Dashboard page loaded"),
-    };
-  }
 
 
-private getStatsPage(): Page {
+private getDashboardPage(): Page {
   return {
-    title: "PONG Game - Stats",
-    content:  `
-      <div class="content-card">
-        <h2>📈 Your Statistics</h2>
-        <div class="stats-grid" style="margin-top: 1.5rem;">
-          <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 1.5rem; border-radius: 0.75rem;">
-            <h3 style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Total Wins</h3>
-            <div style="font-size: 2rem; font-weight: 700;">28</div>
-          </div>
-          <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 1.5rem; border-radius: 0.75rem;">
-            <h3 style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Total Losses</h3>
-            <div style="font-size: 2rem; font-weight: 700;">14</div>
-          </div>
-          <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 1.5rem; border-radius: 0.75rem;">
-            <h3 style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Best Streak</h3>
-            <div style="font-size: 2rem; font-weight: 700;">7</div>
-          </div>
-          <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 1.5rem; border-radius: 0.75rem;">
-            <h3 style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Avg Score</h3>
-            <div style="font-size: 2rem; font-weight: 700;">4.2</div>
-          </div>
+    title: "Dashboard",
+    content: `
+      <div class="page-container">
+        <div class="card-base">
+          <h2 class="text-title-lg">Hello, ${this.user.username || 'Player'}</h2>
+          <p class="text-subtitle">Welcome back to the arena.</p>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><h3 class="text-label">Played</h3><div class="text-5xl font-bold text-white" id="total">-</div></div>
+          <div class="stat-card"><h3 class="text-label">Wins</h3><div class="text-5xl font-bold text-emerald-400" id="wins">-</div></div>
+          <div class="stat-card"><h3 class="text-label">Losses</h3><div class="text-5xl font-bold text-red-400" id="losses">-</div></div>
+          <div class="stat-card"><h3 class="text-label">Avg</h3><div class="text-5xl font-bold text-blue-400" id="avgScore">-</div></div>
+        </div>
+        <div class="card-base">
+          <h2 class="text-2xl font-bold text-white mb-6 border-b border-gray-700 pb-4">Match History</h2>
+          <div id="match-history" class="max-h-[600px] overflow-y-auto pr-2 space-y-3" style="scrollbar-width: thin; scrollbar-color: #374151 #111827;">Loading...</div>
         </div>
       </div>
     `,
-    init: () => console.log("📈 Stats page loaded"),
+    init: () => { this.fetchAndDisplayStats(); this.fetchAndDisplayMatchHistory(); },
   };
 }
+
+
+
+private modeAvatars: Record<string, string> = {
+    tournament: "../images/tournament.svg",
+    random: "../images/remote-game.svg",
+    ai_opponent: "../images/ai-game.svg",
+    friend: "../images/game.svg",
+    default: "../images/game.svg"
+};
+
+
+private async fetchAndDisplayMatchHistory() {
+    const container = document.getElementById("match-history") as HTMLElement;
+
+    try {
+        const res = await fetch(`/tournaments/matches/user/${this.user.id}`);
+        if (!res.ok) {
+            container.innerHTML = "Failed to load match history.";
+            return;
+        }
+
+        const matches = await res.json();
+
+        if (!matches.length) {
+            container.innerHTML = "No matches played yet.";
+            return;
+        }
+
+        matches.sort((a: any, b: any) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        container.innerHTML = matches.map((m: any) => {
+            const youAreP1 = m.p1 === String(this.user.id);
+            const yourScore = youAreP1 ? m.p1Score : m.p2Score;
+            const opponentScore = youAreP1 ? m.p2Score : m.p1Score;
+            const result = m.winner === String(this.user.id) ? "WIN" : "LOSS";
+            const mode = m.mode || "unknown";
+            const avatarSrc = this.modeAvatars[mode] || this.modeAvatars.default;
+
+            return `
+                <div class="match-item ${result === "WIN" ? "win" : "loss"}">
+
+                    <div class="flex items-center gap-3">
+                        <img
+                            src="${avatarSrc}"
+                            class="w-10 h-10 opacity-90"
+                        />
+
+                        <div class="flex flex-col">
+                            <strong class="text-lg">${result}</strong>
+                            <span class="text-sm text-gray-300">${mode.toUpperCase()}</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 text-gray-200">
+                        Score: ${yourScore} : ${opponentScore}
+                    </div>
+
+                    <small class="text-gray-400 mt-1 block">${new Date(m.createdAt).toLocaleString()}</small>
+
+                </div>
+            `;
+        }).join("");
+
+    } catch (e) {
+        console.error("Error loading match history:", e);
+        container.innerHTML = "Error loading match history.";
+    }
+}
+
+
+private async fetchAndDisplayStats() {
+    try {
+        const res = await fetch(`/tournaments/matches/user/${this.user.id}/stats`);
+        if (!res.ok) {
+            console.error("Failed to get user state:", res.statusText);
+            return;
+        }
+        const data = await res.json();
+        console.log("User stats fetched:", data);
+
+        (document.getElementById("avgScore") as HTMLElement).innerHTML = String(data.avgScore || 'N/A');
+        (document.getElementById("losses") as HTMLElement).innerHTML = String(data.losses || 'N/A');
+        (document.getElementById("total") as HTMLElement).innerHTML = String(data.total || 'N/A');
+        (document.getElementById("wins") as HTMLElement).innerHTML = String(data.wins || 'N/A');
+
+    } catch (e) {
+        console.error("Error fetching stats:", e);
+    }
+}
+
+
 
 private getChatPage(): Page {
   return {
     title: "PONG Game - Chat",
     content: `
-<div class="content-card flex h-[80vh] gap-4">
-
-  <!-- SIDEBAR: USER LIST -->
-  <div class="w-64 bg-gray-900 text-gray-100 rounded-xl p-4 flex flex-col">
-
-    <h2 class="text-xl font-bold mb-4">💬 Chats</h2>
-
-    <!-- Search Bar -->
-    <input
-      id="chat-search"
-      class="w-full p-2 rounded-md bg-gray-800 text-gray-200 mb-3"
-      placeholder="Search user..."
-    />
-
-    <!-- USER LIST -->
-    <div id="chat-user-list" class="flex-1 overflow-y-auto space-y-2">
-
-      <!-- Example user item (dynamic in JS) -->
-      <!--
-      <div class="p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700"
-           data-user-id="546479405">
-        <div class="flex items-center gap-2">
-          <img src="../images/avatars/1.jpg" class="w-10 h-10 rounded-full">
-          <div>
-            <div class="font-semibold">ybahij</div>
-            <div class="text-xs text-gray-400">Online</div>
-          </div>
-        </div>
+      <div class="app-container">
+         <div id="chat-app-container" class="w-full h-full bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl"></div>
       </div>
-      -->
-
-    </div>
-
-  </div>
-
-  <!-- MAIN CHAT WINDOW -->
-  <div class="flex-1 bg-white rounded-xl p-4 flex flex-col">
-
-    <!-- Chat Header -->
-    <div id="chat-header" class="flex items-center justify-between mb-4 border-b pb-3 hidden">
-      <div class="flex items-center gap-3">
-        <img id="chat-user-avatar" class="w-12 h-12 rounded-full" src="">
-        <div>
-          <div id="chat-username" class="text-lg font-semibold"></div>
-          <button id="chat-view-profile" class="text-sm text-blue-600 hover:underline">
-            View Profile
-          </button>
-        </div>
-      </div>
-
-      <div class="flex gap-2">
-        <button id="chat-block-btn" class="px-3 py-1 bg-red-500 text-white rounded-md text-sm">
-          Block
-        </button>
-
-        <button id="chat-invite-btn" class="px-3 py-1 bg-green-600 text-white rounded-md text-sm">
-          Invite to Game
-        </button>
-      </div>
-    </div>
-
-    <!-- Chat Messages Area -->
-    <div id="chat-messages"
-         class="flex-1 overflow-y-auto bg-gray-100 p-4 rounded-md space-y-3">
-    </div>
-
-    <!-- Message Input -->
-    <div id="chat-message-box" class="flex gap-2 mt-4 hidden">
-      <input id="chat-input"
-             class="flex-1 p-3 rounded-md border"
-             placeholder="Type your message..."/>
-      <button id="chat-send"
-              class="px-4 py-2 bg-blue-600 text-white rounded-md">
-        Send
-      </button>
-    </div>
-
-  </div>
-</div>
-
     `,
+    init: async () => {
+      console.log("💬 Chat page loaded");
 
-init: () => {
-  console.log("💬 Chat page loaded");
+      // Ensure global socket is connected
+      if (!this.globalSocket || !this.globalSocket.connected) {
+        console.log('🔌 Global socket not connected, connecting now...');
+        await this.connectGlobalSocket();
+      }
 
-  // Initialize WebSocket only ONCE
-  const socket = initchatSocket();
+      // Always reinitialize to bind to new DOM
+      if (this.chatManager) {
+        this.chatManager.destroy();
+      }
 
-  // UI references
-  const userList = document.getElementById("chat-user-list")!;
-  const chatHeader = document.getElementById("chat-header")!;
-  const messageBox = document.getElementById("chat-messages")!;
-  const chatInput = document.getElementById("chat-input")! as HTMLInputElement;
-  const sendBtn = document.getElementById("chat-send")!;
-  const messageSection = document.getElementById("chat-message-box")!;
-  const usernameLabel = document.getElementById("chat-username")!;
-  const avatarImg = document.getElementById("chat-user-avatar")! as HTMLImageElement;
-
-  let currentChatUser: any = null; // Active DM target
-
-  // -------------------------------------------------------
-  // 1️⃣ FETCH USER LIST (from your backend /api/users/all)
-  // -------------------------------------------------------
-  fetch("/api/users/all", {
-    headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
-  })
-    .then(res => res.json())
-    .then(users => {
-      userList.innerHTML = "";
-      console.log('users:', users);
-      console.log('Is array?', Array.isArray(users));
-
-      users.forEach((user: any) => {
-        if (user.id === JSON.parse(localStorage.getItem("user")!).id) return; // skip self
-
-        const div = document.createElement("div");
-        div.className = "p-2 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700";
-        div.dataset.userId = user.id;
-
-        div.innerHTML = `
-          <div class="flex items-center gap-2">
-            <img src="${user.avatar}" class="w-10 h-10 rounded-full" />
-            <div>
-              <div class="font-semibold">${user.username}</div>
-              <div class="text-xs text-gray-400">Online</div>
-            </div>
-          </div>
-        `;
-
-        // Click to open DM
-        div.onclick = () => {
-          currentChatUser = user;
-
-          // update header UI
-          chatHeader.classList.remove("hidden");
-          messageSection.classList.remove("hidden");
-
-          usernameLabel.textContent = user.username;
-          avatarImg.src = user.avatar;
-
-          // clear chat display & load conversation
-          messageBox.innerHTML = "";
-          loadConversation(user.id);
-        };
-
-        userList.appendChild(div);
+      this.chatManager = new ChatManager('chat-app-container');
+      await this.chatManager.init({
+        id: this.user.id,
+        username: this.user.username,
+        email: this.user.email,
+        avatar: this.user.avatar
+      }, this.globalSocket).catch(err => {
+        console.error('Failed to initialize chat:', err);
       });
-    });
 
-  // -------------------------------------------------------
-  // 2️⃣ SEND MESSAGE
-  // -------------------------------------------------------
-  sendBtn.onclick = () => {
-    if (!chatInput.value.trim() || !currentChatUser) return;
-
-    const message = {
-      type: "dm",
-      to: currentChatUser.id,
-      message: chatInput.value,
-    };
-
-    socket.send(JSON.stringify(message));
-
-    // Add my own message to UI
-    appendMessage("me", chatInput.value);
-    chatInput.value = "";
-  };
-
-  // -------------------------------------------------------
-  // 3️⃣ RECEIVE MESSAGE
-  // -------------------------------------------------------
-  onChatMessage((msg) => {
-    if (msg.type === "dm") {
-      // only show messages from the currently opened chat
-      if (!currentChatUser || msg.from !== currentChatUser.id) return;
-
-      appendMessage("them", msg.message);
-    }
-  });
-
-  // -------------------------------------------------------
-  // Helper: Append Message to UI
-  // -------------------------------------------------------
-  function appendMessage(sender: "me" | "them", text: string) {
-    const bubble = document.createElement("div");
-
-    bubble.className =
-      sender === "me"
-        ? "text-right"
-        : "text-left";
-
-    bubble.innerHTML = `
-      <div class="inline-block px-3 py-2 rounded-lg mb-1 ${
-        sender === 'me'
-          ? 'bg-blue-600 text-white'
-          : 'bg-gray-300 text-black'
-      }">
-        ${text}
-      </div>
-    `;
-
-    messageBox.appendChild(bubble);
-    messageBox.scrollTop = messageBox.scrollHeight;
-  }
-
-  // -------------------------------------------------------
-  // Load conversation history (optional)
-  // -------------------------------------------------------
-  function loadConversation(userId: number) {
-    fetch(`/api/chat/history/${userId}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("jwt_token")}` },
-    })
-      .then(res => res.json())
-      .then(messages => {
-        messages.forEach((msg: any) => {
-          appendMessage(msg.fromMe ? "me" : "them", msg.message);
+      // Apply any pending block updates
+      if (this.pendingBlockUpdates.size > 0) {
+        this.pendingBlockUpdates.forEach((isBlocked, userId) => {
+          this.chatManager?.updateBlockStatus(userId, isBlocked);
         });
-      });
-  }
-}
-
+      }
+    }
   };
 }
 
@@ -1685,55 +2519,48 @@ private getFriendsPage(): Page {
   return {
     title: "PONG Game - Friends",
     content: `
-      <div class="content-card">
-        <h2>👥 Friends</h2>
-        <div style="margin-top: 1rem;">
-          <div style="display: flex; align-items: center; padding: 1rem; background: #f9fafb; border-radius: 0.5rem; margin-bottom: 0.5rem;">
-            <div style="width: 40px; height: 40px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 1rem;">JD</div>
-            <div style="flex: 1;">
-              <div style="font-weight: 600; color: #111827;">John Doe</div>
-              <div style="font-size: 0.875rem; color: #10b981;">● Online</div>
-            </div>
-            <button style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 0.5rem; cursor: pointer;">Challenge</button>
-          </div>
-        </div>
+      <div class="app-container">
+         <div id="friends-app-container" class="w-full h-full bg-gray-800 border border-gray-700 rounded-2xl overflow-hidden shadow-2xl"></div>
       </div>
     `,
-    init: () => console.log("👥 Friends page loaded"),
+    init: async () => {
+      console.log("👥 Friends page loaded");
+
+      // Ensure global socket is connected
+      if (!this.globalSocket || !this.globalSocket.connected) {
+        console.log('🔌 Global socket not connected, connecting now...');
+        await this.connectGlobalSocket();
+      }
+
+      // Always reinitialize to bind to new DOM
+      if (this.friendsManager) {
+        this.friendsManager.destroy();
+      }
+
+      this.friendsManager = new FriendsManager('friends-app-container');
+      await this.friendsManager.init({
+        id: this.user.id,
+        username: this.user.username,
+        email: this.user.email,
+        avatar: this.user.avatar
+      }, this.globalSocket).catch(error => {
+        console.error('Failed to initialize friends:', error);
+      });
+
+      // Apply any pending block updates
+      if (this.pendingBlockUpdates.size > 0) {
+        this.pendingBlockUpdates.forEach((isBlocked, userId) => {
+          this.friendsManager?.updateBlockStatus(userId, isBlocked);
+        });
+      }
+    },
   };
 }
 
-private getStatusPage(): Page {
-  return {
-    title: "PONG Game - Status",
-    content: `
-      <div class="content-card">
-        <h2>📊 System Status</h2>
-        <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
-          <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem;">
-            <span style="color: #374151; font-weight: 500;">Server Status</span>
-            <span style="color: #10b981; font-weight: 600;">● Online</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem;">
-            <span style="color: #374151; font-weight: 500;">Active Players</span>
-            <span style="color: #111827; font-weight: 600;">127</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 0.75rem; background: #f9fafb; border-radius: 0.5rem;">
-            <span style="color: #374151; font-weight: 500;">Active Games</span>
-            <span style="color: #111827; font-weight: 600;">34</span>
-          </div>
-        </div>
-      </div>
-    `,
-    init: () => console.log("📊 Status page loaded"),
-  };
-}
+
 
 }
 
-// ==========================
-// Initialize App
-// ==========================
 document.addEventListener("DOMContentLoaded", () => {
   new AppRouter("app-container");
 });

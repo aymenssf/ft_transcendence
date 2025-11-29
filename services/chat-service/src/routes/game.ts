@@ -12,7 +12,6 @@ interface GameInviteResponseBody {
 }
 
 export async function gameRoutes(app: FastifyInstance) {
-  // Send game invitation
   app.post('/api/game/invite', {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {
@@ -28,37 +27,32 @@ export async function gameRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: 'Cannot invite yourself' });
       }
 
-      // Check if target user exists
       const targetUser = await app.db.findUserById(targetUserId);
       if (!targetUser) {
         return reply.status(404).send({ message: 'Target user not found' });
       }
 
-      // Check if sender is blocked
       const isBlocked = await app.db.isUserBlocked(targetUserId, userId);
       if (isBlocked) {
         return reply.status(403).send({ message: 'Cannot invite this user' });
       }
 
-      // Create game invitation
       const invitation = await app.db.createGameInvitation(userId, targetUserId, chatRoomId);
 
-      // Get sender info
       const sender = await app.db.findUserById(userId);
 
-      // Send real-time notification via socket if user is online
-      const targetSocketId = onlineUsers.get(targetUserId);
-      if (targetSocketId) {
-        app.io.to(targetSocketId).emit('game-invitation', {
-          id: invitation.id,
-          senderId: userId,
-          senderUsername: sender.username,
-          chatRoomId: invitation.chatRoomId,
-          created_at: invitation.created_at
-        });
-      }
+      const invitationData = {
+        id: invitation.id,
+        senderId: userId,
+        senderUsername: sender.username,
+        senderAvatar: sender.avatar,
+        targetUserId: targetUserId,
+        chatRoomId: invitation.chatRoomId,
+        created_at: invitation.created_at
+      };
 
-      // If there's a chat room, save as a message
+      app.io.emit('game-invitation', invitationData);
+
       if (chatRoomId) {
         const messageContent = `Game invitation to ${targetUser.username}`;
         const metadata = JSON.stringify({
@@ -67,7 +61,7 @@ export async function gameRoutes(app: FastifyInstance) {
           targetUsername: targetUser.username
         });
 
-        await app.db.createMessage(
+        const message = await app.db.createMessage(
           messageContent,
           userId,
           chatRoomId,
@@ -75,16 +69,22 @@ export async function gameRoutes(app: FastifyInstance) {
           metadata
         );
 
-        // Broadcast to room
         app.io.to(chatRoomId.toString()).emit('message', {
-          id: invitation.id,
+          id: message.id,
           chatRoomId,
           content: messageContent,
           type: 'game_invitation',
           metadata,
           senderId: userId,
-          sender: { id: userId, username: sender.username },
-          created_at: invitation.created_at
+          sender: {
+            id: userId,
+            username: sender.username,
+            avatar: sender.avatar
+          },
+          senderName: sender.username,
+          senderAvatar: sender.avatar,
+          timestamp: message.created_at,
+          created_at: message.created_at
         });
       }
 
@@ -106,7 +106,6 @@ export async function gameRoutes(app: FastifyInstance) {
     }
   });
 
-  // Accept game invitation
   app.post('/api/game/accept', {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {
@@ -131,21 +130,16 @@ export async function gameRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: `Invitation already ${invitation.status}` });
       }
 
-      // Generate game room ID
       const gameRoomId = `game_${invitation.senderId}_${userId}_${Date.now()}`;
 
-      // Update invitation
       await app.db.updateGameInvitationStatus(invitationId, 'accepted', gameRoomId);
 
-      // Notify sender via socket
-      const senderSocketId = onlineUsers.get(invitation.senderId);
-      if (senderSocketId) {
-        app.io.to(senderSocketId).emit('game-invite-accepted', {
-          invitationId,
-          gameRoomId,
-          acceptedBy: userId
-        });
-      }
+      app.io.emit('game-invite-accepted', {
+        invitationId,
+        gameRoomId,
+        acceptedBy: userId,
+        senderId: invitation.senderId
+      });
 
       return {
         message: 'Game invitation accepted',
@@ -161,7 +155,6 @@ export async function gameRoutes(app: FastifyInstance) {
     }
   });
 
-  // Decline game invitation
   app.post('/api/game/decline', {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {
@@ -186,17 +179,13 @@ export async function gameRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: `Invitation already ${invitation.status}` });
       }
 
-      // Update invitation
       await app.db.updateGameInvitationStatus(invitationId, 'declined');
 
-      // Notify sender via socket
-      const senderSocketId = onlineUsers.get(invitation.senderId);
-      if (senderSocketId) {
-        app.io.to(senderSocketId).emit('game-invite-declined', {
-          invitationId,
-          declinedBy: userId
-        });
-      }
+      app.io.emit('game-invite-declined', {
+        invitationId,
+        declinedBy: userId,
+        senderId: invitation.senderId
+      });
 
       return {
         message: 'Game invitation declined',
@@ -211,7 +200,6 @@ export async function gameRoutes(app: FastifyInstance) {
     }
   });
 
-  // Get user's game invitations
   app.get('/api/game/invitations', {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {

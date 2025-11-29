@@ -15,6 +15,8 @@ const app = Fastify({
 // Initialize database
 const db = await loadSharedDb();
 
+// Note: General room will be created when first user connects
+
 // Register plugins
 await app.register(cors, config.cors);
 await app.register(jwt, {
@@ -22,6 +24,7 @@ await app.register(jwt, {
 });
 await app.register(socketioServer as any, {
   cors: config.socketio.cors,
+  path: '/socket.io',
 });
 
 // Decorate Fastify instance with custom properties

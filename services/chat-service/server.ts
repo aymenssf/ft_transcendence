@@ -12,7 +12,6 @@ const app: FastifyInstance = Fastify({
 
 const db = await loadSharedDb();
 
-// In-memory map for tracking online users
 const onlineUsers = new Map<number, string>();
 
 await app.register(cors);
@@ -20,7 +19,6 @@ await app.register(jwt, {
   secret: process.env.JWT_SECRET as string,
 });
 
-// Register Socket.IO
 await app.register(socketioServer as any, {
   cors: {
     origin: "*",
@@ -36,7 +34,6 @@ app.decorate("authenticate", async function(request: FastifyRequest, reply: Fast
   }
 });
 
-// Socket.IO Authentication Middleware
 app.ready().then(() => {
   app.io.use(async (socket: Socket, next: (err?: Error) => void) => {
     try {
@@ -46,10 +43,8 @@ app.ready().then(() => {
         return next(new Error('Authentication error: No token provided'));
       }
 
-      // Verify JWT token using Fastify's jwt.verify
       const decoded = await app.jwt.verify(token) as any;
 
-      // Attach user payload to socket
       socket.user = decoded as any;
 
       next();
@@ -58,59 +53,45 @@ app.ready().then(() => {
     }
   });
 
-  // Socket.IO Connection Handler
   app.io.on('connection', (socket: Socket) => {
     const userId = socket.user?.id;
 
     if (userId) {
-      // Add user to online users map
       onlineUsers.set(userId, socket.id);
       app.log.info(`User ${userId} connected with socket ${socket.id}`);
 
-      // Broadcast online users count
       app.io.emit('online-users-count', onlineUsers.size);
 
-      // Notify user is online
       socket.broadcast.emit('user-online', { userId });
     }
 
-    // Handle disconnect
     socket.on('disconnect', () => {
       if (userId) {
         onlineUsers.delete(userId);
         app.log.info(`User ${userId} disconnected`);
 
-        // Broadcast updated online users count
         app.io.emit('online-users-count', onlineUsers.size);
 
-        // Notify user is offline
         socket.broadcast.emit('user-offline', { userId });
       }
     });
 
-    // Example: Join a chat room
     socket.on('join-room', (roomId: string) => {
       socket.join(roomId);
       app.log.info(`User ${userId} joined room ${roomId}`);
       socket.to(roomId).emit('user-joined-room', { userId, roomId });
     });
 
-    // Example: Leave a chat room
     socket.on('leave-room', (roomId: string) => {
       socket.leave(roomId);
       app.log.info(`User ${userId} left room ${roomId}`);
       socket.to(roomId).emit('user-left-room', { userId, roomId });
     });
 
-    // Example: Send message to room
     socket.on('send-message', async (data: { roomId: string; content: string }) => {
       try {
         const { roomId, content } = data;
 
-        // Save message to database (you'll need to implement this in loadSharedDb)
-        // const message = await db.createMessage(userId, parseInt(roomId), content);
-
-        // Broadcast message to room
         app.io.to(roomId).emit('new-message', {
           roomId,
           content,
@@ -122,7 +103,6 @@ app.ready().then(() => {
       }
     });
 
-    // Example: Typing indicator
     socket.on('typing', (roomId: string) => {
       socket.to(roomId).emit('user-typing', { userId, roomId });
     });
@@ -133,7 +113,6 @@ app.ready().then(() => {
   });
 });
 
-// Health check
 app.get('/health', async (request, reply) => {
     return {
       status: 'ok',
@@ -142,7 +121,6 @@ app.get('/health', async (request, reply) => {
     };
   });
 
-// Database connection test
 app.get('/db-test', async (request, reply) => {
   try {
     const user = await db.findUserById(1);
@@ -188,14 +166,12 @@ app.get('/test/users', async (request, reply) => {
   }
 });
 
-// Test endpoint: Create a test chat room
 app.post('/test/chatroom', async (request: FastifyRequest<{
   Body: { name: string; type: string; ownerId: number }
 }>, reply) => {
   try {
     const { name, type, ownerId } = request.body;
 
-    // First check if the user exists
     const user = await db.findUserById(ownerId);
     if (!user) {
       return reply.status(404).send({
@@ -220,7 +196,6 @@ app.post('/test/chatroom', async (request: FastifyRequest<{
   }
 });
 
-// Test endpoint: Get chat rooms by user
 app.get('/test/chatrooms/:userId', async (request: FastifyRequest<{
   Params: { userId: string }
 }>, reply) => {
@@ -250,7 +225,6 @@ app.get('/test/chatrooms/:userId', async (request: FastifyRequest<{
   }
 });
 
-// Test endpoint: Get a specific chat room
 app.get('/test/chatroom/:id', async (request: FastifyRequest<{
   Params: { id: string }
 }>, reply) => {

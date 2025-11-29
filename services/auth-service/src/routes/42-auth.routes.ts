@@ -108,16 +108,16 @@ export async function Auth42Routes(fastify: FastifyInstance) {
         expiresIn: 7 * 24 * 60 * 60
       };
 
-      if (redirectUrl && redirectUrl !== 'http://localhost:3000') 
-      {
-        const urlParams = new URLSearchParams({
-          token: jwtToken,
-          user: JSON.stringify(authData.user)
-        });
-        return reply.redirect(`${redirectUrl}?${urlParams.toString()}`);
-      }
-
-      return reply.send(authData);
+      const frontendUrl = process.env.FRONTEND_URL || 'https://localhost';
+      const targetPath = stateValidation.data?.redirectUrl || '/dashboard';
+      const fullRedirectUrl = `${frontendUrl}${targetPath}`;
+      
+      const urlParams = new URLSearchParams({
+        token: jwtToken,
+        user: JSON.stringify(authData.user)
+      });
+      
+      return reply.redirect(`${fullRedirectUrl}?${urlParams.toString()}`);
 
     } 
     catch (error) {

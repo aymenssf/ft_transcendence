@@ -39,13 +39,19 @@ export function setupSocketConnection(app: FastifyInstance) {
     const userId = socket.user?.userId || socket.user?.id;
 
     if (userId) {
-      // Add user to online users map
+      socket.join(socket.id);
       onlineUsers.set(userId, socket.id);
       app.log.info(`User ${userId} connected with socket ${socket.id}`);
 
       // Update user status to online in database
       try {
         await app.db.updateUserStatus(userId, 'online');
+        // Auto-join user to General room
+        // @ts-ignore - joinGeneralRoom added to ChatDB interface
+        if (typeof app.db.joinGeneralRoom === 'function') {
+          // @ts-ignore
+          await app.db.joinGeneralRoom(userId);
+        }
       } catch (error: any) {
         app.log.error(`Failed to update user status for user ${userId}:`, error);
       }
@@ -66,11 +72,16 @@ export function setupSocketConnection(app: FastifyInstance) {
         // Notify friends specifically (if they are online)
         try {
           const friendIds = await app.db.getFriendIds(userId);
-          for (const fid of friendIds) 
+          app.log.info(`User ${userId} has ${friendIds.length} friends, notifying them of online status`);
+          for (const fid of friendIds)
           {
             const sid = onlineUsers.get(fid);
-            if (sid) 
+            if (sid) {
+              app.log.info(`  → Notifying friend ${fid} (socket ${sid}) that user ${userId} is online`);
               app.io.to(sid).emit('friend-status-change', { userId, status: 'online' });
+            } else {
+              app.log.info(`  → Friend ${fid} is offline, skipping notification`);
+            }
           }
         } catch (e: any) {
           app.log.warn('Failed notifying friends about online status', e);
@@ -108,9 +119,13 @@ export function setupSocketConnection(app: FastifyInstance) {
         // Notify friends specifically (if they are online)
         try {
           const friendIds = await app.db.getFriendIds(userId);
+          app.log.info(`User ${userId} disconnected, has ${friendIds.length} friends, notifying them of offline status`);
           for (const fid of friendIds) {
             const sid = onlineUsers.get(fid);
-            if (sid) app.io.to(sid).emit('friend-status-change', { userId, status: 'offline' });
+            if (sid) {
+              app.log.info(`  → Notifying friend ${fid} (socket ${sid}) that user ${userId} is offline`);
+              app.io.to(sid).emit('friend-status-change', { userId, status: 'offline' });
+            }
           }
         } catch (e: any) {
           app.log.warn('Failed notifying friends about offline status', e);

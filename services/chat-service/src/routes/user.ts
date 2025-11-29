@@ -169,7 +169,6 @@ export async function userRoutes(app: FastifyInstance) {
     }
   });
 
-  // Get user profile with stats
   app.get('/api/users/:id/profile', {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {
@@ -189,6 +188,7 @@ export async function userRoutes(app: FastifyInstance) {
           username: true,
           email: true,
           avatar: true,
+          usernameTournament: true,
           created_at: true,
           is_42_user: true
         }
@@ -198,8 +198,6 @@ export async function userRoutes(app: FastifyInstance) {
         return reply.status(404).send({ message: 'User not found' });
       }
 
-      // TODO: Fetch game statistics from game-service
-      // For now, return placeholder stats
       const stats = {
         gamesPlayed: 0,
         gamesWon: 0,
@@ -224,7 +222,6 @@ export async function userRoutes(app: FastifyInstance) {
     }
   });
 
-  // Get online users
   app.get('/api/users/online', {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {
@@ -244,7 +241,6 @@ export async function userRoutes(app: FastifyInstance) {
     }
   });
 
-  // Get user status
   app.get('/api/users/:id/status', {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {
@@ -270,7 +266,6 @@ export async function userRoutes(app: FastifyInstance) {
     }
   });
 
-  // Get multiple user statuses
   app.post('/api/users/statuses', {
     preHandler: [app.authenticate]
   }, async (request: any, reply) => {

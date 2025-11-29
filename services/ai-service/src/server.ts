@@ -29,7 +29,4 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`AI service running on port ${PORT}`);
-  console.log(`HTTP: http://localhost:${PORT}`);
-  console.log(`WebSocket: ws://localhost:${PORT}`);
 });

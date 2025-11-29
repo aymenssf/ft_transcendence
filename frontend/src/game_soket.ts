@@ -3,9 +3,10 @@ const listeners: ((msg: any) => void)[] = [];
 
 export function initgameSocket() {
     if (socket) return socket;
+    
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
 
-    socket = new WebSocket(`ws://localhost:3012/ws?token=${localStorage.getItem('jwt_token')}`);
-
+    socket = new WebSocket(`${wsProtocol}://${window.location.host}/ws?token=${localStorage.getItem('jwt_token')}`);
     socket.onopen = () => console.log("✅ Connected to server");
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -32,4 +33,20 @@ export function addMessageListener(fn: (msg: any) => void) {
 export function removeMessageListener(fn: (msg: any) => void) {
     const idx = listeners.indexOf(fn);
     if (idx !== -1) listeners.splice(idx, 1);
+}
+export function closeGameSocket(code: number = 1000, reason: string = 'Client closed connection') {
+    if (!socket) return;
+
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+
+    try {
+        socket.close(code, reason);
+    } catch (err) {
+        console.warn('Failed to close WebSocket', err);
+    } finally {
+        socket = null;
+    }
 }

@@ -107,12 +107,10 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify(aiMove));
       }
     } else if (message.type === 'game_finish') {
-      console.log(`Game finished - Winner: ${message.payload.winner}`);
     }
   });
 
   ws.on('close', () => {
-    console.log('Connection closed');
   });
 
   ws.on('error', (error) => {
@@ -121,7 +119,4 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`AI service running on port ${PORT}`);
-  console.log(`HTTP: http://localhost:${PORT}`);
-  console.log(`WebSocket: ws://localhost:${PORT}`);
 });

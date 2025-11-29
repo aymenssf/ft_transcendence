@@ -49,7 +49,6 @@ export class GameConnectionHandler {
   }
 
   private handleGameStart(): void {
-    console.log(`Game started - Difficulty: ${this.difficulty}`);
   }
 
   private handleGameUpdate(payload: any): void {

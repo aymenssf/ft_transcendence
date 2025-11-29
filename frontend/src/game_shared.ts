@@ -5,6 +5,7 @@ export let ctx: CanvasRenderingContext2D | null = null;
 export let gameConfig: any = null;
 export let gameState: any = null;
 export let gameid: string = "";
+let overlayTimer: any = null;
 
 let cleanupListeners: (() => void)[] = [];
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -16,6 +17,7 @@ export function addCleanupListener(fn: () => void): void {
 
 export function cleanupGame(userId?: number, b: boolean = true): void {
   console.log("🧹 Cleaning up game...");
+
 
   cleanupListeners.forEach(cleanup => cleanup());
   cleanupListeners = [];
@@ -29,6 +31,10 @@ export function cleanupGame(userId?: number, b: boolean = true): void {
     keyupHandler = null;
   }
 
+  if (overlayTimer) {
+    clearTimeout(overlayTimer);
+    overlayTimer = null;
+  }
   const container = document.getElementById("game-container");
   if (container) container.innerHTML = '';
 
@@ -40,6 +46,9 @@ export function cleanupGame(userId?: number, b: boolean = true): void {
 }
 
 export function setupKeyboardListeners(gameId: string, playerId: string, isAI: boolean = false, isRemote: boolean = false): void {
+  
+  if (keydownHandler) document.removeEventListener("keydown", keydownHandler);
+  if (keyupHandler) document.removeEventListener("keyup", keyupHandler);
   const moves = (isAI || isRemote)
     ? { up: false, down: false }
     : { left: { up: false, down: false }, right: { up: false, down: false } };
@@ -332,7 +341,7 @@ function showGameOverOverlay(
 
   document.body.appendChild(overlay);
 
-  setTimeout(() => {
+  overlayTimer = setTimeout(() => {
     overlay.remove();
     style.remove();
     cleanupGame(undefined, false);
@@ -341,10 +350,11 @@ function showGameOverOverlay(
     console.log(`🔄 Redirecting to: ${redirectPath}`);
     history.pushState({}, "", `/${redirectPath}`);
     navigateCallback(redirectPath);
+    overlayTimer = null;
   }, 3000);
 }
 
-function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI: boolean = false, isRemote: boolean = false): void {
+export function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI: boolean = false, isRemote: boolean = false): void {
   gameConfig = {
     gameId: msg.payload.gameId,
     mode: msg.payload.mode,
@@ -365,6 +375,52 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
       y: msg.payload.ball.y,
     },
   };
+  console.log("paddles: ", gameState.paddles);
+      const rid = gameState.paddles.right.playerId;
+      const lid = gameState.paddles.left.playerId;
+
+      const rImg = document.getElementById("r-palyer") as HTMLImageElement | null;
+      const rName = document.getElementById("r-name") as HTMLElement | null;
+      const lImg = document.getElementById("opponent-avatar") as HTMLImageElement | null;
+      const lName = document.getElementById("opponent-name") as HTMLElement | null;
+      console.log("user : ", fetchUserDetails(rid));
+      if (String(userId) != String(lid)) {
+        console.log(`lifte user [${userId}] name [${lName}]`);
+        if (rImg && lImg) {
+          const tmpSrc = lImg.src;
+          const tmpAlt = lImg.alt;
+          const tmpClass = lImg.className;
+          const tmpOpacity = lImg.style.opacity;
+          const tmpBorder = lImg.style.borderColor;
+
+          lImg.src = rImg.src;
+          lImg.alt = rImg.alt;
+          lImg.className = rImg.className;
+          lImg.style.opacity = rImg.style.opacity;
+          lImg.style.borderColor = rImg.style.borderColor;
+
+          rImg.src = tmpSrc;
+          rImg.alt = tmpAlt;
+          rImg.className = tmpClass;
+          rImg.style.opacity = tmpOpacity;
+          rImg.style.borderColor = tmpBorder;
+        }
+
+        if (rName && lName) {
+          const tmpText = lName.textContent;
+          const tmpClass = lName.className;
+          const tmpColor = lName.style.color;
+
+          lName.textContent = rName.textContent;
+          lName.className = rName.className;
+          lName.style.color = rName.style.color;
+
+          rName.textContent = tmpText;
+          rName.className = tmpClass;
+          rName.style.color = tmpColor;
+        }
+      }
+
 
   gameid = msg.payload.gameId;
   console.log(`🎮 Game ID: ${msg.payload.gameId}${isAI ? ' (AI Mode)' : isRemote ? ' (Remote Mode)' : ''}`);
@@ -377,50 +433,42 @@ function handleGameConfig(msg: any, userId: number, startButtonId: string, isAI:
     canvas.id = "game-id";
     canvas.width = gameConfig.canvas.width;
     canvas.height = gameConfig.canvas.height;
-    canvas.style.backgroundColor = gameConfig.canvas.color;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.borderRadius = "12px";
+    canvas.style.border = "2px solid rgba(255,255,255,0.1)";
     container.appendChild(canvas);
   }
 
   ctx = canvas.getContext("2d");
   if (ctx) {
     console.log("🎮 Starting game canvas");
-    const startBtn = document.getElementById(startButtonId);
-    if (startBtn) startBtn.innerHTML = "";
 
-    startCanvasCountdown(ctx, canvas).then(() => {
-      if (ctx) game_start(gameConfig, gameState, ctx);
+    const startBtn = document.getElementById(startButtonId) as HTMLButtonElement;
+    if (startBtn) {
+      const newBtn = startBtn.cloneNode(true) as HTMLButtonElement;
+      startBtn.parentNode?.replaceChild(newBtn, startBtn);
+      newBtn.innerHTML = "✅ Ready - Click to Start!";
+      newBtn.disabled = false;
+      newBtn.style.background = "#10b981";
+      newBtn.style.cursor = "pointer";
+      const readyHandler = () => {
+      console.log("🚀 Ready button clicked!");
+      sendMessage("player_ready", { gameId: gameid, playerId: userId.toString() });
       setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
-    });
+              newBtn.innerHTML = "🎮 Playing...";
+        newBtn.disabled = true;
+        newBtn.style.opacity = "0.5";
 
-    setupKeyboardListeners(gameid, userId.toString(), isAI, isRemote);
+        console.log("⌨️ Game controls active - Use W/S keys");
+      };
+      newBtn.addEventListener('click', readyHandler);
+      addCleanupListener(() => {
+        newBtn.removeEventListener('click', readyHandler);
+      });
+    }
+    console.log("💡 Canvas ready! Click the button to start!");
   }
-}
-
-function startCanvasCountdown(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement
-): Promise<void> {
-  return new Promise((resolve) => {
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "white";
-    ctx.font = "bold 80px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("READY", canvas.width / 2, canvas.height / 2);
-
-    setTimeout(() => {
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillText("GO!", canvas.width / 2, canvas.height / 2);
-
-      setTimeout(() => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        resolve();
-      }, 2000);
-
-    }, 1000);
-
-  });
 }
 
 
@@ -450,6 +498,9 @@ export function createAIGameListener(userId: number): (msg: any) => void {
     if (msg.type === "join_ai-opponent_ack") {
       const startBtn = document.getElementById("start-ai-game") as HTMLButtonElement;
       if (startBtn) {
+        const d_b = document.getElementById("ai_butin") ;
+        if (d_b)
+          d_b.classList.add("disabled-div");
         startBtn.innerHTML = "Connecting to AI...";
         startBtn.disabled = true;
       }
@@ -465,11 +516,14 @@ export function createAIGameListener(userId: number): (msg: any) => void {
   };
 }
 
-export function createRemoteGameListener(userId: number): (msg: any) => void {
+type FetchedUser = { id?: number; username?: string; avatar?: string } | null;
+
+export  function  createRemoteGameListener(userId: number): (msg: any) => void {
   return (msg: any) => {
     if (!msg) return;
 
     console.log("🌐 Remote game message:", msg.type, msg.payload);
+    let data:FetchedUser  = null;
 
     if (msg.type === "join_random_ack") {
       const startBtn = document.getElementById("start-remote-game") as HTMLButtonElement;
@@ -486,23 +540,57 @@ export function createRemoteGameListener(userId: number): (msg: any) => void {
         opponentImg.style.opacity = "0.5";
       }
     }
-    else if (msg.type === "match_found") {
+    else if (msg.type === "random_opponent_found") {
       console.log("🎮 Match found!", msg.payload);
-      const opponentInfo = msg.payload.opponent;
+      const id1 = msg.payload.player1;
+      const id2 = msg.payload.player2;
 
-    
       const opponentImg = document.getElementById("opponent-avatar") as HTMLImageElement;
       const opponentName = document.getElementById("opponent-name");
+      const serchstate = document.getElementById("serch");
+      if (serchstate){
+        serchstate.innerHTML = "● Online";
+        serchstate.style.color="#10b981";
+      }
 
-      if (opponentImg && opponentInfo?.avatar) {
-        opponentImg.src = opponentInfo.avatar;
+      if (String(userId) === String(id1)) {
+        fetchUserDetails(id2)
+          .then(res => {
+        if (!res) {
+          console.error("failed to get user data by id");
+          return;
+        }
+        if (opponentImg) {
+        opponentImg.src = res.avatar;
         opponentImg.style.opacity = "1";
         opponentImg.style.borderColor = "#10b981";
+        }
+        if (opponentName) {
+          opponentName.textContent = res.username;
+          opponentName.style.color = "#e5e7eb";
+        }
+          })
+          .catch(e => console.error(e));
+      } else {
+        fetchUserDetails(id1)
+          .then(res => {
+        if (!res) {
+          console.error("failed to get user data by id");
+          return;
+        }
+        if (opponentImg) {
+        opponentImg.src = res.avatar;
+        opponentImg.style.opacity = "1";
+        opponentImg.style.borderColor = "#10b981";
+        }
+        if (opponentName) {
+          opponentName.textContent = res.username;
+          opponentName.style.color = "#e5e7eb";
+        }
+          })
+          .catch(e => console.error(e));
       }
-      if (opponentName && opponentInfo?.username) {
-        opponentName.textContent = opponentInfo.username;
-        opponentName.style.color = "#e5e7eb";
-      }
+
 
       const startBtn = document.getElementById("start-remote-game");
       if (startBtn) startBtn.innerHTML = "Match found! Starting...";
@@ -576,3 +664,92 @@ export function setupGameListeners(
     removeMessageListener(finishHandler);
   });
 }
+
+export function cleanupTournamentPage(): void {
+  console.log("🧹 Cleaning up tournament page (keeping tournament active)...");
+
+  cleanupListeners.forEach(cleanup => cleanup());
+  cleanupListeners = [];
+
+  if (keydownHandler) {
+    document.removeEventListener("keydown", keydownHandler);
+    keydownHandler = null;
+  }
+  if (keyupHandler) {
+    document.removeEventListener("keyup", keyupHandler);
+    keyupHandler = null;
+  }
+
+  const container = document.getElementById("game-container");
+  if (container) container.innerHTML = '';
+
+  ctx = null;
+
+}
+
+export function setupTournamentNavigationHandlers(
+  userId: number,
+  tournamentId: string,
+  loadPageCallback: (path: string) => void
+): void {
+
+  sessionStorage.setItem('inTournamentLobby', tournamentId);
+
+  const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+    console.log("🔄 Page unloading (refresh/close) - not sending leave message");
+  };
+
+
+  const popstateHandler = () => {
+    const tournamentId = sessionStorage.getItem('inTournamentLobby');
+
+    if (tournamentId && !window.location.pathname.includes('tournament/lobby')) {
+      console.log("🚪 Navigating away from tournament - leaving...");
+      sessionStorage.removeItem('inTournamentLobby');
+
+      fetch('/tournaments/tournaments/leave', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ tournamentId })
+      }).catch(console.error);
+    }
+
+    cleanupTournamentPage();
+    loadPageCallback(window.location.pathname.replace(/^\//, "") || "home");
+  };
+
+  window.addEventListener("popstate", popstateHandler);
+  addCleanupListener(() => window.removeEventListener("popstate", popstateHandler));
+}
+
+
+export async function fetchUserDetails(userId: string | number): Promise<any> {
+  try {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+      console.warn("No token found for fetchUserDetails");
+      return null;
+    }
+
+    const res = await fetch(`/api/user/${userId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error(`Error fetching details for user ${userId}:`, error);
+    return null;
+  }
+}
+

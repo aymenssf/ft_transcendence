@@ -17,38 +17,30 @@ model User {
   is_42_user  Boolean  @default(false)
   created_at  DateTime @default(now())
 
-  // User status: online, offline, in-game
   status      String   @default("offline")
   lastSeen    DateTime @default(now())
 
   provider    String?
-  googleId    String? @unique // for i can store my google id
+  googleId    String? @unique
 
-  // Chat relationships
   ownedRooms      ChatRoom[]        @relation("RoomOwner")
   roomMemberships chatRoomMember[]
   sentMessages    message[]         @relation("MessageSender")
   unreadMessages  UnreadMessage[]
 
-  // Blocking relationships
   blockedUsers    block[]           @relation("Blocker")
   blockedBy       block[]           @relation("Blocked")
 
-  // Game invitation relationships
   sentGameInvites     GameInvitation[] @relation("GameInviteSender")
   receivedGameInvites GameInvitation[] @relation("GameInviteReceiver")
 
-  // Tournament notifications
   tournamentNotifications TournamentNotification[]
 
-  /// Tournament username (optional). Enforced unique at application level as well.
   usernameTournament String?  @unique
 
-  // Friends: self-relation via Friend table
   friends        Friend[]      @relation("UserFriendsUser")
   friendOf       Friend[]      @relation("UserFriendsFriend")
 
-  // Friend requests
   sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
   receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
 }
@@ -64,12 +56,10 @@ model ChatRoom {
   ownerId     Int
   owner       User                 @relation("RoomOwner", fields: [ownerId], references: [id])
 
-  // Many-to-many relationship with users
   members     chatRoomMember[]
   messages    message[]
   unreadMessages UnreadMessage[]
 
-  // Game invitations sent from this room
   gameInvitations GameInvitation[]
 }
 
@@ -77,7 +67,7 @@ model chatRoomMember {
   userId      Int
   chatRoomId  Int
   joinedAt    DateTime @default(now())
-  role        String   @default("member") // member, admin, moderator
+  role        String   @default("member")
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   chatRoom    ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
@@ -174,7 +164,6 @@ model UnreadMessage {
   @@index([chatRoomId])
 }
 
-// Symmetric friendship represented by two directed rows (userId -> friendId)
 model Friend {
   userId    Int
   friendId  Int
@@ -187,7 +176,6 @@ model Friend {
   @@index([friendId])
 }
 
-// Friend request flow
 model FriendRequest {
   id          Int      @id @default(autoincrement())
   senderId    Int

@@ -1,8 +1,8 @@
 import { waitingQueue, playersSockets } from '../utils/store.js'
 import { createGameRoom, createInitialGameState, isPlaying } from "../helpers/helpers.js"
 import { startGameLoop } from "./gameLoop.js";
-import {SocketStream} from "@fastify/websocket";
-import {GAME_ROOM_MODE, GAME_ROOM_STATUS} from "../helpers/consts.js";
+import { SocketStream } from "@fastify/websocket";
+import { GAME_ROOM_MODE, GAME_ROOM_STATUS } from "../helpers/consts.js";
 
 function randomGame(connection: SocketStream, playerId: string) {
     if (isPlaying(playerId)) {
@@ -41,14 +41,27 @@ function startRandomGame() {
     }
 
     console.log(`Player [${player_1} VS ${player_2}]`);
+
     const player_1_socket = playersSockets.get(player_1);
     const player_2_socket = playersSockets.get(player_2);
 
     const gameRoom = createGameRoom(player_1, player_2, player_1_socket, GAME_ROOM_MODE.RANDOM);
 
     gameRoom.sockets.add(player_2_socket);
+    gameRoom.sockets.forEach(sock => {
+        sock?.send(JSON.stringify({
+            type: "random_opponent_found",
+            payload: {
+                player1: gameRoom.p1,
+                player2: gameRoom.p2
+            }
+        }));
+    })
+
     gameRoom.status = GAME_ROOM_STATUS.ONGOING;
-    gameRoom.sockets.forEach(sock => sock?.send(JSON.stringify(createInitialGameState(gameRoom.gameId, gameRoom.mode))));
+    setTimeout(() => {
+        gameRoom.sockets.forEach(sock => sock?.send(JSON.stringify(createInitialGameState(gameRoom.gameId, gameRoom.mode))));
+    }, 500);
 
     setTimeout(() => {
         gameRoom.sockets.forEach(sock => {
@@ -57,7 +70,7 @@ function startRandomGame() {
             }));
         });
         startGameLoop(gameRoom);
-    }, 3000);
+    }, 500);
 
 }
 

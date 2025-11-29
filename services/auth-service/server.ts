@@ -13,9 +13,11 @@ import Fastify, { fastify } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import fastifyStatic from "@fastify/static";
+import fastifyMultipart from "@fastify/multipart";
 import path from "node:path";
 import { registerControllers } from "./controler.js";
 import { GoogleAuthRoutes } from "./src/routes/42-auth.routes.js";
+import { AvatarUploadRoutes } from "./src/routes/avatar-upload.routes.js";
 
 async function bootstrap() {
   const app = Fastify({ logger: true });
@@ -27,6 +29,11 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization']
   });
 
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024 
+    }
+  });
 
   await app.register(jwt, {
     secret: process.env.JWT_SECRET as string
@@ -35,13 +42,13 @@ async function bootstrap() {
 
 
   await app.register(GoogleAuthRoutes);
+  await app.register(AvatarUploadRoutes);
 
 
   registerControllers(app);
   app.get('/test', async (_req, _reply) => {
     return { ok: true, service: 'auth-service', status: 'running' };
   });
-  // Serve default avatars and any uploaded avatars from /avatar
   await app.register((fastifyStatic as any), {
     root: path.resolve(process.cwd(), 'avatar'),
     prefix: '/avatar/',

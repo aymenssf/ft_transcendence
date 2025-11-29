@@ -1,7 +1,6 @@
 import { Server as SocketIOServer, Socket as SocketIOSocket } from 'socket.io';
 import { FastifyInstance as OriginalFastifyInstance } from 'fastify';
 
-// Database interface
 export interface Database {
   findUserById(id: number): Promise<any>;
   findUserByUsername(username: string): Promise<any>;
@@ -14,45 +13,40 @@ export interface Database {
   getMessagesByChatRoom(chatRoomId: number, userId: number, limit?: number): Promise<any[]>;
   getMessagesByChatRoomPaginated(chatRoomId: number, userId: number, limit?: number, offset?: number): Promise<any[]>;
 
-  // User status management
   getUserStatus(userId: number): Promise<string>;
   updateUserStatus(userId: number, status: string): Promise<void>;
   getOnlineUsers(): Promise<any[]>;
 
-  // Unread messages
   getUnreadMessageCount(userId: number, chatRoomId: number): Promise<number>;
   getAllUnreadCounts(userId: number): Promise<any[]>;
   incrementUnreadCount(userId: number, chatRoomId: number, messageId: number): Promise<void>;
   markMessagesAsRead(userId: number, chatRoomId: number): Promise<void>;
 
-  // Blocking
   isUserBlocked(blockerId: number, blockedId: number): Promise<boolean>;
 
-  // Game invitations
   createGameInvitation(senderId: number, receiverId: number, chatRoomId?: number): Promise<any>;
   getGameInvitationById(id: number): Promise<any>;
   updateGameInvitationStatus(id: number, status: string, gameRoomId?: string): Promise<any>;
   getUserGameInvitations(userId: number, status?: string): Promise<any[]>;
 
-  // Tournament notifications
   createTournamentNotification(userId: number, tournamentId: number, title: string, message: string, type: string): Promise<any>;
   getUserTournamentNotifications(userId: number, unreadOnly?: boolean): Promise<any[]>;
   markNotificationAsRead(id: number): Promise<void>;
 
-  // Friends
   sendFriendRequest(senderId: number, receiverId: number): Promise<any>;
   respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any>;
   getFriendRequests(userId: number): Promise<any[]>;
   getFriends(userId: number): Promise<any[]>;
   getFriendIds(userId: number): Promise<number[]>;
+  areFriends(userId: number, friendId: number): Promise<boolean>;
+  removeFriend(userId: number, friendId: number): Promise<void>;
 
   close(): void;
 }
 
-// JWT Payload interface
 export interface JWTPayload {
-  id?: number;        // Used by Google OAuth
-  userId?: number;    // Used by regular login
+  id?: number;
+  userId?: number;
   username: string;
   email?: string;
   [key: string]: any;

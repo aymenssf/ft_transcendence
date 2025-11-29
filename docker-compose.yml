@@ -11,6 +11,7 @@ services:
       - .env
     volumes:
       - ./database:/app/database:rw
+      - ./services/auth-service/avatar:/app/avatar:rw
     networks:
       - transcendence-network
     restart: unless-stopped
@@ -41,16 +42,11 @@ services:
       - "${GAME_SERVICE_PORT:-3012}:3012"
     env_file:
       - .env
-      - ./services/game-service/.env
     volumes:
       - ./services/game-service:/app/services/game-service:rw
-      - ./services/game-service/prisma:/app/prisma
       - /app/services/game-service/node_modules
-      - ./database:/app/database:rw
       - ./Shared_dataBase:/app/Shared_dataBase:rw
       - /app/Shared_dataBase/node_modules
-    # command: >
-    #   sh -c "cd /app/Shared_dataBase && npx prisma migrate deploy && cd /app/services/game-service && npx tsx src/server.ts"
     networks:
       - transcendence-network
     depends_on:
@@ -79,12 +75,10 @@ services:
       dockerfile: ./Dockerfile
     container_name: ft_transcendence_frontend
     ports:
-      - "${FRONTEND_SERVICE_PORT:-443}:443"
+      - "0.0.0.0:8080:443"
     env_file:
       - .env
     volumes:
-      - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
-      - ./frontend/images:/usr/share/nginx/html/images:ro
       - ./frontend/certs:/etc/nginx/certs
     networks:
       - transcendence-network

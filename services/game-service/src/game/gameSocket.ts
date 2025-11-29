@@ -11,7 +11,8 @@ import { GAME_ROOM_MODE, GAME_ROOM_STATUS, TOURNAMENT_STATUS } from "../helpers/
 import "@fastify/websocket";
 import jwt from "@fastify/jwt"
 import { handleTournamentRoundWinner, notifyTournamentPlayers } from './tournament.js';
-
+import { saveGameRoom } from '../model/gameModels.js';
+import WebSocket from "ws"
 interface SocketQuery {
     token: string;
 }
@@ -19,7 +20,6 @@ interface SocketQuery {
 async function gameSocket(fastify: FastifyInstance, options: any) {
     // @ts-ignore
     fastify.get('/ws', { websocket: true }, (connection: SocketStream, req: FastifyRequest<{ Querystring: SocketQuery }>) => {
-        console.log("New ws Connections ...");
         const token: string = req.query.token;
         if (!token) {
             connection.socket.close(1008, 'Missing token');
@@ -29,9 +29,6 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
         try {
             const payload = fastify.jwt.verify(token) as { userId: string };
             const playerId = (payload as any).userId;
-            console.log(`New Socket Connection from ${playerId}`);
-
-            console.log(`New socket connection from ${playerId}`);
 
             playersSockets.set(playerId, connection.socket);
 
@@ -68,10 +65,9 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
             });
 
             connection.socket.on('close', () => {
-                console.log("ws close error");
-                handleSocketClose(playerId);
-                leaveTournament(playerId);
-                handlePlayerDisconnect(playerId);
+                    leaveTournament(playerId);
+                cancelTournamentIfPlayerDisconnected(playerId);
+                handlePlayerDisconnect(playerId, "disconnect");
                 playersSockets.delete(playerId);
             });
 
@@ -88,11 +84,90 @@ async function gameSocket(fastify: FastifyInstance, options: any) {
     });
 }
 
+
+export function cancelTournamentIfPlayerDisconnected(playerId: string) {
+    for (const tournament of tournaments.values()) {
+        if (tournament.status === TOURNAMENT_STATUS.WAITING || tournament.status === TOURNAMENT_STATUS.FINISHED)
+            continue;
+
+        let playerFound = false;
+
+        if (tournament.status === TOURNAMENT_STATUS.FINAL) {
+            const finalRoom = tournament.rounds.at(-1);
+            if (!finalRoom) continue;
+
+            if (finalRoom.p1 === playerId || finalRoom.p2 === playerId) {
+                playerFound = true;
+            }
+        }
+        else {
+            const semi1 = tournament.rounds[0];
+            const semi2 = tournament.rounds[1];
+
+            if (!semi1 || !semi2) continue;
+
+            if (
+                playerId === semi1.p1 ||
+                playerId === semi1.p2 ||
+                playerId === semi2.p1 ||
+                playerId === semi2.p2
+            )
+                playerFound = true;
+        }
+
+        if (playerFound) {
+            tournament.status = TOURNAMENT_STATUS.CANCELED;
+            tournaments.delete(tournament.tournamentId);
+
+            for (const room of tournament.rounds) {
+                if (!room) continue;
+
+                if (room.loop) {
+                    clearInterval(room.loop);
+                    room.loop = null;
+                }
+
+                room.status = GAME_ROOM_STATUS.FINISHED;
+                games.delete(room.gameId);
+            }
+
+            const uniqueSockets = new Set<WebSocket>();
+
+            for (const room of tournament.rounds) {
+                for (const s of room.sockets) {
+                    if (s) uniqueSockets.add(s);
+                }
+            }
+
+            const data = JSON.stringify({
+                type: "tournament_canceled",
+                payload: {
+                    tournamentId: tournament.tournamentId,
+                    reason: "player_disconnect : " + playerId,
+                },
+            });
+
+            for (const sock of uniqueSockets) {
+                if (sock.readyState === WebSocket.OPEN) {
+                    sock.send(data);
+                }
+            }
+
+
+            return;
+        }
+    }
+}
+
+
 function handlePlayerLeaveMatch(playerId: string, payload: any) {
     const gameRoom = games.get(payload.gameId);
 
     if (!gameRoom) return;
-
+    if (gameRoom.status === GAME_ROOM_STATUS.FINISHED) 
+    {
+        return;
+    }
     if (gameRoom.p1 !== playerId && gameRoom.p2 !== playerId) return;
 
     const opponentId = gameRoom.p1 === playerId ? gameRoom.p2 : gameRoom.p1;
@@ -108,6 +183,11 @@ function handlePlayerLeaveMatch(playerId: string, payload: any) {
 
         gameRoom.sockets.forEach(sock => sock?.send(endGameMsg));
     }
+    if (gameRoom.mode === GAME_ROOM_MODE.AI_OPPONENT) {
+        Array.from(gameRoom.sockets)[1]?.close();
+    }
+    if (gameRoom.loop) clearInterval(gameRoom.loop);
+    saveGameRoom(gameRoom);
     games.delete(payload.gameId);
 
 }
@@ -214,9 +294,7 @@ function handlePlayerLeave(playerId: string) {
                 console.warn(`[WARN] Unknown game type for room ${roomId}`);
         }
 
-        // Clean up references
         games.delete(roomId);
-        // playersSockets.delete(playerId);
 
         break;
     }
@@ -253,7 +331,7 @@ function leavePlayerFromWaitingTournaments(playerId: string) {
     }
 }
 
-function cleanupRoom(roomId: string) {
+export function cleanupRoom(roomId: string) {
     const room = games.get(roomId);
     if (!room) return;
 
@@ -266,7 +344,6 @@ function cleanupRoom(roomId: string) {
 }
 
 function handleSocketClose(playerId: string) {
-    console.log(`WS connection closed for ${playerId}`);
     playersSockets.delete(playerId);
     waitingQueue.delete(playerId);
 
@@ -279,17 +356,19 @@ function handleSocketClose(playerId: string) {
 
     if (opponentId && opponentId !== "local") {
         const opponentSocket = playersSockets.get(opponentId);
-        if (opponentSocket && opponentSocket.readyState === 1) {
-            opponentSocket.send(JSON.stringify({
+        if (opponentSocket?.readyState === 1) {
+            opponentSocket?.send(JSON.stringify({
                 type: "game_finish",
                 payload: { winner: opponentId, reason: "disconnect" }
             }));
         }
+        if (gameRoom.mode === GAME_ROOM_MODE.AI_OPPONENT)
+            Array.from(gameRoom.sockets)[1]?.close();
     }
 
     if (gameRoom.loop) clearInterval(gameRoom.loop);
     gameRoom.status = GAME_ROOM_STATUS.FINISHED;
-
+    saveGameRoom(gameRoom);
     cleanupRoom(gameRoom.gameId);
 }
 

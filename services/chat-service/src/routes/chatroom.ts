@@ -20,32 +20,91 @@ export async function chatroomRoutes(app: FastifyInstance) {
       const userId = request.user.id;
       const { prisma } = await import('@ft/shared-database');
 
-      const chatRooms = await prisma.chatRoom.findMany({
-        where: {
-          members: {
-            some: { userId: userId }
-          }
-        },
-        include: {
-          _count: {
-            select: {
-              members: true,
-              messages: true
+      // Fetch rooms in two queries:
+      // 1. All public/protected rooms (everyone can see these)
+      // 2. Private rooms where user is a member
+      const [publicRooms, privateRooms] = await Promise.all([
+        // Get all public and protected rooms
+        prisma.chatRoom.findMany({
+          where: {
+            type: {
+              in: ['public', 'protected']
             }
           },
-          owner: {
-            select: {
-              id: true,
-              username: true
+          include: {
+            _count: {
+              select: {
+                members: true,
+                messages: true
+              }
+            },
+            owner: {
+              select: {
+                id: true,
+                username: true
+              }
+            },
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    avatar: true
+                  }
+                }
+              }
             }
           }
-        },
-        orderBy: {
-          created_at: 'desc'
-        }
-      });
+        }),
+        // Get private rooms where user is a member
+        prisma.chatRoom.findMany({
+          where: {
+            type: 'private',
+            members: {
+              some: { userId: userId }
+            }
+          },
+          include: {
+            _count: {
+              select: {
+                members: true,
+                messages: true
+              }
+            },
+            owner: {
+              select: {
+                id: true,
+                username: true
+              }
+            },
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    avatar: true
+                  }
+                }
+              }
+            }
+          }
+        })
+      ]);
 
-      return { chatRooms };
+      // Combine both arrays and sort by created_at
+      const allRooms = [...publicRooms, ...privateRooms].sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Map rooms to include ownerId at top level for easier access
+      const roomsWithOwnerId = allRooms.map(room => ({
+        ...room,
+        ownerId: room.ownerId // Ensure ownerId is at top level
+      }));
+
+      return { chatRooms: roomsWithOwnerId };
     } catch (error: any) {
       reply.status(500).send({
         message: 'Failed to fetch chat rooms',
@@ -74,6 +133,24 @@ export async function chatroomRoutes(app: FastifyInstance) {
       }
 
       const { prisma } = await import('@ft/shared-database');
+
+      // Check if users are friends for private chat
+      if (type === 'private' && targetUserId) {
+        const friendship = await prisma.friend.findUnique({
+          where: {
+            userId_friendId: {
+              userId: userId,
+              friendId: targetUserId
+            }
+          }
+        });
+
+        if (!friendship) {
+          return reply.status(403).send({
+            message: 'You can only create private chats with friends. Send them a friend request first.'
+          });
+        }
+      }
 
       if (type === 'private' && targetUserId) {
         const existingChat = await prisma.chatRoom.findFirst({
@@ -153,7 +230,22 @@ export async function chatroomRoutes(app: FastifyInstance) {
             }
           }
         }
-      });      return {
+      });
+
+      // Broadcast room creation to all connected users (only for public/protected rooms)
+      if (type === 'public' || type === 'protected') {
+        const roomData = {
+          room: {
+            id: chatRoom.id,
+            name: chatRoom.name,
+            type: chatRoom.type,
+            ownerId: chatRoom.ownerId
+          }
+        };
+        app.io.emit('room-created', roomData);
+      }
+
+      return {
         message: 'Chat room created successfully',
         chatRoom
       };
@@ -385,6 +477,75 @@ export async function chatroomRoutes(app: FastifyInstance) {
     } catch (error: any) {
       reply.status(500).send({
         message: 'Failed to fetch chat room members',
+        error: error.message
+      });
+    }
+  });
+
+  // Delete chat room
+  app.delete('/api/chatrooms/:id', {
+    preHandler: [app.authenticate]
+  }, async (request: any, reply) => {
+    try {
+      const roomId = parseInt(request.params.id);
+      const userId = request.user.id;
+
+      if (isNaN(roomId)) {
+        return reply.status(400).send({ message: 'Invalid room ID' });
+      }
+
+      const { prisma } = await import('@ft/shared-database');
+
+      // Get the chat room with owner info
+      const chatRoom = await prisma.chatRoom.findUnique({
+        where: { id: roomId },
+        include: {
+          members: true
+        }
+      });
+
+      if (!chatRoom) {
+        return reply.status(404).send({ message: 'Chat room not found' });
+      }
+
+      // Don't allow deleting the General room
+      if (chatRoom.name === 'General') {
+        return reply.status(400).send({ message: 'Cannot delete the General room' });
+      }
+
+      // Check if user is the owner
+      if (chatRoom.ownerId !== userId) {
+        return reply.status(403).send({ message: 'Only the room owner can delete this room' });
+      }
+
+      // Don't allow deleting private rooms
+      if (chatRoom.type === 'private') {
+        return reply.status(400).send({ message: 'Cannot delete private chat rooms' });
+      }
+
+      // Delete all members first (foreign key constraint)
+      await prisma.chatRoomMember.deleteMany({
+        where: { chatRoomId: roomId }
+      });
+
+      // Delete all messages
+      await prisma.message.deleteMany({
+        where: { chatRoomId: roomId }
+      });
+
+      // Delete the room
+      await prisma.chatRoom.delete({
+        where: { id: roomId }
+      });
+
+      // Broadcast room deletion to all connected users
+      app.io.emit('room-deleted', { roomId });
+
+      return { message: 'Chat room deleted successfully' };
+    } catch (error: any) {
+      console.error('Error deleting chat room:', error);
+      reply.status(500).send({
+        message: 'Failed to delete chat room',
         error: error.message
       });
     }

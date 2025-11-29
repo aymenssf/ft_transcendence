@@ -57,37 +57,33 @@ export interface ChatDB {
   getMessagesByChatRoom(chatRoomId: number, userId: number, limit?: number): Promise<ChatMessage[]>;
   getMessagesByChatRoomPaginated(chatRoomId: number, userId: number, limit?: number, offset?: number): Promise<ChatMessage[]>;
 
-  // User status management
   getUserStatus(userId: number): Promise<string>;
   updateUserStatus(userId: number, status: string): Promise<void>;
   getOnlineUsers(): Promise<any[]>;
 
-  // Unread messages
   getUnreadMessageCount(userId: number, chatRoomId: number): Promise<number>;
   getAllUnreadCounts(userId: number): Promise<UnreadMessage[]>;
   incrementUnreadCount(userId: number, chatRoomId: number, messageId: number): Promise<void>;
   markMessagesAsRead(userId: number, chatRoomId: number): Promise<void>;
 
-  // Blocking
   isUserBlocked(blockerId: number, blockedId: number): Promise<boolean>;
 
-  // Game invitations
   createGameInvitation(senderId: number, receiverId: number, chatRoomId?: number): Promise<GameInvitation>;
   getGameInvitationById(id: number): Promise<GameInvitation | null>;
   updateGameInvitationStatus(id: number, status: string, gameRoomId?: string): Promise<GameInvitation>;
   getUserGameInvitations(userId: number, status?: string): Promise<GameInvitation[]>;
 
-  // Tournament notifications
   createTournamentNotification(userId: number, tournamentId: number, title: string, message: string, type: string): Promise<TournamentNotification>;
   getUserTournamentNotifications(userId: number, unreadOnly?: boolean): Promise<TournamentNotification[]>;
   markNotificationAsRead(id: number): Promise<void>;
 
-  // Friends
   sendFriendRequest(senderId: number, receiverId: number): Promise<any>;
   respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any>;
   getFriendRequests(userId: number): Promise<any[]>;
   getFriends(userId: number): Promise<any[]>;
   getFriendIds(userId: number): Promise<number[]>;
+  areFriends(userId: number, friendId: number): Promise<boolean>;
+  removeFriend(userId: number, friendId: number): Promise<void>;
 
   close(): void;
 }
@@ -115,33 +111,33 @@ export interface ChatDB {
   createMessage(content: string, userId: number, chatRoomId: number, type?: string, metadata?: string): Promise<ChatMessage>;
   getMessagesByChatRoom(chatRoomId: number, userId: number, limit?: number): Promise<ChatMessage[]>;
 
-  // Blocking
   isUserBlocked(blockerId: number, blockedId: number): Promise<boolean>;
 
-  // Game invitations
   createGameInvitation(senderId: number, receiverId: number, chatRoomId?: number): Promise<GameInvitation>;
   getGameInvitationById(id: number): Promise<GameInvitation | null>;
   updateGameInvitationStatus(id: number, status: string, gameRoomId?: string): Promise<GameInvitation>;
   getUserGameInvitations(userId: number, status?: string): Promise<GameInvitation[]>;
 
-  // Tournament notifications
   createTournamentNotification(userId: number, tournamentId: number, title: string, message: string, type: string): Promise<TournamentNotification>;
   getUserTournamentNotifications(userId: number, unreadOnly?: boolean): Promise<TournamentNotification[]>;
   markNotificationAsRead(id: number): Promise<void>;
 
-  // Friends (duplicated interface block kept consistent)
   sendFriendRequest(senderId: number, receiverId: number): Promise<any>;
   respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any>;
   getFriendRequests(userId: number): Promise<any[]>;
   getFriends(userId: number): Promise<any[]>;
   getFriendIds(userId: number): Promise<number[]>;
+  areFriends(userId: number, friendId: number): Promise<boolean>;
+  removeFriend(userId: number, friendId: number): Promise<void>;
+
+  ensureGeneralRoom(): Promise<any>;
+  joinGeneralRoom(userId: number): Promise<void>;
 
   close(): void;
 }
 
 function createChatDB(): ChatDB {
   return {
-    // User operations
     async findUserById(id: number) {
       return await prisma.user.findUnique({
         where: { id },
@@ -244,7 +240,6 @@ function createChatDB(): ChatDB {
 
       const blockedIds = blockedUsers.map((b: any) => b.blockedId);
 
-      // Fetch messages excluding blocked users
       return await prisma.message.findMany({
         where: {
           chatRoomId,
@@ -269,7 +264,6 @@ function createChatDB(): ChatDB {
     },
 
     async getMessagesByChatRoomPaginated(chatRoomId: number, userId: number, limit = 50, offset = 0): Promise<ChatMessage[]> {
-      // Get list of blocked users
       const blockedUsers = await prisma.block.findMany({
         where: { blockerId: userId },
         select: { blockedId: true }
@@ -277,7 +271,6 @@ function createChatDB(): ChatDB {
 
       const blockedIds = blockedUsers.map((b: any) => b.blockedId);
 
-      // Fetch messages excluding blocked users with pagination
       return await prisma.message.findMany({
         where: {
           chatRoomId,
@@ -338,7 +331,6 @@ function createChatDB(): ChatDB {
       });
     },
 
-    // Unread messages
     async getUnreadMessageCount(userId: number, chatRoomId: number): Promise<number> {
       const unread = await prisma.unreadMessage.findUnique({
         where: {
@@ -420,7 +412,6 @@ function createChatDB(): ChatDB {
       return !!block;
     },
 
-    // Game invitations
     async createGameInvitation(senderId: number, receiverId: number, chatRoomId?: number): Promise<GameInvitation> {
       return await prisma.gameInvitation.create({
         data: {
@@ -515,19 +506,17 @@ function createChatDB(): ChatDB {
       });
     },
 
-    // Friends
     async sendFriendRequest(senderId: number, receiverId: number): Promise<any> {
-      if (senderId === receiverId) 
+      if (senderId === receiverId)
         throw new Error('Cannot add yourself');
 
-      // Check existing friendship
       const existingFriend = await prisma.friend.findUnique({
         where: { userId_friendId: { userId: senderId, friendId: receiverId } }
       });
-      if (existingFriend) 
+      if (existingFriend)
         throw new Error('Already friends');
-      // Check existing request in either direction
-      const existingReq = await prisma.friendRequest.findFirst({
+
+      const existingPendingReq = await prisma.friendRequest.findFirst({
         where: {
           OR: [
             { senderId, receiverId, status: 'pending' },
@@ -535,8 +524,23 @@ function createChatDB(): ChatDB {
           ]
         }
       });
-      if (existingReq) 
-        return existingReq;
+      if (existingPendingReq)
+        return existingPendingReq;
+
+      const oldRequest = await prisma.friendRequest.findFirst({
+        where: {
+          OR: [
+            { senderId, receiverId },
+            { senderId: receiverId, receiverId: senderId }
+          ]
+        }
+      });
+
+      if (oldRequest) {
+        await prisma.friendRequest.delete({
+          where: { id: oldRequest.id }
+        });
+      }
 
       return await prisma.friendRequest.create({
         data: { senderId, receiverId, status: 'pending' }
@@ -545,11 +549,11 @@ function createChatDB(): ChatDB {
 
     async respondFriendRequest(requestId: number, receiverId: number, accept: boolean): Promise<any> {
       const req = await prisma.friendRequest.findUnique({ where: { id: requestId } });
-      if (!req) 
+      if (!req)
         throw new Error('Request not found');
-      if (req.receiverId !== receiverId) 
+      if (req.receiverId !== receiverId)
         throw new Error('Not authorized');
-      if (req.status !== 'pending') 
+      if (req.status !== 'pending')
         throw new Error('Request already handled');
 
       const status = accept ? 'accepted' : 'declined';
@@ -558,9 +562,8 @@ function createChatDB(): ChatDB {
         data: { status }
       });
 
-      if (accept) 
+      if (accept)
       {
-        // create bidirectional friendship
         await prisma.friend.create({ data: { userId: req.senderId, friendId: req.receiverId } });
         await prisma.friend.create({ data: { userId: req.receiverId, friendId: req.senderId } });
       }
@@ -602,8 +605,88 @@ function createChatDB(): ChatDB {
       return rows.map((r: any) => r.friendId);
     },
 
+    async areFriends(userId: number, friendId: number): Promise<boolean> {
+      const friendship = await prisma.friend.findFirst({
+        where: {
+          userId: userId,
+          friendId: friendId
+        }
+      });
+      return !!friendship;
+    },
+
+    async removeFriend(userId: number, friendId: number): Promise<void> {
+      await prisma.friend.deleteMany({
+        where: {
+          OR: [
+            { userId: userId, friendId: friendId },
+            { userId: friendId, friendId: userId }
+          ]
+        }
+      });
+    },
+
     close() {
-      // No need to disconnect shared prisma instance
+    },
+
+    async ensureGeneralRoom() {
+      try {
+        let generalRoom = await prisma.chatRoom.findFirst({
+          where: {
+            name: 'General',
+            type: 'public'
+          }
+        });
+
+        if (!generalRoom) {
+          const firstUser = await prisma.user.findFirst({
+            orderBy: { id: 'asc' }
+          });
+
+          if (!firstUser) {
+            console.log('⏭️  Skipping General room creation - no users exist yet');
+            return null;
+          }
+
+          generalRoom = await prisma.chatRoom.create({
+            data: {
+              name: 'General',
+              type: 'public',
+              ownerId: firstUser.id
+            }
+          });
+        }
+
+        return generalRoom;
+      } catch (error) {
+        console.error('Failed to ensure General room:', error);
+        return null;
+      }
+    },
+
+    async joinGeneralRoom(userId: number) {
+      const generalRoom = await this.ensureGeneralRoom();
+
+      if (!generalRoom) {
+        return;
+      }
+
+      const existingMember = await prisma.chatRoomMember.findFirst({
+        where: {
+          userId,
+          chatRoomId: generalRoom.id
+        }
+      });
+
+      if (!existingMember) {
+        await prisma.chatRoomMember.create({
+          data: {
+            userId,
+            chatRoomId: generalRoom.id,
+            role: 'member'
+          }
+        });
+      }
     }
   };
 }

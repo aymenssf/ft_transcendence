@@ -1,6 +1,7 @@
 import { prisma } from '@ft/shared-database';
 import bcrypt from 'bcrypt';
 import { User42Profile } from './42-auth.service.js';
+import { r2AvatarService } from '../storage/r2-avatar.service.js';
 
 export interface CreateUserData {
   username: string;
@@ -143,7 +144,6 @@ export class UserService {
       } 
     catch (error) {
       console.error('Error creating user:', error);
-        // Inspect Prisma unique constraint error if available
         const e: any = error;
         if (e && e.code === 'P2002' && e.meta && Array.isArray(e.meta.target)) {
           const target = e.meta.target[0];
@@ -204,10 +204,12 @@ export class UserService {
 
       if (existingUser) 
       {
-        // Update existing user with 42 data
         const updatedUser = await this.updateUser(existingUser.id, {
           username: profile.login,
-          avatar: profile.image?.versions?.medium || profile.image?.versions?.large,
+          avatar: await r2AvatarService.uploadFromUrl(
+            profile.image?.versions?.medium || profile.image?.versions?.large || '',
+            existingUser.id
+          ),
           status: 'online'
         });
         
@@ -226,22 +228,23 @@ export class UserService {
       } 
       else 
       {
-        // Create new user from 42 profile
+        const tempId = Math.floor(Math.random() * 1000000);
         const userData: CreateUserData = {
           username: profile.login,
           email: profile.email,
-          avatar: profile.image?.versions?.medium || profile.image?.versions?.large,
+          avatar: await r2AvatarService.uploadFromUrl(
+            profile.image?.versions?.medium || profile.image?.versions?.large || '',
+            tempId
+          ),
           provider: '42',
           is_42_user: true
         };
 
-        // default tournament username to profile login
         userData.usernameTournament = profile.login;
 
         try {
           return await this.createUser(userData);
         } catch (err: any) {
-          // If username conflict is handled below; also handle tournament username conflict
           const msg = String(err?.message || '').toLowerCase();
           if (msg.includes('username already exists')) 
           {
@@ -265,12 +268,16 @@ export class UserService {
       if (error instanceof Error && error.message.includes('username already exists')) 
       {
         const modifiedUsername = `${profile.login}_42_${Date.now()}`;
+        const tempId = Math.floor(Math.random() * 1000000);
         
         const userData: CreateUserData = 
         {
           username: modifiedUsername,
           email: profile.email,
-          avatar: profile.image?.versions?.medium || profile.image?.versions?.large,
+          avatar: await r2AvatarService.uploadFromUrl(
+            profile.image?.versions?.medium || profile.image?.versions?.large || '',
+            tempId
+          ),
           provider: '42',
           is_42_user: true
         };

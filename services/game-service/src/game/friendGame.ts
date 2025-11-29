@@ -22,8 +22,6 @@ async function friendRoutes(fastify: FastifyInstance, options: any) {
 
         if (from === to || !to)
             return reply.status(400).send({ error: "Cannot invite yourself or guest invalid" });
-        console.log(`Friend invite from : ${from}, to ${to}`);
-
         const host_socket = playersSockets.get(from);
         const guest_socket = playersSockets.get(to);
 
@@ -96,14 +94,14 @@ async function friendRoutes(fastify: FastifyInstance, options: any) {
         setTimeout(() => {
             friendRoom.sockets.forEach(sock =>
                 sock?.send(JSON.stringify(createInitialGameState(gameId, GAME_ROOM_MODE.FRIEND))));
-        }, 2000);
+        }, 500);
         setTimeout(() => {
             friendRoom.sockets.forEach(sock => {
                 sock?.send(JSON.stringify({ type: "game_start" }));
             });
             friendRoom.status = GAME_ROOM_STATUS.ONGOING;
             startGameLoop(friendRoom);
-        }, 3000);
+        }, 500);
 
         return reply.send({ success: true, gameId });
     });
@@ -115,7 +113,7 @@ async function friendRoutes(fastify: FastifyInstance, options: any) {
         const { gameId } = request.body;
 
         if (!gameId)
-            return reply.status(400).send({ error: "Cannot invite yourself" });
+            return reply.status(404).send({ error: "gameId required" });
 
         const guest_socket = playersSockets.get(guestId);
         const friendRoom = games.get(gameId);

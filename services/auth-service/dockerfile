@@ -4,7 +4,6 @@ RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy and install Shared_dataBase first
 COPY Shared_dataBase/package*.json ./Shared_dataBase/
 COPY Shared_dataBase/prisma ./Shared_dataBase/prisma/
 COPY Shared_dataBase/prismaClient.ts ./Shared_dataBase/
@@ -15,7 +14,6 @@ WORKDIR /app/Shared_dataBase
 RUN npm install
 RUN npx prisma generate
 
-# Now build auth service
 WORKDIR /app/services/auth-service
 COPY services/auth-service/package*.json ./
 RUN npm install
@@ -23,7 +21,6 @@ RUN npm install
 COPY services/auth-service ./
 RUN npm run build
 
-# Setup environment
 ENV DATABASE_URL="file:/app/database/transcendence.db"
 
 RUN mkdir -p /app/database && chmod 755 /app/database

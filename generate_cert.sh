@@ -4,17 +4,28 @@ set -e
 CERT_DIR="./frontend/certs"
 mkdir -p "$CERT_DIR"
 
-# 1) Get machine IP (pick first non-loopback IPv4)
-IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')
+get_ip() {
+  if command -v ip >/dev/null 2>&1; then
+    ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}'
+    return
+  fi
+
+  if command -v ipconfig >/dev/null 2>&1; then
+    for iface in en0 en1 en2; do
+      ipconfig getifaddr "$iface" 2>/dev/null && return
+    done
+  fi
+
+  if command -v ifconfig >/dev/null 2>&1; then
+    ifconfig 2>/dev/null | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}'
+  fi
+}
+
+# 1) Get machine IP (portable across Linux and macOS)
+IP=$(get_ip)
 
 if [ -z "$IP" ]; then
-  # fallback: hostname -I
-  IP=$(hostname -I | awk '{print $1}')
-fi
-
-if [ -z "$IP" ]; then
-  echo "❌ Could not determine IP address"
-  exit 1
+  IP="localhost"
 fi
 
 echo "✅ Using IP: $IP"
@@ -35,13 +46,17 @@ subjectAltName = @alt_names
 
 [ alt_names ]
 IP.1 = $IP
+DNS.1 = localhost
+DNS.2 = host.docker.internal
 EOF
 
 VALUE="FRONTEND_URL=https://$IP:8080"
 
 # If key exists → replace
-if grep -q "^FRONTEND_URL=" ".env"; then
-  sed -i "s|^FRONTEND_URL=.*|$VALUE|" ".env"
+if [ -f ".env" ] && grep -q "^FRONTEND_URL=" ".env"; then
+  TMP_ENV=$(mktemp)
+  awk -v value="$VALUE" 'BEGIN { replaced = 0 } /^FRONTEND_URL=/ { print value; replaced = 1; next } { print } END { if (!replaced) print value }' ".env" > "$TMP_ENV"
+  mv "$TMP_ENV" ".env"
 else
   # Otherwise append
   echo "$VALUE" >> ".env"

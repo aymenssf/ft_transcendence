@@ -61,7 +61,7 @@ export class R2AvatarService {
 
       const imageBuffer = Buffer.from(response.data);
       
-      const contentType = response.headers['content-type'] || 'image/jpeg';
+      const contentType = this.getHeaderValue(response.headers['content-type']) || 'image/jpeg';
       const extension = this.getExtension(contentType);
       
       const timestamp = Date.now();
@@ -159,6 +159,22 @@ export class R2AvatarService {
     };
 
     return mimeMap[contentType] || 'jpg';
+  }
+
+  private getHeaderValue(value: unknown): string | undefined {
+    if (Array.isArray(value)) {
+      return value[0] ?? undefined;
+    }
+
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    return undefined;
   }
 
   async healthCheck(): Promise<{ healthy: boolean; message: string }> {

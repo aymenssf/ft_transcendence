@@ -1,0 +1,354 @@
+/**
+ * Styles for markup injected at runtime by the immutable legacy modules.
+ *
+ * These class names are hardcoded inside game_shared.ts,
+ * game_tournament_handler.ts and friend_invite_handler.ts. We cannot rename
+ * them, so instead we restyle them to match the design system. Every selector
+ * here corresponds to a row in DOM_CONTRACT.md.
+ *
+ * Do not "clean up" unused-looking selectors — nothing in src/ references them
+ * statically; they only ever appear via innerHTML at runtime.
+ */
+
+/* ---------------------------------------------------------------------------
+ * game_shared.ts — disabled states
+ * ------------------------------------------------------------------------ */
+
+.disabled-link {
+  pointer-events: none;
+  opacity: 0.4;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+.disabled-div {
+  pointer-events: none;
+  opacity: 0.35;
+  filter: grayscale(0.8);
+}
+
+/* ---------------------------------------------------------------------------
+ * game_tournament_handler.ts — bracket cards and the final-ready button.
+ * `.card-base` and `.btn-primary` are emitted inside innerHTML strings.
+ * ------------------------------------------------------------------------ */
+
+.card-base {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 24px -12px rgba(0, 0, 0, 0.7);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  background: var(--gradient-hero);
+  color: #06060c;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border: none;
+  cursor: pointer;
+  transition:
+    transform var(--duration-hover) ease-out,
+    box-shadow var(--duration-hover) ease-out;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--glow-violet);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* ---------------------------------------------------------------------------
+ * Match action row.
+ *
+ * `.legacy-cta` is the start button. handleGameConfig clones it, replaces it in
+ * the DOM, then sets `style.background = "#10b981"` and `style.cursor` inline.
+ * The `!important` here is deliberate and load-bearing: it is the only way to
+ * keep the design system's gradient without editing the immutable module.
+ * Legacy's `opacity` and `disabled` writes are left alone so the "playing"
+ * state still reads as disabled.
+ * ------------------------------------------------------------------------ */
+
+.legacy-actions {
+  margin-top: 0.25rem;
+}
+
+.legacy-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 13rem;
+  height: 3rem;
+  padding: 0 1.5rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--gradient-hero) !important;
+  color: #06060c;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform var(--duration-hover) ease-out,
+    box-shadow var(--duration-hover) ease-out;
+}
+
+.legacy-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--glow-violet);
+}
+
+.legacy-cta:disabled {
+  cursor: not-allowed;
+}
+
+.legacy-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 3rem;
+  padding: 0 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-accent);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--duration-hover) ease-out;
+}
+
+.legacy-back:hover {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+  background: rgba(255, 68, 68, 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+ * game_shared.ts — the win/lose overlay appended to <body>.
+ * The module sets its own inline styles and injects its own keyframes; we can
+ * only layer on top of that. Restricted to what inline styles do not already
+ * pin down: typography and the backdrop treatment.
+ * ------------------------------------------------------------------------ */
+
+#game-over-overlay {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+#game-over-overlay h1 {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+#game-over-overlay p {
+  font-family: Inter, system-ui, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+ * friend_invite_handler.ts — the game-invitation modal.
+ * Fully class-driven, so this is a complete restyle.
+ * ------------------------------------------------------------------------ */
+
+.friend-invite-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.friend-invite-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 6, 12, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fi-fade 250ms ease-in-out;
+}
+
+.friend-invite-content {
+  position: relative;
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 1.75rem;
+  border-radius: 1rem;
+  background: rgba(19, 19, 31, 0.94);
+  border: 1px solid var(--border-accent);
+  box-shadow:
+    var(--glow-violet),
+    0 24px 60px -20px rgba(0, 0, 0, 0.9);
+  animation: fi-rise 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.friend-invite-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--duration-hover) ease-out;
+}
+
+.friend-invite-close:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-accent);
+  color: var(--text-primary);
+}
+
+.friend-invite-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 1.25rem;
+}
+
+.friend-invite-title {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.friend-invite-body {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.friend-invite-avatar {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 2px solid var(--accent-primary);
+  box-shadow: var(--glow-violet);
+  flex-shrink: 0;
+}
+
+.friend-invite-message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.friend-invite-username {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-invite-text {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.friend-invite-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.friend-invite-btn {
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--duration-hover) ease-out;
+}
+
+.friend-invite-decline {
+  background: transparent;
+  border-color: var(--border-accent);
+  color: var(--text-secondary);
+}
+
+.friend-invite-decline:hover {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+  background: rgba(255, 68, 68, 0.08);
+}
+
+.friend-invite-accept {
+  background: var(--gradient-hero);
+  color: #06060c;
+  font-weight: 700;
+}
+
+.friend-invite-accept:hover {
+  box-shadow: var(--glow-violet);
+  transform: translateY(-1px);
+}
+
+.friend-invite-timer {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.friend-invite-timer span {
+  color: var(--accent-amber);
+  font-weight: 700;
+}
+
+@keyframes fi-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fi-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .friend-invite-overlay,
+  .friend-invite-content {
+    animation: none;
+  }
+}

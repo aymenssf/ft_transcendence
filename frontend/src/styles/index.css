@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #0f0f1a;
+    --bg-card: #13131f;
+    --bg-elevated: #1a1a2e;
+    --border: #1e1e3a;
+    --border-accent: #2d2d5e;
+
+    --accent-primary: #6c63ff;
+    --accent-cyan: #00d4ff;
+    --accent-green: #00ff88;
+    --accent-red: #ff4444;
+    --accent-amber: #ffaa00;
+
+    --text-primary: #f0f0ff;
+    --text-secondary: #8888bb;
+    --text-muted: #4a4a7a;
+
+    --glow-violet: 0 0 20px rgba(108, 99, 255, 0.4);
+    --glow-cyan: 0 0 15px rgba(0, 212, 255, 0.3);
+    --glow-green: 0 0 12px rgba(0, 255, 136, 0.35);
+    --gradient-hero: linear-gradient(135deg, #6c63ff 0%, #00d4ff 100%);
+
+    --duration-hover: 150ms;
+    --duration-panel: 250ms;
+    --duration-page: 400ms;
+    --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-bg-primary font-body text-content-primary antialiased;
+    min-height: 100vh;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading font-bold tracking-tight;
+  }
+
+  /* Visible, consistent focus ring on every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--accent-cyan);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: rgba(108, 99, 255, 0.35);
+    color: var(--text-primary);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-accent);
+    border-radius: 999px;
+    border: 2px solid var(--bg-secondary);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Subtle film-grain overlay used on the landing screen. */
+  .noise-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .text-gradient {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .glass {
+    background: rgba(19, 19, 31, 0.72);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid var(--border-accent);
+  }
+
+  .surface {
+    @apply rounded-xl border border-border bg-bg-card;
+  }
+
+  .surface-hover {
+    @apply transition-colors duration-hover ease-out hover:border-border-accent hover:bg-bg-elevated;
+  }
+}

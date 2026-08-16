@@ -1,17 +1,40 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ES2020",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
+
+    /* `bundler` resolution is what lets the immutable legacy modules keep their
+       `import ... from "./game.js"` specifiers while the files on disk are .ts */
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"]
+
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* noUnusedLocals / noUnusedParameters are deliberately OFF at the project
+       level: the six immutable legacy modules carry unused locals we are not
+       permitted to edit, and TypeScript has no per-directory override. New code
+       is held to the rule by review, not by the compiler. Everything that
+       actually affects type safety (strictNullChecks, noImplicitAny,
+       strictFunctionTypes, ...) stays on via `strict`. */
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["src/**/*"],
+  "include": ["src"],
   "exclude": ["node_modules", "dist"]
 }
